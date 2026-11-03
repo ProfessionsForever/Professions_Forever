@@ -1,0 +1,65 @@
+## Interface: 16001
+## Title: ProfessionsForever
+## Notes: A skinnable professions window for WoW: Forever with bag, bank and alt awareness, a crafting queue, shopping list with Auctionator pricing, alt transfer planner, recipe cooldowns, and navigation to vendors, trainers and bankers.
+## Author: Thorgrim Lightfist - PvE
+## X-Email: professionsforever@gmail.com
+## X-License: All Rights Reserved
+## Version: 0.9.0
+## Category: Professions
+## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
+## SavedVariables: ProfessionsForeverDB
+## SavedVariablesPerCharacter: ProfessionsForeverCharDB
+## OptionalDeps: Auctionator, Syndicator, TomTom, Polestar, Questie, QuestieDB, EllesmereUI
+## AddonCompartmentFunc: ProfessionsForever_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ProfessionsForever_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ProfessionsForever_OnAddonCompartmentLeave
+
+Locales\enUS.lua
+Core\Core.lua
+Core\Professions.lua
+Core\Commands.lua
+Core\Inventory.lua
+Alts\AltInventory.lua
+Alts\TransferPlanner.lua
+Alts\Outgoing.lua
+Core\Prices.lua
+Core\Tools.lua
+Core\Recipes.lua
+Data\Cooldowns.lua
+Core\Cooldowns.lua
+UI\Skin.lua
+UI\Widgets.lua
+UI\Completion.lua
+UI\Disenchant.lua
+UI\SidePanel.lua
+Core\Craft.lua
+UI\Shared.lua
+UI\Footer.lua
+UI\UI.lua
+UI\ProfessionBar.lua
+UI\RecipeList.lua
+UI\RecipePanel.lua
+UI\Profit.lua
+UI\Detail.lua
+UI\DetailPanel.lua
+UI\Overview.lua
+Panels\ShoppingList.lua
+Panels\ShoppingExport.lua
+Panels\ShoppingTracker.lua
+Panels\ShoppingSuggest.lua
+Panels\ShoppingVendor.lua
+Panels\Queue.lua
+Panels\TransferRows.lua
+Panels\TransferPanel.lua
+Panels\Cooldowns.lua
+Data\Npcs.lua
+Core\Waypoint.lua
+Core\WaypointRecord.lua
+Core\WaypointVendors.lua
+Core\WaypointTrainers.lua
+Core\WaypointBankers.lua
+UI\OptionsControls.lua
+UI\OptionsAlts.lua
+UI\OptionsAbout.lua
+UI\Options.lua
+UI\Minimap.lua

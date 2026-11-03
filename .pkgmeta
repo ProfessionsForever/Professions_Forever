@@ -1,0 +1,10 @@
+package-as: ProfessionsForever
+
+ignore:
+  - .addons-path
+  - .github
+  - .vscode
+  - deploy.sh
+  - tools
+  - README.md
+  - Media/icon.png

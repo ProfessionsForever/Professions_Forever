@@ -1,0 +1,48 @@
+name: Bug report
+description: Something is broken or behaves wrongly.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Addon version
+      description: Shown on the About page in the options window.
+      placeholder: "0.9.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Alchemy tab
+        2. ...
+  - type: textarea
+    id: errors
+    attributes:
+      label: Lua errors
+      description: Paste any error text from BugSack, BugGrabber or the default error frame.
+      render: text
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug output
+      description: For recipe tools or cooldown problems, select the recipe and paste the output of `/pf debug tools` or `/pf debug cooldowns`.
+      render: text
+  - type: input
+    id: addons
+    attributes:
+      label: Related addons installed
+      description: Auctionator, Syndicator, Questie, TomTom, Polestar, EllesmereUI, or others that change the professions window.
+  - type: input
+    id: skin
+    attributes:
+      label: Skin in use
+      placeholder: Modern Dark, Classic, Minimal or EllesmereUI
