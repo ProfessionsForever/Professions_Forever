@@ -372,9 +372,11 @@ function UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
     local canCraft = d.craftBlock == nil
     d.craft:SetActive(canCraft)
     d.craftAll:SetActive(canCraft)
+    d.queueAllCount = e.learned and (salvage and crafts or FP.Queue:RoomFor(e.id)) or 0
+    d.queueAll:SetActive(d.queueAllCount > 0)
     d.enchantBtn:SetActive(canCraft)
     local plain = not enchant
-    for _, w in ipairs({ d.qtyLabel, d.qty, d.qty.minus, d.qty.plus, d.craft, d.craftAll, d.addQueue }) do
+    for _, w in ipairs({ d.qtyLabel, d.qty, d.qty.minus, d.qty.plus, d.craft, d.craftAll, d.addQueue, d.queueAll }) do
         w:SetShown(plain)
     end
     d.enchantBtn:SetShown(enchant)
@@ -389,6 +391,7 @@ function UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
     local queueLabel = verb and L["Queue %s"]:format(verb) or (compactActions and L["Queue"] or L["Add to Queue"])
     SetButtonLabel(d.addQueue, queueLabel, compactActions and 80 or 110)
     if compactActions then d.addQueue:SetWidth(math.min(d.addQueue:GetWidth(), 120)) end
+    SetButtonLabel(d.queueAll, L["Queue All"], compactActions and 80 or 90)
     local trackText = compactActions and L["Track"] or L["Track Location"]
     if e.learned then
         trackText = compactActions and (tracked and L["Untrack"] or L["Track"]) or (tracked and L["Untrack Recipe"] or L["Track Recipe"])
@@ -396,8 +399,10 @@ function UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
     SetButtonLabel(d.track, trackText, compactActions and 80 or 120)
     d.addMissing:ClearAllPoints()
     d.addQueue:ClearAllPoints()
+    d.queueAll:ClearAllPoints()
     d.track:ClearAllPoints()
     d.addMissing:SetPoint("BOTTOMLEFT", 12, 46)
     d.addQueue:SetPoint("LEFT", d.addMissing, "RIGHT", compactActions and 4 or 6, 0)
-    d.track:SetPoint("LEFT", d.addQueue, "RIGHT", compactActions and 4 or 6, 0)
+    d.queueAll:SetPoint("LEFT", d.addQueue, "RIGHT", compactActions and 4 or 6, 0)
+    d.track:SetPoint("LEFT", d.queueAll, "RIGHT", compactActions and 4 or 6, 0)
 end

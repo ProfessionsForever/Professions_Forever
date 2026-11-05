@@ -70,6 +70,45 @@ function UI.TargetMenu()
     return items
 end
 
+-- The running batch ({ id, left }); the quantity box shows the crafts still to do, as Blizzard's does.
+UI.craftBatch = nil
+
+local function ShowBatchCount(id, n)
+    local qty = UI.frame and FP.selected == id and UI.frame.detail.qty
+    n = math.min(n, 999)
+    if qty and qty:GetText() ~= tostring(n) then qty:SetText(n) end
+end
+
+local function StartBatch(id, count)
+    UI.craftBatch = { id = id, left = count }
+    ShowBatchCount(id, count)
+end
+
+-- A craft of the batch's recipe finished.
+function UI:OnCraftCast(spellID)
+    local batch = self.craftBatch
+    if not batch or spellID ~= batch.id then return end
+    batch.left = batch.left - 1
+    if batch.left > 0 then return ShowBatchCount(batch.id, batch.left) end
+    self.craftBatch = nil
+    ShowBatchCount(batch.id, 1)
+end
+
+-- The cast sequence stopped, finished or not.
+function UI:EndCraftBatch()
+    local batch = self.craftBatch
+    if not batch then return end
+    self.craftBatch = nil
+    ShowBatchCount(batch.id, 1)
+end
+
+-- The window closed or moved to another tab or profession: forget the batch and the typed quantity.
+function UI:ResetCraftQty()
+    self.craftBatch = nil
+    local qty = self.frame and self.frame.detail.qty
+    if qty and qty:GetText() ~= "1" then qty:SetText(1) end
+end
+
 function UI.DoCraft(count)
     local id = FP.selected
     if not id then return end
@@ -82,7 +121,7 @@ function UI.DoCraft(count)
         count = math.min(count, math.floor((target:GetStackCount() or 0) / FP.Recipes:SalvageQuantity(id)))
         if count < 1 then return end
         local ok, err = pcall(C_TradeSkillUI.CraftSalvage, id, count, location, {}, false)
-        if not ok then FP:Print(err) end
+        if not ok then FP:Print(err) else StartBatch(id, count) end
         return
     end
     local ev = FP.Recipes:Evaluate(id, 1)
@@ -96,9 +135,9 @@ function UI.DoCraft(count)
         -- Only a stack of vellum can take several enchants; a worn or bagged item takes one.
         local crafts = target:IsStackable() and count or 1
         local ok, err = pcall(C_TradeSkillUI.CraftEnchant, id, crafts, {}, location, false)
-        if not ok then FP:Print(err) end
+        if not ok then FP:Print(err) else StartBatch(id, crafts) end
         return
     end
     local ok, err = pcall(C_TradeSkillUI.CraftRecipe, id, count)
-    if not ok then FP:Print(err) end
+    if not ok then FP:Print(err) else StartBatch(id, count) end
 end

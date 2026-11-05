@@ -79,6 +79,18 @@ function Queue:Add(recipeID, qty)
     FP:Print(L["Added %dx %s to the queue."]:format(math.min(999, qty), e.name))
 end
 
+-- Whole crafts the bags can still supply once everything already queued has its materials.
+function Queue:RoomFor(recipeID)
+    local reagents = FP.Recipes:GetReagents(recipeID)
+    if #reagents == 0 then return 0 end
+    local crafts = 999
+    for _, r in ipairs(reagents) do
+        local bags = FP.Inv:Owned(r.itemID)
+        crafts = math.min(crafts, math.floor((bags - self:QueuedAmount(r.itemID)) / r.qty))
+    end
+    return math.max(crafts, 0)
+end
+
 function Queue:Remove(index)
     table.remove(self:Data(), index)
     self:Update()

@@ -127,8 +127,12 @@ end
 
 function FP:OpenProfession(skillLine)
     if InCombatLockdown() then return FP:Print(L["Cannot do that in combat."]) end
-    local ok, err = pcall(C_TradeSkillUI.OpenTradeSkill, skillLine)
-    if not ok then FP:Print(err) end
+    local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, skillLine)
+    if not ok then return FP:Print(opened) end
+    if not opened then
+        FP:Print(L["Could not open %s."]:format(C_TradeSkillUI.GetTradeSkillDisplayName(skillLine) or tostring(skillLine)))
+    end
+    return opened
 end
 
 function FP:Open()
@@ -140,8 +144,15 @@ function FP:Open()
     end
 end
 
+function FP:Close()
+    local f = FP.UI.frame
+    if not (f and f:IsShown()) then return end
+    if FP.UI.CombatBlocked(f) then return FP:Print(L["Cannot do that in combat."]) end
+    f:Hide()
+end
+
 function FP:Toggle()
-    if FP.UI.frame and FP.UI.frame:IsShown() then FP.UI.frame:Hide() else FP:Open() end
+    if FP.UI.frame and FP.UI.frame:IsShown() then FP:Close() else FP:Open() end
 end
 
 ---------------------------------------------------------------------------

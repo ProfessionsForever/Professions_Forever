@@ -8,3 +8,7 @@ ignore:
   - tools
   - README.md
   - Media/icon.png
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown

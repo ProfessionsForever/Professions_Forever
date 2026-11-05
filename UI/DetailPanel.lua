@@ -342,12 +342,18 @@ function UI:CreateDetailActions(d, c)
         d.qty:SetText("1")
     end)
     d.addQueue:SetPoint("LEFT", d.addMissing, "RIGHT", 6, 0)
+    d.queueAll = self:Button(c, L["Queue All"], 80, 24, function()
+        if FP.selected and d.queueAllCount > 0 then FP.Queue:Add(FP.selected, d.queueAllCount) end
+    end)
+    d.queueAll:SetPoint("LEFT", d.addQueue, "RIGHT", 6, 0)
+    d.queueAllCount = 0
+    self:Tooltip(d.queueAll, "ANCHOR_TOP", L["Adds as many crafts of this recipe as your bags can supply to the queue."])
 
     d.track = self:Button(c, L["Track"], 80, 24, function()
         local e = SelectedRecipe()
         if e then UI.TrackRecipe(e) end
     end)
-    d.track:SetPoint("LEFT", d.addQueue, "RIGHT", 6, 0)
+    d.track:SetPoint("LEFT", d.queueAll, "RIGHT", 6, 0)
     self:Tooltip(d.track, "ANCHOR_TOP", function(tip)
         local e = SelectedRecipe()
         if not e or e.learned then return false end

@@ -71,10 +71,13 @@ function UI:Button(parent, label, w, h, onClick, secure)
     if secure then
         -- The secure action fires on key-down or key-up depending on this CVar, so register both
         -- and run our own handler only on the phase the secure action used.
+        -- "up" buttons fire on release instead, because an action on mouse-down would leave no room to drag.
         b:RegisterForClicks("AnyDown", "AnyUp")
         b:SetAttribute("type", "macro")
+        local onUp = secure == "up"
+        if onUp then b:SetAttribute("useOnKeyDown", false) end
         b:SetScript("PostClick", function(s, btn, down)
-            if (down and true or false) == (GetCVarBool("ActionButtonUseKeyDown") and true or false) then
+            if onUp and not down or not onUp and (down and true or false) == (GetCVarBool("ActionButtonUseKeyDown") and true or false) then
                 onClick(s, btn, down)
             end
         end)

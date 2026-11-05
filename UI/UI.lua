@@ -52,6 +52,9 @@ function UI:Refresh()
 end
 
 function UI:Show(page)
+    if self.frame and not self.frame:IsShown() and self.CombatBlocked(self.frame) then
+        return FP:Print(L["Cannot do that in combat."])
+    end
     -- New frames start shown, so IsShown() can't detect the first open.
     local new = not self.frame
     if new then self:Create() end
@@ -71,7 +74,7 @@ end
 function UI:OnTradeSkillClosed()
     -- The overview has no trade skill open, so a close event isn't about this window.
     if self.page == "overview" then return end
-    if self.frame and self.frame:IsShown() then
+    if self.frame and self.frame:IsShown() and not self.CombatBlocked(self.frame) then
         self.closing = true
         self.frame:Hide()
         self.closing = false
@@ -129,6 +132,7 @@ function UI:Create()
         if UI.stationTicker then UI.stationTicker:Cancel() UI.stationTicker = nil end
         UI.CloseMenu()
         UI:CloseSidePanels()
+        UI:ResetCraftQty()
         PlaySound(UI.page == "overview" and SOUNDKIT.IG_SPELLBOOK_CLOSE or SOUNDKIT.IG_CHARACTER_INFO_CLOSE)
         -- With the replacement off, Blizzard's window shares this trade skill, so leave it open.
         if not UI.closing and FP.db.replaceDefault and C_TradeSkillUI.CloseTradeSkill then pcall(C_TradeSkillUI.CloseTradeSkill) end
@@ -165,7 +169,7 @@ function UI:CreateTitleBar(f)
     f.title:SetText("ProfessionsForever")
     f.title:SetTextColor(1, 0.82, 0)
 
-    local close = self:Button(tb, "X", 22, 20, function() f:Hide() end)
+    local close = self:Button(tb, "X", 22, 20, function() FP:Close() end)
     close:SetPoint("RIGHT", -2, 0)
     local opts = self:Button(tb, "", 22, 20, function() FP.Options:Toggle() end)
     opts:SetPoint("RIGHT", close, "LEFT", -4, 0)

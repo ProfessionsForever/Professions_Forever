@@ -22,6 +22,7 @@ function UI:CreateProfessionSpellButton(parent, size)
     local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
     button:SetSize(size or 28, size or 28)
     button:RegisterForClicks("AnyDown", "AnyUp")
+    button:SetAttribute("useOnKeyDown", false) -- casting on mouse-down would leave no room to drag
     button:RegisterForDrag("LeftButton")
     button:SetScript("OnDragStart", function(s) if s.spell then C_Spell.PickupSpell(s.spell.id) end end)
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
@@ -66,4 +67,42 @@ function UI:UpdateProfessionSpellButton()
         f.detail.spellButton = button
     end
     self:SetProfessionSpellButton(button, skillLine)
+end
+
+---------------------------------------------------------------------------
+-- Opening a profession. Blizzard's own book casts the profession's spell from a secure button, and
+-- OpenTradeSkill is refused for addon code, so cards and tabs are secure buttons that cast it.
+---------------------------------------------------------------------------
+-- A frame holding a secure button can't be shown, hidden or moved in combat.
+function UI.CombatBlocked(w)
+    return InCombatLockdown() and w:IsProtected()
+end
+
+local function Loaded(skillLine)
+    local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
+    return base and base.professionID == skillLine and C_TradeSkillUI.IsTradeSkillReady()
+end
+
+-- Sets what a left click on the button casts: nothing for a profession that isn't learned or is already open.
+function UI:SetProfessionOpener(button, p)
+    button.skillLine, button.profName, button.learnable = p.skillLine, p.name, p.learnable
+    if InCombatLockdown() then return end
+    local id = not p.learnable and not Loaded(p.skillLine) and self:ProfessionSpellID(p)
+    local info = id and C_Spell.GetSpellInfo(id)
+    button.castable = info ~= nil
+    button:SetAttribute("macrotext", "")
+    button:SetAttribute("macrotext1", info and ("/cast " .. info.name) or "")
+end
+
+-- Runs after the secure click: right click and unlearned professions find a trainer, otherwise show the recipe page.
+function UI.OnProfessionOpenerClick(button, btn)
+    if btn == "RightButton" or button.learnable then
+        if FP.Waypoint:NavAvailable() then FP.Waypoint:NearestTrainer(button.profName) end
+        return
+    end
+    UI.TabSound()
+    -- A cast opens the profession (and the window's recipe page) through TRADE_SKILL_SHOW.
+    if Loaded(button.skillLine) or (not button.castable and FP:OpenProfession(button.skillLine)) then
+        if UI.page ~= "recipes" then UI:SetPage("recipes") end
+    end
 end

@@ -10,7 +10,7 @@ local PROFESSION_COLORS = {
     [171] = { 0.25, 0.8, 0.45 }, [164] = { 0.8, 0.45, 0.2 }, [333] = { 0.6, 0.4, 0.95 }, [202] = { 0.9, 0.7, 0.15 },
     [182] = { 0.3, 0.75, 0.25 }, [773] = { 0.7, 0.5, 0.3 }, [755] = { 0.9, 0.25, 0.4 }, [165] = { 0.65, 0.45, 0.25 },
     [186] = { 0.5, 0.6, 0.75 }, [393] = { 0.75, 0.6, 0.35 }, [197] = { 0.35, 0.6, 0.95 }, [185] = { 0.95, 0.55, 0.2 },
-    [356] = { 0.25, 0.65, 0.9 }, [129] = { 0.85, 0.85, 0.85 },
+    [356] = { 0.25, 0.65, 0.9 }, [129] = { 0.8, 0.15, 0.15 },
 }
 
 -- The open profession's name, level, modifier, cap and skill line ID.
@@ -143,16 +143,7 @@ function UI:RefreshProfessions()
     for i, p in ipairs(profs) do
         local b = f.profButtons[i]
         if not b then
-            b = self:Button(f.profBar, "", 160, 24, function(s, btn)
-                if btn == "RightButton" then
-                    if FP.Waypoint:NavAvailable() then FP.Waypoint:NearestTrainer(s.profName) end
-                else
-                    UI.TabSound()
-                    UI:SetPage("recipes")
-                    FP:OpenProfession(s.skillLine)
-                end
-            end)
-            b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            b = self:Button(f.profBar, "", 160, 24, UI.OnProfessionOpenerClick, true)
             b:HookScript("OnEnter", function(s)
                 if not FP.Waypoint:NavAvailable() then return end
                 s.tipToken = (s.tipToken or 0) + 1
@@ -179,20 +170,23 @@ function UI:RefreshProfessions()
             b.text:SetJustifyH("LEFT")
             f.profButtons[i] = b
         end
-        b.skillLine = p.skillLine
-        b.profName = p.name
+        self:SetProfessionOpener(b, p)
         b.icon:SetTexture(p.icon)
         b.text:SetText(p.name)
-        b:ClearAllPoints()
-        b:SetWidth(i == #profs and barW - x or w)
-        b:SetPoint("LEFT", x, 0)
+        if not UI.CombatBlocked(b) then
+            b:ClearAllPoints()
+            b:SetWidth(i == #profs and barW - x or w)
+            b:SetPoint("LEFT", x, 0)
+            b:Show()
+        end
         x = x + w + gap
         local active = self.page == "recipes" and base and (base.professionID == p.skillLine or base.professionName == p.name)
         b.text:SetTextColor(active and 1 or 0.8, active and 0.82 or 0.8, active and 0 or 0.8)
         UI.SetSelected(b, active)
-        b:Show()
     end
-    for i = #profs + 1, #f.profButtons do f.profButtons[i]:Hide() end
+    for i = #profs + 1, #f.profButtons do
+        if not UI.CombatBlocked(f.profButtons[i]) then f.profButtons[i]:Hide() end
+    end
 end
 
 -- Profession bar and the header above the recipe list and detail panel.

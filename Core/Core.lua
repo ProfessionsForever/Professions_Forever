@@ -173,7 +173,10 @@ end)
 
 FP:RegisterEvent("TRADE_SKILL_CLOSE", function(self) self.UI:OnTradeSkillClosed() end)
 FP:RegisterEvent("TRADE_SKILL_LIST_UPDATE", Reload)
-FP:RegisterEvent("TRADE_SKILL_DATA_SOURCE_CHANGED", Reload)
+FP:RegisterEvent("TRADE_SKILL_DATA_SOURCE_CHANGED", function(self)
+    self.UI:ResetCraftQty()
+    Reload(self)
+end)
 FP:RegisterEvent("NEW_RECIPE_LEARNED", Reload)
 FP:RegisterEvent("TRADE_SKILL_FAVORITES_CHANGED", Reload)
 FP:RegisterEvent("SKILL_LINES_CHANGED", Reload)
@@ -208,9 +211,11 @@ FP:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", Refresh) -- worn tools count toward
 local function LateRefresh() FP.UI:QueueRefresh() end
 FP:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(self, _, _, spellID)
     self.Cooldowns:OnCast(spellID)
+    self.UI:OnCraftCast(spellID)
     self.UI:QueueRefresh()
     C_Timer.After(0.6, LateRefresh)
 end, "player")
+FP:RegisterEvent("UPDATE_TRADESKILL_CAST_STOPPED", function(self) self.UI:EndCraftBatch() end)
 FP:RegisterEvent("PLAYER_REGEN_DISABLED", Refresh)
 FP:RegisterEvent("PLAYER_REGEN_ENABLED", function(self)
     if self.bindingsPending then self:UpdateBindings() end

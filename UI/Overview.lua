@@ -15,6 +15,8 @@ local TIER_GLOBALS = { "APPRENTICE", "JOURNEYMAN", "EXPERT", "ARTISAN", "MASTER"
 function UI:SetPage(page)
     local f = self.frame
     if not f then return end
+    if UI.CombatBlocked(f.overview) then return FP:Print(L["Cannot do that in combat."]) end
+    self:ResetCraftQty()
     self.page = page
     f.left:SetShown(page == "recipes")
     f.right:SetShown(page == "recipes")
@@ -81,18 +83,26 @@ local function CardTooltip(s)
     GameTooltip:Show()
 end
 
+-- The card is one mouse target, so the icon's highlight follows the cursor while a card is hovered.
+local hoverCard
+local iconWatcher = CreateFrame("Frame")
+iconWatcher:Hide()
+iconWatcher:SetScript("OnUpdate", function(s)
+    if not hoverCard:IsMouseOver() then
+        s:Hide()
+        hoverCard.glow:Hide()
+        return
+    end
+    local icon = hoverCard.icon
+    local scale = icon:GetEffectiveScale()
+    local x, y = GetCursorPosition()
+    x, y = x / scale, y / scale
+    hoverCard.glow:SetShown(x >= icon:GetLeft() and x <= icon:GetRight() and y >= icon:GetBottom() and y <= icon:GetTop())
+end)
+
 -- `tall` cards are the narrow, vertical ones used for secondary professions; their height is set by LayoutOverview.
 local function MakeCard(o, tall)
-    local card = UI:Button(o, "", 100, tall and 100 or CARD_H, function(s, btn)
-        if btn == "RightButton" or s.learnable then
-            if FP.Waypoint:NavAvailable() then FP.Waypoint:NearestTrainer(s.profName) end
-        else
-            UI.TabSound()
-            FP:OpenProfession(s.skillLine)
-            UI:SetPage("recipes")
-        end
-    end)
-    card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    local card = UI:Button(o, "", 100, tall and 100 or CARD_H, UI.OnProfessionOpenerClick, "up")
     card:RegisterForDrag("LeftButton")
     card:SetScript("OnDragStart", CardDrag)
     card.text:SetText("")
@@ -122,22 +132,11 @@ local function MakeCard(o, tall)
         card.tier:SetPoint("RIGHT", -10, 0)
     end
 
-    -- Entering this child fires the card's OnLeave, so it repeats the card's border and tooltip and forwards clicks.
-    local grab = CreateFrame("Button", nil, card)
-    grab:SetAllPoints(card.icon)
-    grab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    grab:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    grab:RegisterForDrag("LeftButton")
-    grab:SetScript("OnClick", function(s, btn) card:Click(btn) end)
-    grab:SetScript("OnDragStart", function() CardDrag(card) end)
-    grab:SetScript("OnEnter", function()
-        card:SetBackdropBorderColor(unpack(UI:GetAccent()))
-        CardTooltip(card)
-    end)
-    grab:SetScript("OnLeave", function()
-        card:SetBackdropBorderColor(unpack(UI.ActiveSkin().button.border))
-        GameTooltip:Hide()
-    end)
+    card.glow = card:CreateTexture(nil, "OVERLAY")
+    card.glow:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+    card.glow:SetBlendMode("ADD")
+    card.glow:SetAllPoints(card.icon)
+    card.glow:Hide()
 
     card.bar = CreateFrame("StatusBar", nil, card)
     card.bar:SetPoint("BOTTOMLEFT", 10, 10)
@@ -150,8 +149,16 @@ local function MakeCard(o, tall)
     card.bar.text = UI:Text(card.bar, -1, "CENTER")
     card.bar.text:SetPoint("CENTER")
 
-    card:HookScript("OnEnter", CardTooltip)
-    card:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    card:HookScript("OnEnter", function(s)
+        hoverCard = s
+        iconWatcher:Show()
+        CardTooltip(s)
+    end)
+    card:HookScript("OnLeave", function(s)
+        iconWatcher:Hide()
+        s.glow:Hide()
+        GameTooltip:Hide()
+    end)
 
     -- Primary professions only; the game's own confirmation popup asks you to type a word before it abandons the skill.
     if not tall then
@@ -200,10 +207,8 @@ local function MakeEmptySlot(o)
     return slot
 end
 
--- A card holding a spell button is protected, so it can't be shown, hidden or moved in combat.
-local function CombatBlocked(w)
-    return InCombatLockdown() and w:IsProtected()
-end
+-- A card holding a secure button is protected, so it can't be shown, hidden or moved in combat.
+local CombatBlocked = UI.CombatBlocked
 
 local function Place(w, x, y, width, height)
     if CombatBlocked(w) then return end
@@ -264,8 +269,8 @@ function UI:CreateOverview()
 end
 
 local function FillCard(card, p, accent, nav)
-    card.skillLine, card.profName, card.rank, card.maxRank, card.prof = p.skillLine, p.name, p.rank, p.maxRank, p
-    card.learnable = p.learnable
+    UI:SetProfessionOpener(card, p)
+    card.rank, card.maxRank, card.prof = p.rank, p.maxRank, p
     card.icon:SetTexture(p.icon)
     card.icon:SetDesaturated(p.learnable == true)
     card.name:SetText(p.name)
