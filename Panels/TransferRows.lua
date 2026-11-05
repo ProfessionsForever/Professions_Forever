@@ -3,10 +3,25 @@ local L = FP.L
 local Transfer = {}
 FP.Transfer = Transfer
 
--- Flat list for the scroll area: per character, every needed material it holds, taken or not, then what no one
--- can supply.
+-- What this character's bank must supply for the queue: for each material, the part bags don't cover that the bank does.
+function Transfer.BankNeeds(plan)
+    local out = {}
+    for _, it in ipairs(plan.items) do
+        local qty = math.min(it.bank, math.max(0, it.need - it.bags))
+        if qty > 0 then out[#out + 1] = { itemID = it.itemID, qty = qty, bank = it.bank } end
+    end
+    return out
+end
+
+-- Flat list for the scroll area: this character's bank, then per character, every needed material it holds, taken or
+-- not, then what no one can supply.
 function Transfer.BuildRows(plan)
     local rows, groups, byKey = {}, {}, {}
+    local bank = Transfer.BankNeeds(plan)
+    if #bank > 0 then
+        rows[#rows + 1] = { kind = "section", text = L["Withdraw from Your Bank"] }
+        for _, b in ipairs(bank) do rows[#rows + 1] = { kind = "bank", it = b } end
+    end
     local sending = FP.Outgoing:Pending()
     if #sending > 0 then
         rows[#rows + 1] = { kind = "section", text = L["To Send from This Character"] }
@@ -82,6 +97,11 @@ function Transfer.RowTooltip(row)
         if o.manual then
             tip:AddLine(L["Right-click to let the planner decide again."], 0.8, 0.8, 0.8, true)
         end
+    elseif e.kind == "bank" then
+        tip:SetItemByID(e.it.itemID)
+        tip:AddLine(" ")
+        tip:AddDoubleLine(L["Take"], e.it.qty, 0.8, 0.8, 0.8, 1, 1, 1)
+        tip:AddDoubleLine(L["In the Bank"], e.it.bank, 0.2, 0.8, 0.9, 0.2, 0.8, 0.9)
     elseif e.kind == "missing" then
         tip:SetItemByID(e.it.itemID)
         tip:AddLine(" ")

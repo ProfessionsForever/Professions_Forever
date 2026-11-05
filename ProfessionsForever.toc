@@ -4,7 +4,7 @@
 ## Author: Thorgrim Lightfist - PvE
 ## X-Email: professionsforever@gmail.com
 ## X-License: All Rights Reserved
-## Version: 0.9.3
+## Version: 0.9.4
 ## Category: Professions
 ## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
 ## SavedVariables: ProfessionsForeverDB
@@ -25,11 +25,14 @@ Alts\Outgoing.lua
 Core\Prices.lua
 Core\Tools.lua
 Core\Recipes.lua
+Core\Chain.lua
 Data\Cooldowns.lua
+Data\Items.lua
 Core\Cooldowns.lua
 UI\Skin.lua
 UI\Widgets.lua
 UI\Completion.lua
+UI\CombatClose.lua
 UI\ExtraSpell.lua
 UI\ProfessionOpener.lua
 UI\SidePanel.lua

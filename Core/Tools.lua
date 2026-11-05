@@ -57,6 +57,15 @@ function T:Get(recipeID)
     return out
 end
 
+-- Names of the requirements of the recipe that aren't met from the bags (a tool in the bank doesn't count).
+function T:Missing(recipeID)
+    local missing = {}
+    for _, r in ipairs(self:Get(recipeID)) do
+        if r.state ~= "bags" then missing[#missing + 1] = r.name end
+    end
+    return missing
+end
+
 -- Prints what the client reports for the selected recipe, to adjust the lookup if nothing shows up.
 function T:Debug()
     local id = FP.selected

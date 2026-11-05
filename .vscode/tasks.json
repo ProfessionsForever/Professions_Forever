@@ -13,6 +13,12 @@
 			"type": "shell",
 			"command": "python3 ${workspaceFolder}/tools/gen_cooldowns.py",
 			"problemMatcher": []
+		},
+		{
+			"label": "Update item data",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/gen_items.py",
+			"problemMatcher": []
 		}
 	]
 }

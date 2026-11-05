@@ -87,6 +87,14 @@ local STATUS_COLORS = {
 }
 UI.STATUS_COLORS = STATUS_COLORS
 UI.ALT_COLOR = { 0.75, 0.6, 1 } -- materials on other characters
+UI.CHAIN_COLOR = { 1, 0.6, 0.25 } -- craftable after crafting its reagents
+
+-- The "Skill: 120 / 150" tooltip line of a profession; nothing when it has no cap to show.
+function UI.AddSkillLine(tip, rank, maxRank)
+    if maxRank and maxRank > 0 then
+        tip:AddLine(("%s: %d / %d"):format(FP.L["Skill"], rank or 0, maxRank), 0.8, 0.8, 0.8)
+    end
+end
 -- Enum.TradeskillRelativeDifficulty: 0 optimal, 1 medium, 2 easy, 3 trivial
 local DIFF_COLORS = { [0] = { 1, 0.5, 0.25 }, [1] = { 1, 1, 0 }, [2] = { 0.25, 0.75, 0.25 }, [3] = { 0.55, 0.55, 0.55 } }
 local DIFF_LABELS = { [0] = "Skill Up: Optimal", [1] = "Skill Up: Medium", [2] = "Skill Up: Easy", [3] = "Skill Up: Trivial" }

@@ -81,7 +81,7 @@ end
 -- Refreshes the sort, category, density and filter dropdowns.
 function UI:SyncFilters()
     local f = self.frame
-    if not (f and f.filtersDD and f.sortDD) then return end
+    if not (f and f.filtersDD and f.sortDD and f.filterReset) then return end
     f.sortDD:Sync()
     if f.rowDensity then f.rowDensity:Sync() end
     f.filtersDD:Sync()
@@ -96,7 +96,7 @@ function UI:SyncFilters()
     f.categoryDD:ClearAllPoints()
     f.categoryDD:SetPoint("TOPLEFT", f.left, "TOPLEFT", 6, -34)
     f.categoryDD:SetPoint("TOPRIGHT", db.hideCategories and f.rowDensity or f.collapseAll, "TOPLEFT", -4, 0)
-    f.resetBtn:SetActive((self.search or "") ~= "" or self.categoryName ~= nil or presetsActive)
+    f.filterReset:SetActive(self.categoryName ~= nil or presetsActive)
     f.expandAll:SetActive(next(FP.Recipes.categories) ~= nil)
     f.collapseAll:SetActive(next(FP.Recipes.categories) ~= nil)
 end
@@ -108,7 +108,7 @@ end
 
 -- What the recipe makes, when it can be worn and so previewed.
 local function PreviewLink(recipeID)
-    local output = UI.RecipeOutputInfo(recipeID)
+    local output = FP.Recipes:OutputInfo(recipeID)
     local link = output and (output.hyperlink or (output.itemID and select(2, C_Item.GetItemInfo(output.itemID))))
     if link and C_Item.IsDressableItemByID(link) then return link end
 end
@@ -244,7 +244,7 @@ function UI:EnsureRows(n)
             local e = s.recipeID and FP.Recipes.byID[s.recipeID]
             if not e then return end
             GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-            local output = UI.RecipeOutputInfo(e.id)
+            local output = FP.Recipes:OutputInfo(e.id)
             if output and output.hyperlink then GameTooltip:SetHyperlink(output.hyperlink)
             elseif output and output.itemID then GameTooltip:SetItemByID(output.itemID)
             else GameTooltip:AddLine(e.name, 1, 1, 1) end

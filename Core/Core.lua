@@ -65,6 +65,7 @@ local defaults = {
     vendors = {}, -- same shape plus items = ",itemID,itemID," (their stock) and recipes = { names }, for merchants you've opened
     minimap = { hide = false, angle = 215 },
     cooldownNotice = true, -- at login, name the characters with a recipe cooldown ready
+    bankPrompt = true, -- open the transfer planner at the bank when the queue needs something from it
     showIgnoredCooldowns = false, -- list the cooldowns turned off in the Cooldowns window
     shopping = {}, -- account-wide list: [itemID] = needed
 }
@@ -89,7 +90,7 @@ function FP:LoadSettings()
     ProfessionsForeverCharDB = ProfessionsForeverCharDB or {}
     Merge(ProfessionsForeverDB, FP.filterDefaults)
     Merge(ProfessionsForeverDB, defaults)
-    Merge(ProfessionsForeverCharDB, { shopping = {}, queue = {}, queueTakes = {}, shoppingQueue = {} })
+    Merge(ProfessionsForeverCharDB, { shopping = {}, queue = {}, queueTakes = {}, shoppingQueue = {}, makes = {} })
     self.db, self.chardb = ProfessionsForeverDB, ProfessionsForeverCharDB
 end
 
@@ -130,6 +131,7 @@ end
 local function Refresh(self) self.UI:QueueRefresh() end
 local function Reload(self)
     self.Recipes:Reload()
+    self.Chain:Record()
     self.Cooldowns:Scan()
     self.UI:QueueRefresh()
 end
@@ -190,14 +192,26 @@ FP:RegisterEvent("BAG_UPDATE_DELAYED", function(self)
     RefreshWithTracker(self)
     local queue = self.Queue.frame
     if queue and queue:IsShown() then self.Queue:Update() end
+    self.Transfer:QueueUpdate()
 end)
 FP:RegisterEvent("BANKFRAME_OPENED", function(self)
     self.Inv.bankOpen = true
     self.Inv:ScanBank()
+    self.Planner:Invalidate()
     self.UI:QueueRefresh()
     self.Waypoint:RememberBanker()
+    -- The slots may not be readable the instant the window opens, so the check waits a moment for the scan to settle.
+    C_Timer.After(0.5, function()
+        if not (self.Inv.bankOpen and self.db.bankPrompt) then return end
+        self.Planner:Invalidate()
+        if #self.Transfer.BankNeeds(self.Queue:TransferNeeds()) > 0 then self.Transfer:Open() end
+    end)
+    self.Transfer:QueueUpdate()
 end)
-FP:RegisterEvent("BANKFRAME_CLOSED", function(self) self.Inv.bankOpen = false end)
+FP:RegisterEvent("BANKFRAME_CLOSED", function(self)
+    self.Inv.bankOpen = false
+    self.Transfer:QueueUpdate()
+end)
 for _, e in ipairs({ "PLAYERBANKSLOTS_CHANGED", "PLAYERBANKBAGSLOTS_CHANGED", "PLAYERREAGENTBANKSLOTS_CHANGED" }) do
     FP:RegisterEvent(e, function(self)
         if self.Inv.bankOpen then self.Inv:ScanBank() self.UI:QueueRefresh() end
@@ -216,8 +230,12 @@ FP:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(self, _, _, spellID)
     C_Timer.After(0.6, LateRefresh)
 end, "player")
 FP:RegisterEvent("UPDATE_TRADESKILL_CAST_STOPPED", function(self) self.UI:EndCraftBatch() end)
-FP:RegisterEvent("PLAYER_REGEN_DISABLED", Refresh)
+FP:RegisterEvent("PLAYER_REGEN_DISABLED", function(self)
+    self.UI:CloseSidePanels()
+    Refresh(self)
+end)
 FP:RegisterEvent("PLAYER_REGEN_ENABLED", function(self)
+    self.UI.RegisterPendingCombatClose()
     if self.bindingsPending then self:UpdateBindings() end
     self.UI:QueueRefresh()
 end)

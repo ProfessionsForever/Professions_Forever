@@ -16,6 +16,7 @@ local COMMANDS = {
     clearway = function() FP.Waypoint:Clear() end,
     ["debug tools"] = function() FP.Tools:Debug() end,
     ["debug cooldowns"] = function() FP.Cooldowns:Debug() end,
+    ["debug chain"] = function() FP.Chain:Debug() end,
 }
 
 SLASH_PROFESSIONSFOREVER1 = "/pf"

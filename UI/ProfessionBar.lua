@@ -145,14 +145,16 @@ function UI:RefreshProfessions()
         if not b then
             b = self:Button(f.profBar, "", 160, 24, UI.OnProfessionOpenerClick, true)
             b:HookScript("OnEnter", function(s)
-                if not FP.Waypoint:NavAvailable() then return end
                 s.tipToken = (s.tipToken or 0) + 1
                 local token = s.tipToken
-                C_Timer.After(0.4, function()
+                C_Timer.After(0.2, function()
                     if s.tipToken ~= token or not s:IsMouseOver() then return end
                     GameTooltip:SetOwner(s, "ANCHOR_BOTTOM")
                     GameTooltip:AddLine(s.profName, 1, 1, 1)
-                    GameTooltip:AddLine(L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1)
+                    UI.AddSkillLine(GameTooltip, s.rank, s.maxRank)
+                    if FP.Waypoint:NavAvailable() then
+                        GameTooltip:AddLine(L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1)
+                    end
                     GameTooltip:Show()
                 end)
             end)
@@ -171,6 +173,7 @@ function UI:RefreshProfessions()
             f.profButtons[i] = b
         end
         self:SetProfessionOpener(b, p)
+        b.rank, b.maxRank = p.rank, p.maxRank
         b.icon:SetTexture(p.icon)
         b.text:SetText(p.name)
         if not UI.CombatBlocked(b) then
@@ -221,7 +224,7 @@ function UI:CreateHeader(f)
     f.link:SetPoint("LEFT", rank, "RIGHT", 6, 0)
     f.link.text:Hide()
     f.link.icon = f.link:CreateTexture(nil, "ARTWORK")
-    f.link.icon:SetSize(16, 16)
+    f.link.icon:SetSize(24, 24)
     f.link.icon:SetPoint("CENTER")
     f.link.icon:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-Chat-Up")
     self:Tooltip(f.link, "ANCHOR_RIGHT", L["Link This Profession in Chat"])

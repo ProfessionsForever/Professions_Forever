@@ -46,9 +46,7 @@ local function CardTooltip(s)
             GameTooltip:AddLine(L["Polestar or TomTom is needed for waypoints."], 0.6, 0.6, 0.6, true)
         end
     else
-        if s.maxRank and s.maxRank > 0 then
-            GameTooltip:AddLine(("%s: %d / %d"):format(L["Skill"], s.rank or 0, s.maxRank), 0.8, 0.8, 0.8)
-        end
+        UI.AddSkillLine(GameTooltip, s.rank, s.maxRank)
         GameTooltip:AddLine(L["Click: open this profession"], 0.5, 0.8, 1)
         if s.prof and UI:DragSpellID(s.prof) then
             GameTooltip:AddLine(L["Drag to an action bar for direct access"], 0.5, 0.8, 1)

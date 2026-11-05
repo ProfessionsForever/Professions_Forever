@@ -5,6 +5,8 @@ local Skin, EUI = UI.ActiveSkin, UI.EUI
 -- Shows the game tooltip while the mouse is over `w`. `fill` is a title string, or a function(tooltip, w) that adds the
 -- lines (returning false shows nothing).
 function UI:Tooltip(w, anchor, fill)
+    -- A disabled button gets no hover events unless asked, and its tooltip is often why it is disabled.
+    if w.SetMotionScriptsWhileDisabled then w:SetMotionScriptsWhileDisabled(true) end
     w:HookScript("OnEnter", function(s)
         GameTooltip:SetOwner(s, anchor)
         if type(fill) == "string" then GameTooltip:AddLine(fill, 1, 1, 1, true)
@@ -12,6 +14,36 @@ function UI:Tooltip(w, anchor, fill)
         GameTooltip:Show()
     end)
     w:HookScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+-- Adds a red X inside the right end of an edit box that empties it. It is dimmed while the box is empty. Call it after
+-- the box's OnTextChanged script is set, so that script stays in place.
+function UI:AddClearButton(eb, tip)
+    local b = CreateFrame("Button", nil, eb:GetParent())
+    b:SetSize(20, 20)
+    b:SetPoint("RIGHT", eb, "RIGHT", -3, 0)
+    b:SetFrameLevel(eb:GetFrameLevel() + 1)
+    b.text = self:Text(b, 1, "CENTER")
+    b.text:SetPoint("CENTER")
+    b.text:SetText("X")
+    b.text:SetTextColor(1, 0.2, 0.2)
+    local left, _, top, bottom = eb:GetTextInsets()
+    eb:SetTextInsets(left, 26, top, bottom)
+    local function Sync()
+        local filled = eb:GetText() ~= ""
+        b:SetEnabled(filled)
+        b.text:SetAlpha(filled and 1 or 0.4)
+    end
+    b:SetScript("OnClick", function()
+        eb:SetText("")
+        eb:ClearFocus()
+    end)
+    b:SetScript("OnEnter", function(s) s.text:SetTextColor(1, 0.45, 0.35) end)
+    b:SetScript("OnLeave", function(s) s.text:SetTextColor(1, 0.2, 0.2) end)
+    self:Tooltip(b, "ANCHOR_RIGHT", tip)
+    eb:HookScript("OnTextChanged", Sync)
+    Sync()
+    return b
 end
 
 ---------------------------------------------------------------------------

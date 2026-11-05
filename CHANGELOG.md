@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.4
+
+### Added
+- Recipe chaining. When a recipe is short only of reagents you can craft, the recipe panel says it is craftable after crafting them, and Add to Queue queues those crafts first, in order, in whichever profession makes them. Needs each profession to have been opened once so its recipes are known.
+- Queue materials that earlier queue entries make no longer count as missing.
+- Queue rows with materials that are only in the bank are marked, and their tooltip lists what to fetch.
+- The Transfer Planner has a "Withdraw from Your Bank" section for what the queue needs from your own bank, and a Withdraw from Bank button that moves it into your bags while the bank is open. An option (on by default) opens the planner when you open your bank and the queue needs something from it.
+
+### Changed
+- The X in the search box now clears only the search. A new X beside the Filters dropdown resets the category and filters.
+- The shopping list's item box has an X to clear the text.
+- Profession tabs in the recipe window show a tooltip sooner, with your skill level.
+- The crafting queue skips a recipe whose tool or station (an anvil, a forge) is missing and moves on to the next one.
+- Switching away from the EllesmereUI skin now asks if you want to reload the UI.
+- The shopping list's item search now covers every tradeable item in the game, not just recipe reagents.
+
+### Fixed
+- Fixed an "action blocked" error when pressing Escape in combat. The main window, Queue panel and unpinned side panels now close when combat starts.
+
 ## 0.9.3
 
 ### Added

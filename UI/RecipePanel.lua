@@ -30,33 +30,8 @@ function UI:CreateRecipePanel(f)
     search:SetHeight(24)
     search:SetAutoFocus(false)
     self:EUIWidget(search, "editbox")
-    search:SetTextInsets(4, 26, 0, 0)
+    search:SetTextInsets(4, 0, 0, 0)
     f.search = search
-    local function ResetFilters()
-        local db = FP.db
-        for k, v in pairs(FP.filterDefaults) do db[k] = v end
-        UI.categoryName, UI.search = nil, ""
-        search:SetText("")
-        search:ClearFocus()
-        UI:SyncFilters()
-        UI:Refresh()
-    end
-    f.resetBtn = CreateFrame("Button", nil, left)
-    f.resetBtn:SetSize(20, 20)
-    f.resetBtn:SetPoint("RIGHT", search, "RIGHT", -3, 0)
-    f.resetBtn:SetFrameLevel(search:GetFrameLevel() + 1)
-    f.resetBtn.text = self:Text(f.resetBtn, 1, "CENTER")
-    f.resetBtn.text:SetPoint("CENTER")
-    f.resetBtn.text:SetText("X")
-    f.resetBtn.text:SetTextColor(1, 0.2, 0.2)
-    f.resetBtn.SetActive = function(s, on)
-        s:SetEnabled(on)
-        s.text:SetAlpha(on and 1 or 0.4)
-    end
-    f.resetBtn:SetScript("OnClick", ResetFilters)
-    f.resetBtn:SetScript("OnEnter", function(s) s.text:SetTextColor(1, 0.45, 0.35) end)
-    f.resetBtn:SetScript("OnLeave", function(s) s.text:SetTextColor(1, 0.2, 0.2) end)
-    self:Tooltip(f.resetBtn, "ANCHOR_RIGHT", L["Reset All Filters"])
     local ph = self:Text(search, -1)
     ph:SetPoint("LEFT", 4, 0)
     ph:SetText(L["Search..."])
@@ -123,8 +98,17 @@ function UI:CreateRecipePanel(f)
         if pick then PickRecipe(pick) else s:ClearFocus() end
     end)
 
+    self:AddClearButton(search, L["Clear Search"])
     self:CreateFilterBar(f)
     self:CreateRecipeList(f)
+end
+
+-- Puts the category and filter presets back to their defaults; the search text is left alone.
+function UI:ResetFilters()
+    for k, v in pairs(FP.filterDefaults) do FP.db[k] = v end
+    self.categoryName = nil
+    self:SyncFilters()
+    self:Refresh()
 end
 
 -- Sort, category and density dropdowns, expand / collapse buttons and the filter menu.
@@ -242,8 +226,12 @@ function UI:CreateFilterBar(f)
         end
         return items
     end)
+    f.filterReset = self:Button(left, "X", 24, 24, function() UI:ResetFilters() end)
+    f.filterReset.text:SetTextColor(1, 0.2, 0.2)
+    f.filterReset:SetPoint("TOPRIGHT", left, "TOPRIGHT", -6, -61)
+    self:Tooltip(f.filterReset, "ANCHOR_RIGHT", L["Reset All Filters"])
     f.filtersDD:SetPoint("TOPLEFT", left, "TOPLEFT", 6, -61)
-    f.filtersDD:SetPoint("TOPRIGHT", left, "TOPRIGHT", -6, -61)
+    f.filtersDD:SetPoint("TOPRIGHT", f.filterReset, "TOPLEFT", -4, 0)
     self:SyncFilters()
 end
 

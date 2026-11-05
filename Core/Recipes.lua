@@ -213,6 +213,33 @@ function R:BuildDisplay(recipes, collapsed, expandAll, showCategories, favorites
     return out
 end
 
+-- Items one craft of the recipe makes: the fewest and the most.
+function R:OutputQuantity(recipeID)
+    local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
+    local lo, hi = ok and schematic and schematic.quantityMin, ok and schematic and schematic.quantityMax
+    if lo and hi and lo > 0 then return lo, hi end
+    return 1, 1
+end
+
+-- What the recipe makes: { itemID, hyperlink... } as the game gives it.
+function R:OutputInfo(recipeID)
+    local T = C_TradeSkillUI
+    if T.GetRecipeOutputItemData then
+        local ok, output = pcall(T.GetRecipeOutputItemData, recipeID)
+        if ok and output then return output end
+    end
+    if T.GetRecipeSchematic then
+        local ok, schematic = pcall(T.GetRecipeSchematic, recipeID, false)
+        if ok and schematic and schematic.outputItemID then return { itemID = schematic.outputItemID } end
+    end
+end
+
+function R:OutputItemID(recipeID)
+    local output = self:OutputInfo(recipeID)
+    if not output then return end
+    return output.itemID or (output.hyperlink and C_Item.GetItemInfoInstant(output.hyperlink))
+end
+
 -- Basic reagents only: { itemID, qty }.
 function R:GetReagents(recipeID)
     if schematics[recipeID] then return schematics[recipeID] end

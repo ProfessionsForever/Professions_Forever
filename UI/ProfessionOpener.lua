@@ -4,11 +4,6 @@ local UI = FP.UI
 -- Cards and tabs open a profession the way Blizzard's profession book does: a secure button casts its spell.
 -- OpenTradeSkill is refused for addon code.
 
--- A frame holding a secure button can't be shown, hidden or moved in combat.
-function UI.CombatBlocked(w)
-    return InCombatLockdown() and w:IsProtected()
-end
-
 local function Loaded(skillLine)
     local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
     return base and base.professionID == skillLine and C_TradeSkillUI.IsTradeSkillReady()

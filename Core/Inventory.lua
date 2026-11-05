@@ -58,6 +58,57 @@ local function BankContainers()
     return ids
 end
 
+-- A free slot in a general-purpose carried bag that isn't in `used`.
+local function FreeSlot(used)
+    for _, bag in ipairs(Inv:CarriedBags()) do
+        local free, family = C_Container.GetContainerNumFreeSlots(bag)
+        if free and free > 0 and family == 0 then
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                if not used[bag .. ":" .. slot] and not C_Container.GetContainerItemInfo(bag, slot) then
+                    used[bag .. ":" .. slot] = true
+                    return bag, slot
+                end
+            end
+        end
+    end
+end
+
+-- Moves items from the open bank into the bags; `needs` is { { itemID, qty } }. Whole stacks go as they are, smallest
+-- first, and the last one is split. Returns how many of the items were at least partly moved. Call it from a click.
+function Inv:Withdraw(needs)
+    if not self.bankOpen then return 0 end
+    local moved, used = 0, {}
+    for _, need in ipairs(needs) do
+        local stacks = {}
+        for _, bag in ipairs(BankContainers()) do
+            for slot = 1, C_Container.GetContainerNumSlots(bag) do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.itemID == need.itemID and not info.isLocked then
+                    stacks[#stacks + 1] = { bag = bag, slot = slot, count = info.stackCount or 1 }
+                end
+            end
+        end
+        table.sort(stacks, function(a, b) return a.count < b.count end)
+        local left = need.qty
+        for _, s in ipairs(stacks) do
+            if left <= 0 then break end
+            if s.count <= left then
+                C_Container.UseContainerItem(s.bag, s.slot)
+                left = left - s.count
+            else
+                local bag, slot = FreeSlot(used)
+                if bag then
+                    C_Container.SplitContainerItem(s.bag, s.slot, left)
+                    C_Container.PickupContainerItem(bag, slot)
+                    left = 0
+                end
+            end
+        end
+        if left < need.qty then moved = moved + 1 end
+    end
+    return moved
+end
+
 -- Only valid while the bank is open: the container APIs return nothing otherwise, so an empty
 -- scan never overwrites the cache.
 function Inv:ScanBank()

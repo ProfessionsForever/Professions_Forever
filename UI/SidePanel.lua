@@ -153,7 +153,9 @@ function UI:ReflowSidePanels()
     local blocked = BlockedRects(main, nil, h, true)
     for _, p in ipairs(docked) do
         local x, row = FirstFreeSlot(main, p, h, blocked)
-        if not (p.dockX and math.abs(p.dockX - x) < 0.5 and p.dockRow == row) then AnchorDocked(p, x, row, h) end
+        if not (p.dockX and math.abs(p.dockX - x) < 0.5 and p.dockRow == row) and not UI.CombatBlocked(p) then
+            AnchorDocked(p, x, row, h)
+        end
         local l, b, r, t = SlotRect(main, p, p.dockX, p.dockRow, h)
         if l then blocked[#blocked + 1] = { l, b, r, t } end
     end
@@ -172,7 +174,7 @@ end
 -- Hides the docked side panels; pinned ones stay open.
 function UI:CloseSidePanels()
     for _, p in pairs(panels) do
-        if not FP.db.sidePanels[p.fpPanelKey] then p:Hide() end
+        if not FP.db.sidePanels[p.fpPanelKey] and not UI.CombatBlocked(p) then p:Hide() end
     end
 end
 

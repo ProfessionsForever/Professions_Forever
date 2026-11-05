@@ -63,7 +63,7 @@ function Transfer:Update()
             row:Hide()
         else
             local kind = e.kind
-            local isItem = kind == "item" or kind == "missing" or kind == "send"
+            local isItem = kind == "item" or kind == "missing" or kind == "send" or kind == "bank"
             local hasCheck = kind == "item"
             local hasCount = hasCheck or kind == "send"
             row.bg:SetShown(not isItem)
@@ -106,6 +106,12 @@ function Transfer:Update()
                     local opt = e.o.opt
                     if opt.transfer > 0 then row.name:SetTextColor(0.92, 0.92, 0.92) else row.name:SetTextColor(0.55, 0.55, 0.55) end
                     row.owns:SetText(opt.owns)
+                elseif kind == "bank" then
+                    local c = UI.STATUS_COLORS.bank
+                    row.name:SetTextColor(0.92, 0.92, 0.92)
+                    row.qty:SetText(L["take %d"]:format(e.it.qty))
+                    row.qty:SetTextColor(c[1], c[2], c[3])
+                    row.owns:SetText(L["%d in bank"]:format(e.it.bank))
                 else
                     local c = UI.STATUS_COLORS.missing
                     row.name:SetTextColor(c[1], c[2], c[3])
@@ -134,13 +140,13 @@ function Transfer:Update()
         end
     end
 
-    if #list == 0 or t.units == 0 then
-        f.summary:SetText(t.missingTypes > 0 and L["%d materials still unavailable"]:format(t.missingTypes) or "")
-    else
-        local text = L["%d alts - %d item types"]:format(t.characters, t.itemTypes)
-        if t.missingTypes > 0 then text = text .. "  -  " .. L["%d materials still unavailable"]:format(t.missingTypes) end
-        f.summary:SetText(text)
-    end
+    local bankNeeds = Transfer.BankNeeds(plan)
+    local parts = {}
+    if #bankNeeds > 0 then parts[#parts + 1] = L["%d to withdraw from your bank"]:format(#bankNeeds) end
+    if #list > 0 and t.units > 0 then parts[#parts + 1] = L["%d alts - %d item types"]:format(t.characters, t.itemTypes) end
+    if t.missingTypes > 0 then parts[#parts + 1] = L["%d materials still unavailable"]:format(t.missingTypes) end
+    f.summary:SetText(table.concat(parts, "  -  "))
+    f.withdraw:SetActive(FP.Inv.bankOpen and #bankNeeds > 0)
     f.add:SetActive(plan.applies and t.missingTypes > 0)
 end
 
@@ -149,7 +155,7 @@ function Transfer:Create()
     local f = CreateFrame("Frame", "ProfessionsForeverTransferFrame", UIParent, "BackdropTemplate")
     self.frame = f
     f:Hide() -- frames start shown, which would skip OnShow and leave unpopulated rows visible
-    f:SetSize(400, 460)
+    f:SetSize(400, 488)
     f:SetFrameStrata("MEDIUM")
     f:SetToplevel(true)
     f:SetMovable(true)
@@ -184,13 +190,13 @@ function Transfer:Create()
 
     local scroll = CreateFrame("ScrollFrame", "ProfessionsForeverTransferScroll", f, "FauxScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 8, -54)
-    scroll:SetPoint("BOTTOMRIGHT", -30, 104)
+    scroll:SetPoint("BOTTOMRIGHT", -30, 132)
     scroll:SetScript("OnVerticalScroll", function(s, offset)
         FauxScrollFrame_OnVerticalScroll(s, offset, ROW_H, function() Transfer:Update() end)
     end)
     f.scroll = scroll
     local scrollBar = scroll.ScrollBar or _G["ProfessionsForeverTransferScrollScrollBar"]
-    if not UI:AttachEUIThinScrollbar(scroll, scrollBar, f, { top = 54, bottom = 104 }) then
+    if not UI:AttachEUIThinScrollbar(scroll, scrollBar, f, { top = 54, bottom = 132 }) then
         UI:EUIWidget(scrollBar, "scrollbar")
     end
 
@@ -293,10 +299,22 @@ function Transfer:Create()
     f.empty:SetPoint("CENTER", 0, 20)
 
     f.summary = UI:Text(f, -1)
-    f.summary:SetPoint("BOTTOMLEFT", 14, 68)
+    f.summary:SetPoint("BOTTOMLEFT", 14, 96)
     f.summary:SetPoint("RIGHT", -14, 0)
     f.summary:SetJustifyH("LEFT")
     f.summary:SetWordWrap(false)
+
+    f.withdraw = UI:Button(f, L["Withdraw from Bank"], 220, ACTION_BUTTON_H, function()
+        local moved = FP.Inv:Withdraw(Transfer.BankNeeds(FP.Queue:TransferNeeds()))
+        FP:Print(moved > 0 and L["Withdrawing %d material(s) from the bank."]:format(moved)
+            or L["Nothing could be moved. Are your bags full?"])
+    end)
+    f.withdraw:SetPoint("BOTTOMLEFT", 14, 68)
+    f.withdraw:SetPoint("BOTTOMRIGHT", -14, 68)
+    UI:Tooltip(f.withdraw, "ANCHOR_TOP", function(tip)
+        if f.withdraw:IsEnabled() then return false end
+        tip:AddLine(FP.Inv.bankOpen and L["Nothing to withdraw."] or L["Open your bank to withdraw."], 1, 1, 1, true)
+    end)
 
     f.add = UI:Button(f, L["Add Missing to Shopping List"], 220, ACTION_BUTTON_H, function() FP.Queue:AddMissingToShopping() end)
     f.add:SetPoint("BOTTOMLEFT", 14, 40)

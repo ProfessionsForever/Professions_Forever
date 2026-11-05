@@ -14,6 +14,19 @@ local FONTS = {
     { "Skurri", "Fonts\\skurri.ttf" }, { "Morpheus", "Fonts\\MORPHEUS.ttf" },
 }
 
+StaticPopupDialogs["PROFESSIONSFOREVER_RELOAD_SKIN"] = {
+    text = L["Reload your UI to fully remove the EllesmereUI skin."],
+    button1 = L["Reload UI"],
+    button2 = L["Later"],
+    OnAccept = function() ReloadUI() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+local function OfferSkinReload() StaticPopup_Show("PROFESSIONSFOREVER_RELOAD_SKIN") end
+
 local function SkinItems()
     local db = FP.db
     local items = {}
@@ -24,9 +37,7 @@ local function SkinItems()
                 db.skin = key
                 UI:ApplySkin()
                 O:Refresh()
-                if was == "ellesmere" and key ~= was and UI.euiApplied then
-                    FP:Print(L["Reload your UI to fully remove the EllesmereUI skin."])
-                end
+                if was == "ellesmere" and key ~= was and UI.euiApplied then OfferSkinReload() end
             end }
         end
     end
@@ -153,12 +164,15 @@ local function BuildGeneral(page)
     O.Check(page, L["Show Ready Cooldowns at Login"], function() return db.cooldownNotice end, function(v)
         db.cooldownNotice = v
     end)
+    O.Check(page, L["Open the Transfer Planner at Your Bank"], function() return db.bankPrompt end, function(v)
+        db.bankPrompt = v
+    end)
 end
 
 local function ResetGeneral()
     local db, d = FP.db, FP.defaults
     local replaced = db.replaceDefault
-    db.replaceDefault, db.shoppingScope, db.cooldownNotice = d.replaceDefault, d.shoppingScope, d.cooldownNotice
+    db.replaceDefault, db.shoppingScope, db.cooldownNotice, db.bankPrompt = d.replaceDefault, d.shoppingScope, d.cooldownNotice, d.bankPrompt
     db.minimap.hide = d.minimap.hide
     FP.Minimap:Update()
     FP.Shop:Update()
@@ -172,7 +186,7 @@ local function ResetAppearance()
     UI:ResetWindow()
     UI:ApplyLock()
     UI:ApplySkin()
-    if was == "ellesmere" and UI.euiApplied then FP:Print(L["Reload your UI to fully remove the EllesmereUI skin."]) end
+    if was == "ellesmere" and UI.euiApplied then OfferSkinReload() end
 end
 
 local function ResetAlts() FP.Planner:SetMode(FP.defaults.altMode) end

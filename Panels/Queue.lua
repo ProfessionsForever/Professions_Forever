@@ -5,8 +5,9 @@ FP.Queue = Queue
 
 local ROWS, ROW_H = 11, 28
 local STOP_MACRO = "/stopcasting\n/run C_TradeSkillUI.StopRecipeRepeat()"
-local MISSING = FP.UI.STATUS_COLORS.missing
-local WARN = ("|cff%02x%02x%02x! |r"):format(math.floor(MISSING[1] * 255), math.floor(MISSING[2] * 255), math.floor(MISSING[3] * 255))
+local MISSING, BANK = FP.UI.STATUS_COLORS.missing, FP.UI.STATUS_COLORS.bank
+local function Mark(c) return ("|cff%02x%02x%02x! |r"):format(math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255)) end
+local WARN, BANK_MARK = Mark(MISSING), Mark(BANK)
 
 -- Entries snapshot their reagents so the queue works across professions without reopening them.
 function Queue:Data() return FP.chardb.queue end
@@ -33,6 +34,15 @@ function Queue:QueuedAmount(itemID)
     return total
 end
 
+-- Total of this item that the queued crafts will make.
+function Queue:QueuedProduction(itemID)
+    local total = 0
+    for _, q in ipairs(self:Data()) do
+        if q.output and q.output.itemID == itemID then total = total + q.qty * q.output.qty end
+    end
+    return total
+end
+
 function Queue:Open()
     if not self.frame then
         -- The craft buttons are secure; their attributes can't be set during combat.
@@ -40,6 +50,7 @@ function Queue:Open()
         self:Create()
     end
     if not self.frame:IsShown() then
+        if FP.UI.CombatBlocked(self.frame) then return FP:Print(L["Cannot do that in combat."]) end
         FP.UI:PlaceSidePanel(self.frame)
         self.frame:Show()
     end
@@ -53,30 +64,90 @@ function Queue:OpenTransferIfNeeded()
     FP.Transfer:Open()
 end
 
-function Queue:Add(recipeID, qty)
-    self:Open()
+-- What a queue entry keeps about a recipe of the open profession, so the queue works across professions without
+-- reopening them: reagents, what it makes and the skill line to craft it in.
+function Queue:InfoFor(recipeID, skillLine)
     local e = FP.Recipes.byID[recipeID]
     if not e then return end
-    qty = math.max(1, qty or 1)
-    local data = self:Data()
-    for _, q in ipairs(data) do
-        if q.id == recipeID then
-            local before = q.qty
-            q.qty = math.min(999, q.qty + qty)
-            self:Update()
-            self:OpenTransferIfNeeded()
-            return FP:Print(L["Added %dx %s to the queue."]:format(q.qty - before, q.name))
-        end
-    end
     local reagents = {}
     for i, r in ipairs(FP.Recipes:GetReagents(recipeID)) do
         reagents[i] = { itemID = r.itemID, qty = r.qty }
     end
-    data[#data + 1] = { id = recipeID, name = e.name, icon = e.icon, qty = math.min(999, qty), reagents = reagents,
-        skillLine = self:CurrentSkillLine() }
+    local itemID = FP.Recipes:OutputItemID(recipeID)
+    return { id = recipeID, name = e.name, icon = e.icon, reagents = reagents, skillLine = skillLine or self:CurrentSkillLine(),
+        output = itemID and { itemID = itemID, qty = (FP.Recipes:OutputQuantity(recipeID)) } or nil }
+end
+
+-- Adds crafts of a recipe described by InfoFor, merging into its entry when it is already queued. Returns how many
+-- crafts were added.
+function Queue:AddInfo(info, qty)
+    qty = math.max(1, qty or 1)
+    local data = self:Data()
+    for _, q in ipairs(data) do
+        if q.id == info.id then
+            local before = q.qty
+            q.qty = math.min(999, q.qty + qty)
+            return q.qty - before
+        end
+    end
+    data[#data + 1] = { id = info.id, name = info.name, icon = info.icon, qty = math.min(999, qty),
+        reagents = info.reagents, skillLine = info.skillLine, output = info.output }
+    return math.min(999, qty)
+end
+
+function Queue:Add(recipeID, qty)
+    self:Open()
+    local info = self:InfoFor(recipeID)
+    if not info then return end
+    local added = self:AddInfo(info, qty)
     self:Update()
     self:OpenTransferIfNeeded()
-    FP:Print(L["Added %dx %s to the queue."]:format(math.min(999, qty), e.name))
+    FP:Print(L["Added %dx %s to the queue."]:format(added, info.name))
+end
+
+local function Consumes(q, itemID)
+    for _, r in ipairs(q.reagents) do
+        if r.itemID == itemID then return true end
+    end
+end
+
+-- Moves each entry that makes something a queued entry needs ahead of that entry.
+function Queue:OrderByDependency()
+    local data = self:Data()
+    for _ = 1, #data * #data do
+        local moved
+        for j = 2, #data do
+            local out = data[j].output
+            for i = 1, out and j - 1 or 0 do
+                if Consumes(data[i], out.itemID) then
+                    table.insert(data, i, table.remove(data, j))
+                    moved = true
+                    break
+                end
+            end
+            if moved then break end
+        end
+        if not moved then return end
+    end
+end
+
+-- Like Add, but also queues the crafts of reagents you are short of and know how to make, ahead of the recipe.
+function Queue:AddWithPrerequisites(recipeID, qty)
+    self:Open()
+    local info = self:InfoFor(recipeID)
+    if not info then return end
+    local steps = FP.Chain:Plan(info, math.max(1, qty or 1)).steps
+    local first = {}
+    for _, step in ipairs(steps) do
+        self:AddInfo(step.recipe, step.crafts)
+        first[#first + 1] = ("%dx %s"):format(step.crafts, step.recipe.name)
+    end
+    local added = self:AddInfo(info, qty)
+    if #steps > 0 then self:OrderByDependency() end
+    self:Update()
+    self:OpenTransferIfNeeded()
+    FP:Print(L["Added %dx %s to the queue."]:format(added, info.name))
+    if #first > 0 then FP:Print(L["Crafting first: %s"]:format(table.concat(first, ", "))) end
 end
 
 -- Whole crafts the bags can still supply once everything already queued has its materials.
@@ -111,9 +182,10 @@ end
 -- Totals reagents across all queued recipes so shared materials are counted once against stock.
 -- A changed queue drops the amounts chosen in the Transfer Planner for materials it no longer needs.
 function Queue:Requirements()
-    local order, byItem, sig = {}, {}, {}
+    local order, byItem, sig, made = {}, {}, {}, {}
     for _, q in ipairs(self:Data()) do
         sig[#sig + 1] = q.id .. "x" .. q.qty
+        if q.output then made[q.output.itemID] = (made[q.output.itemID] or 0) + q.qty * q.output.qty end
         for _, r in ipairs(q.reagents) do
             local n = byItem[r.itemID]
             if not n then
@@ -124,12 +196,18 @@ function Queue:Requirements()
             n.need = n.need + r.qty * q.qty
         end
     end
+    -- What queued crafts will make is not something to acquire.
+    local needed = {}
+    for _, n in ipairs(order) do
+        n.need = n.need - (made[n.itemID] or 0)
+        if n.need > 0 then needed[#needed + 1] = n else byItem[n.itemID] = nil end
+    end
     local key = table.concat(sig, ",")
     if key ~= self.requirementsSig then
         self.requirementsSig = key
         FP.Alts:KeepTakes(byItem)
     end
-    return order
+    return needed
 end
 
 -- Requirements with what the current character alone is short of; alts are not considered.
@@ -161,10 +239,13 @@ end
 function Queue:EntryShortages()
     local byItem = self:TransferNeeds().byItem
     local supply, out = {}, {}
+    local function Left(itemID)
+        local it = byItem[itemID]
+        return supply[itemID] or (it and it.need - it.shortage or 0)
+    end
     for _, q in ipairs(self:Data()) do
         for _, r in ipairs(q.reagents) do
-            local it = byItem[r.itemID]
-            local left = supply[r.itemID] or (it and it.need - it.shortage or 0)
+            local left = Left(r.itemID)
             local need = r.qty * q.qty
             local take = math.min(left, need)
             supply[r.itemID] = left - take
@@ -172,6 +253,39 @@ function Queue:EntryShortages()
                 out[q] = out[q] or {}
                 out[q][#out[q] + 1] = { itemID = r.itemID, qty = need - take }
             end
+        end
+        -- What this entry makes is there for the entries after it.
+        if q.output then supply[q.output.itemID] = Left(q.output.itemID) + q.qty * q.output.qty end
+    end
+    return out
+end
+
+-- Per queue entry, the reagents that are only in the bank: entries are served in queue order from the bags (plus what
+-- earlier entries make), then the bank. Entries with nothing to fetch are absent.
+function Queue:EntryBank()
+    local bags, bank, out = {}, {}, {}
+    local function Counts(itemID)
+        if not bags[itemID] then
+            local inBags, inBank = FP.Inv:Owned(itemID)
+            bags[itemID], bank[itemID] = inBags, inBank
+        end
+    end
+    for _, q in ipairs(self:Data()) do
+        for _, r in ipairs(q.reagents) do
+            Counts(r.itemID)
+            local need = r.qty * q.qty
+            local fromBags = math.min(bags[r.itemID], need)
+            bags[r.itemID] = bags[r.itemID] - fromBags
+            local fromBank = math.min(bank[r.itemID], need - fromBags)
+            if fromBank > 0 then
+                bank[r.itemID] = bank[r.itemID] - fromBank
+                out[q] = out[q] or {}
+                out[q][#out[q] + 1] = { itemID = r.itemID, qty = fromBank }
+            end
+        end
+        if q.output then
+            Counts(q.output.itemID)
+            bags[q.output.itemID] = bags[q.output.itemID] + q.qty * q.output.qty
         end
     end
     return out
@@ -217,7 +331,10 @@ function Queue:Update()
     local data = self:Data()
     local short, shortCount = self:EntryShortages(), 0
     for _ in pairs(short) do shortCount = shortCount + 1 end
-    f.status:SetText(self.status or (shortCount > 0 and L["%d queued recipe(s) lack materials."]:format(shortCount)) or "")
+    local inBank, bankCount = self:EntryBank(), 0
+    for _ in pairs(inBank) do bankCount = bankCount + 1 end
+    f.status:SetText(self.status or (shortCount > 0 and L["%d queued recipe(s) lack materials."]:format(shortCount))
+        or (bankCount > 0 and L["%d queued recipe(s) need materials from the bank."]:format(bankCount)) or "")
     FauxScrollFrame_Update(f.scroll, #data, ROWS, ROW_H)
     f.rowEdge:SetBar(#data > ROWS)
     if f.scroll.fpEUISetRange then f.scroll:fpEUISetRange(math.max(0, #data - ROWS) * ROW_H) end
@@ -230,12 +347,12 @@ function Queue:Update()
             row.up:SetShown(row.index > 1)
             row.down:SetShown(row.index < #data)
             row.icon:SetTexture(q.icon)
-            row.missing = short[q]
-            row.name:SetText(row.missing and WARN .. q.name or q.name)
+            row.missing, row.fromBank = short[q], inBank[q]
+            row.name:SetText(row.missing and WARN .. q.name or (row.fromBank and BANK_MARK .. q.name) or q.name)
             if not row.qty:HasFocus() then row.qty:SetText(q.qty) end
             row:Show()
         else
-            row.index, row.missing = nil, nil
+            row.index, row.missing, row.fromBank = nil, nil, nil
             row:Hide()
         end
     end
@@ -270,6 +387,7 @@ function Queue:Create()
     f:RegisterForDrag("LeftButton")
     UI:Skin(f, "window")
     tinsert(UISpecialFrames, "ProfessionsForeverQueueFrame")
+    UI.CloseInCombat(f)
     f:SetScript("OnShow", function()
         PlaySound(SOUNDKIT.IG_QUEST_LIST_OPEN)
         Queue:Update()
@@ -311,11 +429,19 @@ function Queue:Create()
             if q then UI.LinkToChat(C_TradeSkillUI.GetRecipeLink(q.id)) end
         end)
         row:SetScript("OnEnter", function(s)
-            if not s.missing then return end
+            if not (s.missing or s.fromBank) then return end
             GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(L["Missing materials:"], 1, 1, 1)
-            for _, m in ipairs(s.missing) do
-                GameTooltip:AddDoubleLine(UI.ItemName(m.itemID), m.qty, 1, 1, 1, MISSING[1], MISSING[2], MISSING[3])
+            if s.missing then
+                GameTooltip:AddLine(L["Missing materials:"], 1, 1, 1)
+                for _, m in ipairs(s.missing) do
+                    GameTooltip:AddDoubleLine(UI.ItemName(m.itemID), m.qty, 1, 1, 1, MISSING[1], MISSING[2], MISSING[3])
+                end
+            end
+            if s.fromBank then
+                GameTooltip:AddLine(L["Needs from the bank:"], 1, 1, 1)
+                for _, m in ipairs(s.fromBank) do
+                    GameTooltip:AddDoubleLine(UI.ItemName(m.itemID), m.qty, 1, 1, 1, BANK[1], BANK[2], BANK[3])
+                end
             end
             GameTooltip:Show()
         end)
@@ -369,6 +495,10 @@ function Queue:Create()
     f.empty:SetText(L["Crafting queue is empty"])
 
     f.add = UI:Button(f, L["Add Missing to Shopping List"], 220, 24, function() Queue:AddMissingToShopping() end)
+    UI:Tooltip(f.add, "ANCHOR_TOP", function(tip)
+        if f.add:IsEnabled() then return false end
+        tip:AddLine(L["No missing materials to add."], 1, 1, 1, true)
+    end)
     f.add:SetPoint("BOTTOMLEFT", 14, 46)
     f.plan = UI:Button(f, L["Plan Materials"], 146, 24, function() FP.Transfer:Open() end)
     f.plan:SetPoint("LEFT", f.add, "RIGHT", 6, 0)
@@ -487,6 +617,11 @@ function Queue:NextEntry()
             elseif FP.Cooldowns:IsOnCooldown(q.id) then
                 self.skip[q] = true
                 self.cooling = self.cooling + 1
+            elseif self:IsOpen(q) and #FP.Tools:Missing(q.id) > 0 then
+                -- Only the open profession's requirements can be read, so this waits for the profession to be opened.
+                self.skip[q] = true
+                self.noTools = self.noTools + 1
+                FP:Print(L["Skipping %s: missing %s."]:format(q.name, table.concat(FP.Tools:Missing(q.id), ", ")))
             elseif CraftsFromBags(q) > 0 then
                 return q
             else
@@ -506,6 +641,7 @@ function Queue:Step(fromClick)
         local msg = L["Queue finished."]
         if self.skipped > 0 then msg = msg .. " " .. L["%d entries skipped (missing materials)."]:format(self.skipped) end
         if self.cooling > 0 then msg = msg .. " " .. L["%d entries skipped (on cooldown)."]:format(self.cooling) end
+        if self.noTools > 0 then msg = msg .. " " .. L["%d entries skipped (missing tools)."]:format(self.noTools) end
         return self:Stop(msg)
     end
     if not fromClick then return self:Ready(q) end
@@ -596,7 +732,7 @@ function Queue:ToggleRun()
         return self:Stop(L["Queue stopped."])
     end
     if #self:Data() == 0 then return end
-    self.skip, self.skipped, self.cooling, self.run = {}, 0, 0, {}
+    self.skip, self.skipped, self.cooling, self.noTools, self.run = {}, 0, 0, 0, {}
     self:Step(true)
 end
 

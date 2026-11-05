@@ -121,21 +121,9 @@ function UI.RecipeDescription(recipeID)
         descriptionRequested[recipeID] = true
         local container = ContinuableContainer:Create()
         container:AddContinuable(Spell:CreateFromSpellID(recipeID))
-        local output = UI.RecipeOutputInfo(recipeID)
+        local output = FP.Recipes:OutputInfo(recipeID)
         if output and output.itemID then container:AddContinuable(Item:CreateFromItemID(output.itemID)) end
         container:ContinueOnLoad(function() UI:QueueRefresh() end)
-    end
-end
-
-function UI.RecipeOutputInfo(recipeID)
-    local T = C_TradeSkillUI
-    if T.GetRecipeOutputItemData then
-        local ok, output = pcall(T.GetRecipeOutputItemData, recipeID)
-        if ok and output then return output end
-    end
-    if T.GetRecipeSchematic then
-        local ok, schematic = pcall(T.GetRecipeSchematic, recipeID, false)
-        if ok and schematic and schematic.outputItemID then return { itemID = schematic.outputItemID } end
     end
 end
 
@@ -293,10 +281,7 @@ local function CraftBlockReason(e, crafts, targeted, target, salvage)
     if FP.Cooldowns:IsOnCooldown(e.id) then return L["This recipe is on cooldown."] end
     if targeted and not target then return L["Choose an item first."] end
     if crafts < 1 then return salvage and L["Not enough of the chosen item."] or L["Not enough materials in your bags."] end
-    local missing = {}
-    for _, r in ipairs(FP.Tools:Get(e.id)) do
-        if r.state ~= "bags" then missing[#missing + 1] = r.name end
-    end
+    local missing = FP.Tools:Missing(e.id)
     if #missing > 0 then return L["Missing requirement: %s"]:format(table.concat(missing, ", ")) end
 end
 
@@ -314,10 +299,13 @@ function UpdateDetailSummary(d, e, ev, one, count, salvage)
     local msg = ev.anyShort and (covered and "Missing materials are available on other characters" or "Items missing - click to add to shopping list")
         or (not salvage and BANNER_MSGS[ev.status]) or nil
     local c = covered and UI.ALT_COLOR or STATUS_COLORS[ev.status]
-    d.banner:SetText(msg and L[msg] or "")
+    -- Short only of things you can craft: say so, in place of the missing-items prompt.
+    local chain = ev.anyShort and not covered and e.learned and not salvage and FP.Chain:Describe(e.id, count)
+    if chain then c = UI.CHAIN_COLOR end
+    d.banner:SetText(chain or (msg and L[msg]) or "")
     d.banner:SetTextColor(c[1], c[2], c[3])
     -- With alts counting toward planning there is nothing left to buy.
-    d.bannerBtn:SetShown(ev.anyShort and not (covered and FP.Planner:Applies()))
+    d.bannerBtn:SetShown(ev.anyShort and not chain and not (covered and FP.Planner:Applies()))
 
     d.tools:SetText(ToolsText(e.id))
     local hasReagents = ev.status ~= "none"

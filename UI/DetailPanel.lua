@@ -48,7 +48,7 @@ function UI:CreateDetailHeader(d, c)
         local recipe = SelectedRecipe()
         if not recipe then return end
         GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-        local output = UI.RecipeOutputInfo(recipe.id)
+        local output = FP.Recipes:OutputInfo(recipe.id)
         if output and output.hyperlink then GameTooltip:SetHyperlink(output.hyperlink)
         elseif output and output.itemID then GameTooltip:SetItemByID(output.itemID)
         else GameTooltip:AddLine(recipe.name, 1, 1, 1) end
@@ -59,7 +59,7 @@ function UI:CreateDetailHeader(d, c)
     end)
     d.iconHit:SetScript("OnMouseUp", function(_, button)
         if button ~= "LeftButton" or not FP.selected then return end
-        local output = UI.RecipeOutputInfo(FP.selected)
+        local output = FP.Recipes:OutputInfo(FP.selected)
         if UI.LinkOrTrack(output and output.hyperlink or C_TradeSkillUI.GetRecipeLink(FP.selected), SelectedRecipe()) then return end
         if IsControlKeyDown() then UI.PreviewRecipe(FP.selected) end
     end)
@@ -338,7 +338,7 @@ function UI:CreateDetailActions(d, c)
     d.bannerBtn:SetScript("OnClick", AddMissing)
     d.addQueue = self:Button(c, L["Queue"], 80, 24, function()
         if not FP.selected then return end
-        FP.Queue:Add(FP.selected, UI:GetCount())
+        FP.Queue:AddWithPrerequisites(FP.selected, UI:GetCount())
         d.qty:SetText("1")
     end)
     d.addQueue:SetPoint("LEFT", d.addMissing, "RIGHT", 6, 0)

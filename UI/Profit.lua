@@ -44,18 +44,10 @@ local function ProfitMoney(copper)
     return copper < 0 and ("(" .. text .. ")") or text
 end
 
-local function OutputItemID(recipeID)
-    local output = UI.RecipeOutputInfo(recipeID)
-    if not output then return end
-    return output.itemID or (output.hyperlink and C_Item.GetItemInfoInstant(output.hyperlink))
-end
-
 -- Items one craft makes; a range is averaged.
 local function OutputQuantity(recipeID)
-    local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
-    local lo, hi = ok and schematic and schematic.quantityMin, ok and schematic and schematic.quantityMax
-    if lo and hi and lo > 0 then return (lo + hi) / 2 end
-    return 1
+    local lo, hi = FP.Recipes:OutputQuantity(recipeID)
+    return (lo + hi) / 2
 end
 
 -- One craft's profit in copper after the standard auction house cut; nil when any reagent or the product can't be priced.
@@ -64,7 +56,7 @@ function UI.RecipeProfit(recipeID)
     if #ev.reagents == 0 or FP.Recipes:IsEnchant(recipeID) then return end
     local cost, _, unpriced = EstimateCraftCost(ev.reagents)
     if unpriced > 0 then return end
-    return FP.Prices:Profit(OutputItemID(recipeID), OutputQuantity(recipeID), cost).profit
+    return FP.Prices:Profit(FP.Recipes:OutputItemID(recipeID), OutputQuantity(recipeID), cost).profit
 end
 
 local PROFIT_GREY = { 0.65, 0.65, 0.65 }
@@ -79,7 +71,7 @@ local function UpdateProfit(d, e, ev, count, salvage, cost, priced, unpriced)
         return
     end
     local enchant = FP.Recipes:IsEnchant(e.id)
-    local r = FP.Prices:Profit(not enchant and OutputItemID(e.id) or nil, enchant and 1 or OutputQuantity(e.id) * count, cost)
+    local r = FP.Prices:Profit(not enchant and FP.Recipes:OutputItemID(e.id) or nil, enchant and 1 or OutputQuantity(e.id) * count, cost)
     d.profitInfo = { r = r, unpriced = unpriced }
     local text, c = "", PROFIT_GREY
     if r.status == "ok" then

@@ -127,6 +127,7 @@ function UI:Create()
     if f.SetResizeBounds then f:SetResizeBounds(920, 640, 1500, 1000) end
     self:Skin(f, "window")
     tinsert(UISpecialFrames, "ProfessionsForeverFrame")
+    UI.CloseInCombat(f)
     f:SetFrameLevel(UI.WINDOW_LEVEL)
     f:SetScript("OnHide", function()
         if UI.stationTicker then UI.stationTicker:Cancel() UI.stationTicker = nil end

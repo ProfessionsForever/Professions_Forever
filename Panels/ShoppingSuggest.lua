@@ -1,64 +1,82 @@
 local _, FP = ...
 local Shop = FP.Shop
 
-local DELAY, MIN_CHARS = 0.12, 2
+local DELAY, MIN_CHARS, MAX_MATCHES = 0.12, 2, 40
 
--- Item names the add box can complete: reagents of the open profession's recipes and of the queue.
-local function BuildPool()
-    local pool, seen = {}, {}
-    local function Add(itemID)
-        if not itemID or seen[itemID] then return end
-        seen[itemID] = true
-        local name = C_Item.GetItemNameByID(itemID)
-        if name then
-            pool[#pool + 1] = { id = itemID, name = name, lower = strlower(name) }
-        elseif C_Item.RequestLoadItemDataByID then
-            C_Item.RequestLoadItemDataByID(itemID) -- ready the next time the box is focused
-        end
-    end
-    for _, q in ipairs(FP.Queue:Data()) do
-        for _, r in ipairs(q.reagents) do Add(r.itemID) end
-    end
-    for _, e in ipairs(FP.Recipes.list) do
-        for _, r in ipairs(FP.Recipes:GetReagents(e.id)) do Add(r.itemID) end
-    end
-    table.sort(pool, function(a, b) return a.lower < b.lower end)
-    return pool
+-- The shopping list's search covers every tradeable item the game has (Data/Items.lua). It is searched in place as
+-- one string rather than as a table per item, so it costs about the size of the file and each lookup is a plain find.
+local names, lower
+
+local function Load()
+    if lower then return end
+    names = FP.ItemNames or "\n"
+    lower = strlower(names) -- same length as `names`, so positions in one are positions in the other
 end
 
--- Suggests item names for the add box, with a list opening upward. The pool is built once per focus and the match
--- runs shortly after the last keystroke, so typing never waits on it.
+-- Names containing `typed` (lowercase), those starting with it first, each in the list's alphabetical order; the
+-- names go in `ids` as well. Stops at MAX_MATCHES.
+local function Search(typed, ids)
+    Load()
+    wipe(ids)
+    local out, within = {}, {}
+    local function Add(group, from, to)
+        local line = strsub(names, from, to)
+        local name, id = strmatch(line, "^(.-)\t(%d+)$")
+        if name then
+            ids[name] = tonumber(id)
+            group[#group + 1] = name
+        end
+    end
+
+    local key, at = "\n" .. typed, 1
+    while #out < MAX_MATCHES do
+        at = strfind(lower, key, at, true)
+        if not at then break end
+        local lineEnd = strfind(names, "\n", at + 1, true)
+        Add(out, at + 1, lineEnd - 1)
+        at = lineEnd
+    end
+
+    at = 1
+    while #out + #within < MAX_MATCHES do
+        at = strfind(lower, typed, at, true)
+        if not at then break end
+        local back = at > 80 and at - 80 or 1
+        local newline = strfind(strsub(lower, back, at - 1), "\n[^\n]*$")
+        local lineStart = newline and back + newline or back
+        local tab = strfind(names, "\t", lineStart, true)
+        local lineEnd = strfind(names, "\n", at, true)
+        -- A hit at the start was found above; one after the tab is part of the item ID.
+        if at > lineStart and at < tab then Add(within, lineStart, lineEnd - 1) end
+        at = lineEnd
+    end
+    for _, name in ipairs(within) do out[#out + 1] = name end
+    return out
+end
+
+-- Suggests item names for the add box, with a list opening upward. The match runs shortly after the last keystroke,
+-- so typing never waits on it.
 -- Returns an object: :Resolve(text) gives the item ID for what was typed, :Selected() the row picked with the arrows.
 -- onPick(name) is called when a row is clicked.
 function Shop:AttachSuggest(eb, onPick)
-    local pool, token = {}, 0
-    local s = {}
+    local token = 0
+    local s, ids = {}, {}
 
-    -- Names containing the text, those starting with it first (the pool is alphabetical).
     local function Matches(text)
         local typed = strlower(text)
-        if #typed < MIN_CHARS then return {} end
-        local out, within = {}, {}
-        for _, e in ipairs(pool) do
-            local at = strfind(e.lower, typed, 1, true)
-            if at == 1 then out[#out + 1] = e.name elseif at then within[#within + 1] = e.name end
-        end
-        for _, name in ipairs(within) do out[#out + 1] = name end
-        return out
+        if #typed < MIN_CHARS or strfind(typed, "[\t\n]") then return {} end
+        return Search(typed, ids)
     end
 
     -- An exact name, then an ID, link or cached name, then the first suggestion.
     function s:Resolve(text)
         local typed = strlower(text)
-        for _, e in ipairs(pool) do
-            if e.lower == typed then return e.id end
-        end
+        Load()
+        local at = not strfind(typed, "[\t\n]") and strfind(lower, "\n" .. typed .. "\t", 1, true)
+        if at then return tonumber(strmatch(names, "^\t(%d+)\n", at + #typed + 1)) end
         local id = C_Item.GetItemInfoInstant(text)
         if id then return id end
-        local first = Matches(text)[1]
-        for _, e in ipairs(pool) do
-            if e.name == first then return e.id end
-        end
+        return ids[Matches(text)[1]]
     end
 
     local completion = FP.UI:AttachCompletion(eb, Matches, true, onPick)
@@ -75,6 +93,5 @@ function Shop:AttachSuggest(eb, onPick)
         local mine = token
         C_Timer.After(DELAY, function() if token == mine then completion:Update() end end)
     end)
-    eb:HookScript("OnEditFocusGained", function() pool = BuildPool() end)
     return s
 end
