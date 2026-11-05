@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.3
+
+### Added
+- Fishing card buttons for Bait and Tackle and Find Fish.
+
+### Fixed
+- Fixed an issue where the Fishing card cast the pole instead of opening the Fishing crafting window.
+- Dragging the Fishing card to an action bar picks up the Fishing spell.
+
 ## 0.9.2
 
 ### Added

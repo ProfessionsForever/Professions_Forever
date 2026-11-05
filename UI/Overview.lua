@@ -22,40 +22,15 @@ function UI:SetPage(page)
     f.right:SetShown(page == "recipes")
     f.overview:SetShown(page == "overview")
     self:RefreshProfessions()
-    self:UpdateProfessionSpellButton()
+    self:UpdateExtraSpellButtons()
     if page == "overview" then self:RefreshOverview() end
-end
-
--- The profession's spell, which opens its window from an action bar: the spell named after the profession,
--- else the first active spell in its spellbook entry.
-local function SpellInfoID(name)
-    local info = C_Spell.GetSpellInfo(name)
-    return info and info.spellID
-end
-
-local function IsPassive(spellID)
-    return C_Spell.IsSpellPassive(spellID)
-end
-
-local function KnownSpell(spellID)
-    return spellID and IsPlayerSpell(spellID)
-end
-
-function UI:ProfessionSpellID(p)
-    local byName = SpellInfoID(p.name)
-    if KnownSpell(byName) and not IsPassive(byName) then return byName end
-    for i = (p.spellOffset or 0) + 1, (p.spellOffset or 0) + (p.numSpells or 0) do
-        local item = C_SpellBook.GetSpellBookItemInfo(i, Enum.SpellBookSpellBank.Player)
-        local id = item and item.spellID
-        if id and not IsPassive(id) then return id end
-    end
 end
 
 ---------------------------------------------------------------------------
 -- Profession cards
 ---------------------------------------------------------------------------
 local function CardDrag(s)
-    local id = s.prof and UI:ProfessionSpellID(s.prof)
+    local id = s.prof and UI:DragSpellID(s.prof)
     if id then C_Spell.PickupSpell(id) end
 end
 
@@ -75,7 +50,7 @@ local function CardTooltip(s)
             GameTooltip:AddLine(("%s: %d / %d"):format(L["Skill"], s.rank or 0, s.maxRank), 0.8, 0.8, 0.8)
         end
         GameTooltip:AddLine(L["Click: open this profession"], 0.5, 0.8, 1)
-        if s.prof and UI:ProfessionSpellID(s.prof) then
+        if s.prof and UI:DragSpellID(s.prof) then
             GameTooltip:AddLine(L["Drag to an action bar for direct access"], 0.5, 0.8, 1)
         end
         if nav then GameTooltip:AddLine(L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1) end
@@ -305,22 +280,17 @@ local function FillCard(card, p, accent, nav)
     card.bar:Show()
 end
 
--- Cards of professions with a spell (Disenchant, tracking) carry a button for it.
-local function UpdateSpellButton(card, p)
+-- Cards of professions with spells (Disenchant, tracking, the pole) carry a button for each.
+local function UpdateSpellButtons(card, p)
     if InCombatLockdown() then return end
-    local show = UI:ProfessionSpellName(p.skillLine)
-    if show and not card.spellButton then
-        card.spellButton = UI:CreateProfessionSpellButton(card, 24)
-        card.spellButton:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
-    end
-    if card.spellButton then
-        UI:SetProfessionSpellButton(card.spellButton, p.skillLine)
-    end
-    -- Only the wide primary cards put the label beside the button; the tall ones keep it below the tier.
-    if card.spellButton and card.unlearn then
+    local last = UI:SyncExtraSpellButtons(card, card, p.skillLine, 24, function(b)
+        b:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
+    end)
+    -- Only the wide primary cards put the label beside the buttons; the tall ones keep it below the tier.
+    if card.unlearn then
         card.maxed:ClearAllPoints()
-        if show and card.spellButton:IsShown() then
-            card.maxed:SetPoint("RIGHT", card.spellButton, "LEFT", -4, 0)
+        if last and last:IsShown() then
+            card.maxed:SetPoint("RIGHT", last, "LEFT", -4, 0)
         else
             card.maxed:SetPoint("TOPRIGHT", -10, -12)
         end
@@ -353,7 +323,7 @@ function UI:RefreshOverview()
         empty:SetShown(p == nil)
         if p then
             FillCard(card, p, accent, nav)
-            UpdateSpellButton(card, p)
+            UpdateSpellButtons(card, p)
         else
             empty.find:SetActive(nav)
         end
@@ -363,7 +333,7 @@ function UI:RefreshOverview()
         if not CombatBlocked(card) then card:SetShown(p ~= nil) end
         if p then
             FillCard(card, p, accent, nav)
-            UpdateSpellButton(card, p)
+            UpdateSpellButtons(card, p)
         end
     end
     o.hint:SetText(FP.Waypoint:NavAvailable() and L["Click a profession to open it. Right-click for the nearest trainer."]
