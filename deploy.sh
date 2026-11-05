@@ -37,6 +37,8 @@ for ADDONS in "${TARGETS[@]}"; do
 	rm -rf -- "$DEST"
 	mkdir -p -- "$DEST"
 	cp -- "$SRC"/*.toc "$SRC/LICENSE" "$DEST/"
+	# A _retail_ target gets the Retail Interface number added to its deployed .toc only, so that client loads it for testing.
+	if [[ "$ADDONS" == */_retail_/* ]]; then sed -i 's/^## Interface: .*/&, 120105/' "$DEST/$NAME.toc"; fi
 	cp -r -- "$SRC/Media" "$DEST/"
 	# Every folder the .toc loads files from.
 	while IFS= read -r dir; do cp -r -- "$SRC/$dir" "$DEST/"; done < <(grep -v '^#' "$SRC/$NAME.toc" | grep '\\' | cut -d'\' -f1 | sort -u)

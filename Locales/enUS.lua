@@ -57,7 +57,7 @@ for _, k in ipairs({
     -- Overview
     "Professions", "All Professions", "Skill", "Click: open this profession", "Drag to an action bar for direct access", "Visit a Trainer",
     "Unlearn This Profession",
-    "Disenchant", "Click to cast Disenchant, then click an item.",
+    "Click to cast %s, then click an item.", "Click to cast %s.",
     "Nothing queued", "%d recipes, %d crafts", "%d materials still missing", "All materials on hand",
     "Nothing to buy", "%d items to buy", "Estimated Cost", "%d without an auction price",
     "Click a profession to open it. Right-click for the nearest trainer.", "Click a profession to open it.",

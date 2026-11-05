@@ -4,7 +4,7 @@ local W = FP.Waypoint
 local Questie, Place, Spawns, Friendly = W.Questie, W.Place, W.Spawns, W.Friendly
 local indexes = W.indexes
 
-local RECIPE_PREFIXES = { "Recipe", "Plans", "Pattern", "Schematic", "Formula", "Manual", "Design", "Technique", "Book" }
+local RECIPE_PREFIXES = W.RECIPE_PREFIXES
 
 local function Label(name, area)
     return area and ("%s (%s)"):format(name, area) or name
@@ -153,9 +153,8 @@ function W:ForRecipe(recipeID)
     local vendorName = raw and raw ~= "" and CleanSource(raw):match("[Vv]endor:%s*([^\n]+)")
     if vendorName then
         vendorName = strtrim(vendorName)
-        return W.Search("npc", db, function()
-            local ids = indexes.npc.map[vendorName]
-            local spot = ids and Spawns(db, zoneDB, ids[1])[1]
+        return W.SearchNpc(db, vendorName, function(ids)
+            local spot = ids[1] and Spawns(db, zoneDB, ids[1])[1]
             if spot then return SetWaypoint(spot, vendorName, e.name) end
             if not GoToKnownVendor(e) then FP:Print(L["No known location for %s."]:format(vendorName)) end
         end)

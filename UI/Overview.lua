@@ -20,7 +20,7 @@ function UI:SetPage(page)
     f.right:SetShown(page == "recipes")
     f.overview:SetShown(page == "overview")
     self:RefreshProfessions()
-    self:UpdateDisenchantButton()
+    self:UpdateProfessionSpellButton()
     if page == "overview" then self:RefreshOverview() end
 end
 
@@ -88,8 +88,8 @@ local function MakeCard(o, tall)
             if FP.Waypoint:NavAvailable() then FP.Waypoint:NearestTrainer(s.profName) end
         else
             UI.TabSound()
-            UI:SetPage("recipes")
             FP:OpenProfession(s.skillLine)
+            UI:SetPage("recipes")
         end
     end)
     card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -200,7 +200,13 @@ local function MakeEmptySlot(o)
     return slot
 end
 
+-- A card holding a spell button is protected, so it can't be shown, hidden or moved in combat.
+local function CombatBlocked(w)
+    return InCombatLockdown() and w:IsProtected()
+end
+
 local function Place(w, x, y, width, height)
+    if CombatBlocked(w) then return end
     w:ClearAllPoints()
     w:SetPoint("TOPLEFT", w:GetParent(), "TOPLEFT", x, -y)
     w:SetSize(width, height)
@@ -294,19 +300,22 @@ local function FillCard(card, p, accent, nav)
     card.bar:Show()
 end
 
--- Enchanting's card carries the Disenchant button.
-local function UpdateDisenchant(card, p)
+-- Cards of professions with a spell (Disenchant, tracking) carry a button for it.
+local function UpdateSpellButton(card, p)
     if InCombatLockdown() then return end
-    local show = p.skillLine == 333 and UI:DisenchantSpellName()
-    if show and not card.disenchantButton then
-        card.disenchantButton = UI:CreateDisenchantButton(card, 24)
-        card.disenchantButton:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
+    local show = UI:ProfessionSpellName(p.skillLine)
+    if show and not card.spellButton then
+        card.spellButton = UI:CreateProfessionSpellButton(card, 24)
+        card.spellButton:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
     end
-    if card.disenchantButton then
-        UI:SetDisenchantButton(card.disenchantButton, show)
+    if card.spellButton then
+        UI:SetProfessionSpellButton(card.spellButton, p.skillLine)
+    end
+    -- Only the wide primary cards put the label beside the button; the tall ones keep it below the tier.
+    if card.spellButton and card.unlearn then
         card.maxed:ClearAllPoints()
-        if show and card.disenchantButton:IsShown() then
-            card.maxed:SetPoint("RIGHT", card.disenchantButton, "LEFT", -4, 0)
+        if show and card.spellButton:IsShown() then
+            card.maxed:SetPoint("RIGHT", card.spellButton, "LEFT", -4, 0)
         else
             card.maxed:SetPoint("TOPRIGHT", -10, -12)
         end
@@ -335,19 +344,22 @@ function UI:RefreshOverview()
     local accent = self:GetAccent()
     for i = 1, 2 do
         local card, empty, p = o.cards[i], o.empties[i], primary[i]
-        card:SetShown(p ~= nil)
+        if not CombatBlocked(card) then card:SetShown(p ~= nil) end
         empty:SetShown(p == nil)
         if p then
             FillCard(card, p, accent, nav)
-            UpdateDisenchant(card, p)
+            UpdateSpellButton(card, p)
         else
             empty.find:SetActive(nav)
         end
     end
     for i = 1, 3 do
         local card, p = o.tall[i], secondary[i]
-        card:SetShown(p ~= nil)
-        if p then FillCard(card, p, accent, nav) end
+        if not CombatBlocked(card) then card:SetShown(p ~= nil) end
+        if p then
+            FillCard(card, p, accent, nav)
+            UpdateSpellButton(card, p)
+        end
     end
     o.hint:SetText(FP.Waypoint:NavAvailable() and L["Click a profession to open it. Right-click for the nearest trainer."]
         or L["Click a profession to open it."])

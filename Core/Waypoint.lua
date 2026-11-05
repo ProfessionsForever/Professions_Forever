@@ -277,16 +277,44 @@ function W.NpcLocation(npcId)
     end
 end
 
--- Name -> ids indexes, built over several frames on first use so the client doesn't hitch.
+-- Questie scans run over several frames so the client doesn't hitch. onFound(name, id) is called for each name keep() accepts.
 local CHUNK = 3000
-local indexes = {} -- [kind] = { map = table|nil, building = bool, waiting = {} }
-W.indexes = indexes
+local function Scan(db, pointerKey, queryKey, field, keep, onFound, onDone)
+    local pointers, query, id = db[pointerKey], db[queryKey], nil
+    local function Step()
+        for _ = 1, CHUNK do
+            id = next(pointers, id)
+            if not id then return onDone() end
+            local name = query(id, field)
+            if name and keep(name) then onFound(name, id) end
+        end
+        C_Timer.After(0, Step)
+    end
+    Step()
+end
 
-local INDEX_SOURCES = { -- kind = { Questie pointer table, query function, field indexed }
-    npc = { "NPCPointers", "QueryNPCSingle", "name" },
-    item = { "ItemPointers", "QueryItemSingle", "name" },
-    sub = { "NPCPointers", "QueryNPCSingle", "subName" },
+-- Only the names the lookups can match are kept; indexing all of Questie's items and NPCs costs megabytes.
+W.RECIPE_PREFIXES = { "Recipe", "Plans", "Pattern", "Schematic", "Formula", "Manual", "Design", "Technique", "Book" }
+local recipePrefix = {}
+for _, p in ipairs(W.RECIPE_PREFIXES) do recipePrefix[p] = true end
+
+local SUB_WORDS = { "trainer", "banker", "apprentice", "junior", "journeyman", "expert", "artisan" }
+
+local INDEX_SOURCES = { -- kind = { Questie pointer table, query function, field indexed, name filter }
+    item = { "ItemPointers", "QueryItemSingle", "name", function(name)
+        return recipePrefix[name:match("^(%a+): ")] == true
+    end },
+    sub = { "NPCPointers", "QueryNPCSingle", "subName", function(name)
+        local low = name:lower()
+        for _, word in ipairs(SUB_WORDS) do
+            if low:find(word, 1, true) then return true end
+        end
+        return false
+    end },
 }
+
+local indexes = {} -- [kind] = { map = name -> ids | nil, building = bool, waiting = {} }
+W.indexes = indexes
 
 function W.Index(kind, db, onDone)
     local st = indexes[kind]
@@ -295,30 +323,35 @@ function W.Index(kind, db, onDone)
     if onDone then st.waiting[#st.waiting + 1] = onDone end
     if st.building then return end
     st.building = true
-    local pointers, query, field = unpack(INDEX_SOURCES[kind])
-    pointers, query = db[pointers], db[query]
-    local map, ids, i = {}, {}, 0
-    for id in pairs(pointers) do ids[#ids + 1] = id end
-    local function Step()
-        for _ = 1, CHUNK do
-            i = i + 1
-            local id = ids[i]
-            if not id then
-                st.map, st.building = map, false
-                for _, fn in ipairs(st.waiting) do fn() end
-                wipe(st.waiting)
-                return
-            end
-            local name = query(id, field)
-            if name then
-                local list = map[name]
-                if not list then list = {} map[name] = list end
-                list[#list + 1] = id
-            end
-        end
-        C_Timer.After(0, Step)
-    end
-    Step()
+    local map = {}
+    local pointerKey, queryKey, field, keep = unpack(INDEX_SOURCES[kind])
+    Scan(db, pointerKey, queryKey, field, keep, function(name, id)
+        local list = map[name]
+        if not list then list = {} map[name] = list end
+        list[#list + 1] = id
+    end, function()
+        st.map, st.building = map, false
+        for _, fn in ipairs(st.waiting) do fn() end
+        wipe(st.waiting)
+    end)
+end
+
+-- Same, announcing the wait. Without Questie there is nothing to build and onDone runs at once.
+function W.Search(kind, db, onDone)
+    if not db then return onDone() end
+    FP:Print(L["Searching Questie's database..."])
+    W.Index(kind, db, onDone)
+end
+
+-- Ids of the NPCs with exactly this name; the NPC names are not indexed, only the asked-for ones are remembered.
+local npcsByName = {}
+function W.SearchNpc(db, name, onDone)
+    if npcsByName[name] then return onDone(npcsByName[name]) end
+    FP:Print(L["Searching Questie's database..."])
+    local ids = {}
+    Scan(db, "NPCPointers", "QueryNPCSingle", "name", function(n) return n == name end,
+        function(_, id) ids[#ids + 1] = id end,
+        function() npcsByName[name] = ids onDone(ids) end)
 end
 
 -- Same, announcing the wait. Without Questie there is nothing to build and onDone runs at once.

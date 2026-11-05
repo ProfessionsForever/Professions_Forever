@@ -37,7 +37,7 @@ function UI:Refresh()
     if not self.frame or not self.frame:IsShown() then return end
     FP.Recipes:ResetEvalCache()
     self:RefreshProfessions()
-    self:UpdateDisenchantButton()
+    self:UpdateProfessionSpellButton()
     self:RefreshFilter()
     self:UpdateList()
     if self.scrollToSelected then
