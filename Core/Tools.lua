@@ -2,7 +2,11 @@ local _, FP = ...
 local T = {}
 FP.Tools = T
 
--- Tool-like requirements are checked in the bags by item name; anything else (a forge, an anvil) uses the game's own "met" flag.
+-- What a recipe requires. The game's own "met" flag is believed whenever it says met: it knows what stands in for a
+-- tool (on Forever a better Enchanting rod meets a lower one's requirement: a Runed Silver Rod for "Runed Copper Rod").
+-- When it isn't met, a tool-like requirement is looked for by name in the bags and bank, to tell "in the bank" from
+-- missing; anything else (a forge, an anvil) is simply missing. Another character's profession is always checked by
+-- name in its saved bags and bank, since the flag is about the current character.
 local TOOL_WORDS = { "hammer", "pick", "knife", "spanner", "rod", "adjustor", "kit", "stone", "needle", "mallet" }
 
 local function LooksLikeTool(name)
@@ -22,8 +26,14 @@ end
 
 -- Requirements of a recipe: { name, tool = bool, state = "bags" | "bank" | "missing" }.
 local function ToolState(name)
-    local bags, bank = C_Item.GetItemCount(name) or 0, 0 -- bags and equipped
     local id = C_Item.GetItemInfoInstant(name)
+    local crafter = FP.Recipes:Crafter()
+    if crafter then -- another character's profession: its saved bags and bank (worn tools aren't saved)
+        local b, bk = 0, 0
+        if id then b, bk = FP.Planner:Holding(crafter, id) end
+        return b > 0 and "bags" or bk > 0 and "bank" or "missing"
+    end
+    local bags, bank = C_Item.GetItemCount(name) or 0, 0 -- bags and equipped
     if id then
         local b, bk = FP.Inv:Owned(id)
         bags, bank = math.max(bags, b), bk
@@ -37,19 +47,20 @@ end
 
 function T:Get(recipeID)
     local out = {}
-    local fn = C_TradeSkillUI and C_TradeSkillUI.GetRecipeRequirements
-    if not fn then return out end
-    local ok, list = pcall(fn, recipeID)
+    local ok, list = pcall(C_TradeSkillUI.GetRecipeRequirements, recipeID)
     if not (ok and type(list) == "table") then return out end
     for _, entry in ipairs(list) do
         local name = type(entry) == "string" and entry or Field(entry, "name", "requirement", "text")
         if type(name) == "string" and name ~= "" then
             local tool = LooksLikeTool(name)
+            local met = type(entry) == "table" and Field(entry, "met") == true and not FP.Recipes:Crafter()
             local state
-            if tool then
+            if met then
+                state = "bags"
+            elseif tool then
                 state = ToolState(name)
             else
-                state = (type(entry) == "table" and Field(entry, "met") == true) and "bags" or "missing"
+                state = "missing"
             end
             out[#out + 1] = { name = name, tool = tool, state = state }
         end
@@ -64,35 +75,4 @@ function T:Missing(recipeID)
         if r.state ~= "bags" then missing[#missing + 1] = r.name end
     end
     return missing
-end
-
--- Prints what the client reports for the selected recipe, to adjust the lookup if nothing shows up.
-function T:Debug()
-    local id = FP.selected
-    if not id then return FP:Print("Select a recipe first.") end
-    local fn = C_TradeSkillUI and C_TradeSkillUI.GetRecipeRequirements
-    FP:Print(("recipe %s: GetRecipeRequirements exists=%s"):format(tostring(id), tostring(fn ~= nil)))
-    if fn then
-        local ok, list = pcall(fn, id)
-        FP:Print(("  call ok=%s type=%s count=%s"):format(tostring(ok), type(list), type(list) == "table" and #list or "-"))
-        for i, entry in ipairs(type(list) == "table" and list or {}) do
-            if type(entry) == "table" then
-                local parts = {}
-                for k, v in pairs(entry) do parts[#parts + 1] = tostring(k) .. "=" .. tostring(v) end
-                FP:Print(("  [%d] %s"):format(i, table.concat(parts, ", ")))
-            else
-                FP:Print(("  [%d] %s"):format(i, tostring(entry)))
-            end
-        end
-    end
-    local info = C_TradeSkillUI.GetRecipeInfo(id)
-    for k, v in pairs(info or {}) do
-        local key = tostring(k):lower()
-        if key:find("tool") or key:find("requir") or key:find("reagent") == nil and key:find("need") then
-            FP:Print(("  info.%s = %s"):format(tostring(k), tostring(v)))
-        end
-    end
-    for _, name in ipairs({ "GetTradeSkillTools", "GetRecipeTools", "GetRecipeRequirementText" }) do
-        FP:Print(("  %s exists: global=%s, C_TradeSkillUI=%s"):format(name, tostring(_G[name] ~= nil), tostring(C_TradeSkillUI[name] ~= nil)))
-    end
 end

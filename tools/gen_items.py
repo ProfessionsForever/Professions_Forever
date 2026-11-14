@@ -12,14 +12,12 @@ Usage: tools/gen_items.py [--build 1.60.1.70707] [--refresh]
 """
 import argparse
 import csv
-import json
-import sys
-import urllib.request
 from pathlib import Path
 
-CACHE = Path.home() / ".cache" / "professionsforever" / "wago"
+import wago
+from wago import cached_table, latest_build
+
 TARGET = Path(__file__).resolve().parent.parent / "Data" / "Items.lua"
-AGENT = {"User-Agent": "ProfessionsForever-item-generator (run by hand)"}
 
 # ItemSparse.Bonding: 0 none, 1 when picked up, 2 when equipped, 3 when used, 4 quest item, 5 account.
 TRADEABLE = {"0", "2", "3"}
@@ -27,26 +25,7 @@ TRADEABLE = {"0", "2", "3"}
 JUNK_PREFIXES = ("[", "(", "zz", "old", "deprecated", "test", "nyi", "dnt")
 
 
-def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=120) as response:
-        return response.read()
-
-
-def latest_build():
-    builds = json.loads(fetch("https://wago.tools/api/builds"))["wowf"]
-    return builds[0]["version"]
-
-
-def cached_table(build, table, refresh):
-    path = CACHE / build / f"{table}.csv"
-    if refresh or not path.exists():
-        print(f"downloading {table} ({build})")
-        data = fetch(f"https://wago.tools/db2/{table}/csv?build={build}")
-        if not data.startswith(b"ID,"):
-            sys.exit(f"{table}: the download doesn't look like a CSV table")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
-    return path
+wago.AGENT = "ProfessionsForever-item-generator (run by hand)"
 
 
 def generate(path, build):

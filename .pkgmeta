@@ -8,6 +8,9 @@ ignore:
   - tools
   - README.md
   - Media/icon.png
+  - TODO.md
+  - TODO-TESTS.md
+  - Core/Debug.lua
 
 manual-changelog:
   filename: CHANGELOG.md

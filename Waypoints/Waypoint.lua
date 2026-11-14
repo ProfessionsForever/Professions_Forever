@@ -59,6 +59,7 @@ end
 local questieDB, questieZone
 ---@return any db, any zone
 local function Questie()
+    if not FP.db.useQuestie then return end
     if not questieDB then questieDB, questieZone = FromLibrary() end
     if not questieDB then questieDB, questieZone = FromLoader() end
     return questieDB, questieZone
@@ -93,6 +94,22 @@ end
 
 function W:NavAvailable()
     return Navigator() ~= nil
+end
+
+-- For the options: which navigator waypoints go to and why, and whether that is a working setup.
+-- Polestar's own integration setting decides between it and TomTom (see PolestarEnabled).
+function W:NavigatorStatus()
+    local polestar, tomtom, nav = PolestarAPI() ~= nil, TomTomInstalled(), Navigator()
+    if nav == "polestar" then
+        return L[tomtom and "Using Polestar: its \"Follow TomTom's arrow\" setting is on."
+            or "Using Polestar: its \"Let other addons set waypoints\" setting is on."], true
+    elseif nav == "tomtom" then
+        return L[polestar and "Using TomTom. To use Polestar instead, turn on \"Follow TomTom's arrow\" in Polestar's options."
+            or "Using TomTom."], true
+    elseif polestar then
+        return L["Polestar's \"Let other addons set waypoints\" setting is off, so waypoints can't be set. Turn it on in Polestar's options."], false
+    end
+    return L["Polestar or TomTom is needed for waypoints."], false
 end
 
 -- For commands: explains what is missing when there is no navigator.
@@ -201,6 +218,43 @@ local function HookArrow()
     end)
 end
 
+-- Polestar's route to our waypoint, printed once when it has more than one step. Polestar.Nav.GetRoute and its
+-- ROUTE_CHANGED message (Polestar.On / Off) are Polestar internals, not its public API, so a Polestar update can
+-- take them away; the route is then just not printed.
+local routeHandle
+local function StopRouteWatch()
+    if routeHandle then
+        Polestar.Off(routeHandle)
+        routeHandle = nil
+    end
+end
+
+local function PrintRoute(legs, title)
+    if #legs < 2 then return end
+    FP:Print(L["Route to %s:"]:format(title))
+    for i, leg in ipairs(legs) do print(("   %d. %s"):format(i, leg.label or "?")) end
+end
+
+-- Runs after the caller's own chat line, so the route follows it. The route is usually planned already (Polestar
+-- plans as the target is set); when it isn't, it is printed with the first plan that arrives for this waypoint.
+local function WatchRoute(mine, title)
+    StopRouteWatch()
+    if not FP.db.printRoutes then return end
+    local N = Polestar.Nav
+    if not (type(N.GetRoute) == "function" and type(Polestar.On) == "function" and type(Polestar.Off) == "function") then return end
+    C_Timer.After(0, function()
+        if active ~= mine then return end
+        local legs = N.GetRoute()
+        if legs then return PrintRoute(legs, title) end
+        routeHandle = Polestar.On("ROUTE_CHANGED", function(planned)
+            if active ~= mine then return StopRouteWatch() end
+            if not planned then return end
+            StopRouteWatch()
+            PrintRoute(planned, title)
+        end)
+    end)
+end
+
 local function Place(uiMap, x, y, title)
     W:Clear()
     local nav = Navigator()
@@ -219,6 +273,7 @@ local function Place(uiMap, x, y, title)
     end
     active = mine
     RefreshButton()
+    if mine.polestar then WatchRoute(mine, title) end
     local tc, tx, ty = WorldPos(uiMap, x, y)
     mine.ticker = C_Timer.NewTicker(1, function()
         if active ~= mine then return end
@@ -227,6 +282,11 @@ local function Place(uiMap, x, y, title)
     end)
 end
 W.Place = Place
+
+-- "Name in Zone" for waypoint titles and chat; just the name when the zone isn't known.
+function W.Where(name, area)
+    return area and L["%s in %s"]:format(name, area) or name
+end
 
 -- Places a pick from PickNearest and prints nearKey (distance appended as its last argument) or farKey.
 function W.PlaceNearest(pick, dist, title, nearKey, farKey, ...)
@@ -265,16 +325,13 @@ function W.NpcID()
     return guid and tonumber((select(6, strsplit("-", guid))))
 end
 
--- Questie's spawn when available, else where you are standing (you're next to the NPC).
+-- Where you are standing (you're next to the NPC), else Questie's spawn where the game gives no position (instances).
 function W.NpcLocation(npcId)
+    local map, x, y = PlayerMapPos()
+    if map then return map, x, y end
     local db, zoneDB = Questie()
     local spot = db and W.Spawns(db, zoneDB, npcId)[1]
-    if spot then return spot.uiMap, spot.x, spot.y, spot.area end
-    local map, x, y = PlayerMapPos()
-    if map then
-        local info = C_Map.GetMapInfo(map)
-        return map, x, y, info and info.name
-    end
+    if spot then return spot.uiMap, spot.x, spot.y end
 end
 
 -- Questie scans run over several frames so the client doesn't hitch. onFound(name, id) is called for each name keep() accepts.
@@ -352,11 +409,4 @@ function W.SearchNpc(db, name, onDone)
     Scan(db, "NPCPointers", "QueryNPCSingle", "name", function(n) return n == name end,
         function(_, id) ids[#ids + 1] = id end,
         function() npcsByName[name] = ids onDone(ids) end)
-end
-
--- Same, announcing the wait. Without Questie there is nothing to build and onDone runs at once.
-function W.Search(kind, db, onDone)
-    if not db then return onDone() end
-    FP:Print(L["Searching Questie's database..."])
-    W.Index(kind, db, onDone)
 end

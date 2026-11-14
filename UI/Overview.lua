@@ -7,16 +7,24 @@ local CARD_H, GAP = 136, 12
 local PAD = 14 -- panel padding on the sides and below the cards
 local TOP = 64 -- space above the cards (title, hint)
 local FOOTER = UI.FOOTER_RESERVE
-local SECONDARY_ORDER = { [185] = 1, [356] = 2, [129] = 3 } -- Cooking, Fishing, First Aid
+local SECONDARY_ORDER = {} -- [skill line] = its place among the secondary cards
+for i, skillLine in ipairs(FP.SECONDARY_SKILLS) do SECONDARY_ORDER[skillLine] = i end
 
--- The game's own (localized) rank names; the tier is the profession's current cap in steps of 75.
-local TIER_GLOBALS = { "APPRENTICE", "JOURNEYMAN", "EXPERT", "ARTISAN", "MASTER", "GRAND_MASTER", "ILLUSTRIOUS", "ZEN_MASTER" }
+-- The game's own (localized) names of Forever's four ranks, which cap at 75, 150, 225 and 300.
+local TIER_GLOBALS = { "APPRENTICE", "JOURNEYMAN", "EXPERT", "ARTISAN" }
+
+-- A character's name, or `text` about it, in its class colour.
+local function ClassName(rec, text)
+    local r, g, b = FP.Alts:ClassColor(rec.class)
+    return ("|cff%02x%02x%02x%s|r"):format(r * 255, g * 255, b * 255, text or rec.name or "?")
+end
 
 function UI:SetPage(page)
     local f = self.frame
     if not f then return end
     if UI.CombatBlocked(f.overview) then return FP:Print(L["Cannot do that in combat."]) end
     self:ResetCraftQty()
+    if page == "overview" then FP.AltProfs:Stop() end
     self.page = page
     f.left:SetShown(page == "recipes")
     f.right:SetShown(page == "recipes")
@@ -30,13 +38,18 @@ end
 -- Profession cards
 ---------------------------------------------------------------------------
 local function CardDrag(s)
-    local id = s.prof and UI:DragSpellID(s.prof)
-    if id then C_Spell.PickupSpell(id) end
+    if s.prof then UI:PickupProfession(s.prof) end
 end
 
 local function CardTooltip(s)
     GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
     GameTooltip:AddLine(s.profName, 1, 1, 1)
+    if s.altKey then
+        UI.AddSkillLine(GameTooltip, s.rank, s.maxRank)
+        GameTooltip:AddLine(L["Click: browse these recipes"], 0.5, 0.8, 1)
+        GameTooltip:Show()
+        return
+    end
     local nav = FP.Waypoint:NavAvailable()
     if s.learnable then
         GameTooltip:AddLine(L["Visit a trainer to learn this profession."], 0.8, 0.8, 0.8, true)
@@ -48,10 +61,10 @@ local function CardTooltip(s)
     else
         UI.AddSkillLine(GameTooltip, s.rank, s.maxRank)
         GameTooltip:AddLine(L["Click: open this profession"], 0.5, 0.8, 1)
-        if s.prof and UI:DragSpellID(s.prof) then
+        if s.prof and UI:DragSlot(s.prof) then
             GameTooltip:AddLine(L["Drag to an action bar for direct access"], 0.5, 0.8, 1)
         end
-        if nav then GameTooltip:AddLine(L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1) end
+        UI.AddTrainerHint(GameTooltip, s.skillLine, s.rank, s.maxRank)
     end
     GameTooltip:Show()
 end
@@ -238,6 +251,24 @@ function UI:CreateOverview()
     o.hint:SetPoint("TOPLEFT", o.title, "BOTTOMLEFT", 0, -4)
     o.hint:SetTextColor(0.65, 0.65, 0.65)
 
+    -- Whose professions the cards show: yours, or another character's saved ones (UI.overviewChar, its key).
+    o.charPick = self:Dropdown(o, 220, 22, function()
+        local rec = FP.db.characters[UI.overviewChar or FP.Alts:GetCharacterKey()]
+        return L["Character: %s"]:format(ClassName(rec))
+    end, function()
+        local items = {}
+        for _, c in ipairs(FP.AltProfs:Characters()) do
+            items[#items + 1] = { text = ClassName(c.rec), checked = (UI.overviewChar == c.key) or (c.me and not UI.overviewChar),
+                onSelect = function()
+                    UI.overviewChar = not c.me and c.key or nil
+                    UI:RefreshProfessions()
+                    UI:RefreshOverview()
+                end }
+        end
+        return items
+    end)
+    o.charPick:SetPoint("TOPRIGHT", -14, -14)
+
     o:Hide()
 end
 
@@ -248,7 +279,7 @@ local function FillCard(card, p, accent, nav)
     card.icon:SetDesaturated(p.learnable == true)
     card.name:SetText(p.name)
     if card.unlearn then
-        card.unlearn:SetShown(not p.learnable)
+        card.unlearn:SetShown(not p.learnable and not p.alt)
         card.unlearn:ClearAllPoints()
         card.unlearn:SetPoint("LEFT", card.name, "LEFT", card.name:GetStringWidth() + 6, 0)
     end
@@ -274,16 +305,19 @@ local function FillCard(card, p, accent, nav)
     end
     card.bar.text:SetText(max > 0 and ("%d / %d"):format(rank, max) or tostring(rank))
     card.maxed:SetTextColor(0.2, 0.9, 0.2)
-    card.maxed:SetText(capped and L["Visit a Trainer"] or "")
+    local W = FP.Waypoint
+    card.maxed:SetText(p.alt and "" or W.SkillBook(p.skillLine, rank, max) and L["Buy a Skill Book"] or W.ArtisanQuest(p.skillLine, rank, max) and L["Do the Artisan Quest"]
+        or capped and L["Visit a Trainer"] or "")
     card.bar:Show()
 end
 
 -- Cards of professions with spells (Disenchant, tracking, the pole) carry a button for each.
 local function UpdateSpellButtons(card, p)
     if InCombatLockdown() then return end
-    local last = UI:SyncExtraSpellButtons(card, card, p.skillLine, 24, function(b)
+    local last = UI:SyncExtraSpellButtons(card, card, not p.alt and p.skillLine or nil, 24, function(b)
         b:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
     end)
+    last = UI:SyncDisenchantCardButton(card, p, last) or last
     -- Only the wide primary cards put the label beside the buttons; the tall ones keep it below the tier.
     if card.unlearn then
         card.maxed:ClearAllPoints()
@@ -295,6 +329,10 @@ local function UpdateSpellButtons(card, p)
     end
 end
 
+FP.Alts:OnRemove(function(key)
+    if UI.overviewChar == key then UI.overviewChar = nil end
+end)
+
 function UI:RefreshOverview()
     local f = self.frame
     local o = f and f.overview
@@ -302,15 +340,18 @@ function UI:RefreshOverview()
 
     local nav = FP.Waypoint:NavAvailable()
     local primary, secondary, choices = wipe(o.primary), wipe(o.secondary), wipe(o.trainerChoices)
-    for _, p in ipairs(FP:GetProfessions()) do
+    local alt = self.overviewChar
+    for _, p in ipairs(alt and FP.AltProfs:Professions(alt) or FP:GetProfessions()) do
         if FP:IsSecondary(p.skillLine) then
             secondary[#secondary + 1] = p
         elseif #primary < 2 then
             primary[#primary + 1] = p
         end
     end
-    for _, p in ipairs(FP:GetLearnableProfessions()) do
-        if p.secondary then secondary[#secondary + 1] = p else choices[#choices + 1] = p end
+    if not alt then
+        for _, p in ipairs(FP:GetLearnableProfessions()) do
+            if p.secondary then secondary[#secondary + 1] = p else choices[#choices + 1] = p end
+        end
     end
     table.sort(secondary, function(x, y) return SECONDARY_ORDER[x.skillLine] < SECONDARY_ORDER[y.skillLine] end)
 
@@ -318,7 +359,7 @@ function UI:RefreshOverview()
     for i = 1, 2 do
         local card, empty, p = o.cards[i], o.empties[i], primary[i]
         if not CombatBlocked(card) then card:SetShown(p ~= nil) end
-        empty:SetShown(p == nil)
+        empty:SetShown(p == nil and not alt)
         if p then
             FillCard(card, p, accent, nav)
             UpdateSpellButtons(card, p)
@@ -334,7 +375,15 @@ function UI:RefreshOverview()
             UpdateSpellButtons(card, p)
         end
     end
-    o.hint:SetText(FP.Waypoint:NavAvailable() and L["Click a profession to open it. Right-click for the nearest trainer."]
+    local others = #FP.AltProfs:Characters() > 1
+    o.charPick:SetShown(others)
+    if others then o.charPick:Sync() end
+    self:SyncOverviewDisenchantButton(o)
+    -- Whose cards these are, the name in its class colour; just "Professions" before the character's record exists.
+    local shown = FP.db.characters[alt or FP.Alts:GetCharacterKey()]
+    o.title:SetText(shown and L["%s Professions"]:format(ClassName(shown, L["%s's"]:format(shown.name or "?"))) or L["Professions"])
+    o.hint:SetText(alt and L["Click a profession to browse its recipes."]
+        or FP.Waypoint:NavAvailable() and L["Click a profession to open it. Right-click for the nearest trainer."]
         or L["Click a profession to open it."])
     self:LayoutOverview()
 end

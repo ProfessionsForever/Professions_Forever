@@ -11,16 +11,13 @@ Usage: tools/gen_cooldowns.py [--build 1.60.1.70707] [--refresh]
     --refresh    download the tables again even if cached
 """
 import argparse
-import csv
-import json
-import sys
-import urllib.request
 from pathlib import Path
 
+import wago
+from wago import cached_table, latest_build, rows
+
 TABLES = ("SkillLineAbility", "SpellCooldowns", "SpellCategories", "SpellName")
-CACHE = Path.home() / ".cache" / "professionsforever" / "wago"
 TARGET = Path(__file__).resolve().parent.parent / "Data" / "Cooldowns.lua"
-AGENT = {"User-Agent": "ProfessionsForever-cooldown-generator (run by hand)"}
 
 # Skill lines of the professions this addon lists (Core/Professions.lua).
 PROFESSIONS = {171, 164, 333, 202, 182, 773, 755, 165, 186, 393, 197, 129, 185, 356}
@@ -28,31 +25,7 @@ PROFESSIONS = {171, 164, 333, 202, 182, 773, 755, 165, 186, 393, 197, 129, 185, 
 MIN_SECONDS = 600
 
 
-def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENT), timeout=60) as response:
-        return response.read()
-
-
-def latest_build():
-    builds = json.loads(fetch("https://wago.tools/api/builds"))["wowf"]
-    return builds[0]["version"]
-
-
-def cached_table(build, table, refresh):
-    path = CACHE / build / f"{table}.csv"
-    if refresh or not path.exists():
-        print(f"downloading {table} ({build})")
-        data = fetch(f"https://wago.tools/db2/{table}/csv?build={build}")
-        if not data.startswith(b"ID,") and b",ID," not in data.split(b"\n", 1)[0]:
-            sys.exit(f"{table}: the download doesn't look like a CSV table")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
-    return path
-
-
-def rows(path):
-    with open(path, newline="", encoding="utf-8") as f:
-        yield from csv.DictReader(f)
+wago.AGENT = "ProfessionsForever-cooldown-generator (run by hand)"
 
 
 def generate(tables, build):

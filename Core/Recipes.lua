@@ -2,22 +2,25 @@ local _, FP = ...
 local R = { list = {}, byID = {}, categories = {} }
 FP.Recipes = R
 
-local BASIC = (Enum.CraftingReagentType and Enum.CraftingReagentType.Basic) or 1
-local schematics, evalCache = {}, {}
+local BASIC = Enum.CraftingReagentType.Basic
+local evalCache = {}
 local floor, min, max, huge = math.floor, math.min, math.max, math.huge
 
--- Rebuild the recipe list for the currently open profession.
+-- Rebuild the recipe list for the currently open profession, or for the other character's profession being viewed.
 function R:Reload()
     wipe(self.list)
     wipe(self.byID)
+    local viewing = FP.AltProfs.viewing
+    if viewing then return self:LoadAlt(viewing) end
     local ids = C_TradeSkillUI.GetAllRecipeIDs() or {}
+    local linked = FP:IsReadOnly() -- your favorites don't apply to another player's recipes
     for _, id in ipairs(ids) do
         local info = C_TradeSkillUI.GetRecipeInfo(id)
         if info and info.name then
             local e = { id = id, name = info.name, icon = info.icon, learned = info.learned,
                 difficulty = info.relativeDifficulty, categoryID = info.categoryID,
                 verb = info.abilityVerb or info.alternateVerb, allVerb = info.abilityAllVerb,
-                favorite = self:IsFavorite(id) }
+                favorite = not linked and self:IsFavorite(id) }
             self.byID[id] = e
             self.list[#self.list + 1] = e
         end
@@ -31,6 +34,62 @@ function R:Reload()
 end
 
 function R:ResetEvalCache() wipe(evalCache) end
+
+-- Whose materials the recipes are counted against: the viewed character's key (Alts/AltProfessions.lua), or nil for
+-- the current character.
+function R:Crafter()
+    local viewing = FP.AltProfs.viewing
+    return viewing and viewing.key
+end
+
+-- A recipe's difficulty (0 orange, 1 yellow, 2 green, 3 grey) at `skill`, from the game data; green starts halfway
+-- between yellow and grey. Nil when the data has no thresholds for it.
+local function Difficulty(recipeID, skill)
+    local yellow, grey = FP.RecipeYellow[recipeID], FP.RecipeGrey[recipeID]
+    if not yellow then return end
+    if skill < yellow then return 0 end
+    if skill < (yellow + grey) / 2 then return 1 end
+    if skill < grey then return 2 end
+    return 3
+end
+
+-- Builds the list from saved data for another character's profession (Alts/AltProfessions.lua): every recipe of the
+-- profession from the game data, learned as that character last recorded, in the category tree kept from the last
+-- time any character opened the profession. Recipes without a saved category are listed without one.
+function R:LoadAlt(viewing)
+    local line = viewing.skillLine
+    local known = FP.db.characters[viewing.key].known
+    local learned = {}
+    for id in ((known and known[line]) or ""):gmatch("%d+") do learned[tonumber(id)] = true end
+    local data = FP.db.professionData[line]
+    local categoryOf = {}
+    for id, cat in ((data and data.recipeCategory) or ""):gmatch("(%d+),(%d+)") do categoryOf[tonumber(id)] = tonumber(cat) end
+
+    for id in (FP.RecipeLines[line] or ""):gmatch("%d+") do
+        id = tonumber(id)
+        local info = C_TradeSkillUI.GetRecipeInfo(id)
+        local name = info and info.name or C_Spell.GetSpellName(id)
+        if name then
+            local made = FP.RecipeOutputs[id]
+            local e = { id = id, name = name, learned = learned[id] == true,
+                icon = info and info.icon or made and C_Item.GetItemIconByID(made) or C_Spell.GetSpellTexture(id),
+                difficulty = Difficulty(id, viewing.rank), categoryID = categoryOf[id],
+                verb = info and (info.abilityVerb or info.alternateVerb), allVerb = info and info.abilityAllVerb, favorite = false }
+            self.byID[id] = e
+            self.list[#self.list + 1] = e
+        end
+    end
+
+    wipe(self.categories)
+    for id, c in pairs((data and data.categories) or {}) do
+        self.categories[id] = { id = id, name = c.name, parent = c.parent, order = c.order }
+    end
+    table.sort(self.list, function(a, b)
+        if a.learned ~= b.learned then return a.learned end
+        return a.name < b.name
+    end)
+    self:ResetEvalCache()
+end
 
 -- Category filter value for the favorites group.
 R.FAVORITES = "\1favorites"
@@ -46,37 +105,46 @@ function R:SetFavorite(recipeID, on)
     if e then e.favorite = on and true or false end
 end
 
-local typeCache, salvageQuantity = {}, {}
+-- What the game's schematic says about a recipe, read once since it never changes:
+-- { type, min, max (items made per craft), outputItemID, reagents = { { itemID, qty } } (basic reagents only) }.
+-- Nil, and not stored, while the game has no schematic for it yet.
+local schematics = {}
+local function Schematic(recipeID)
+    local s = schematics[recipeID]
+    if s then return s end
+    local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
+    if not (ok and schematic) then return end
+    local reagents = {}
+    for _, slot in ipairs(schematic.reagentSlotSchematics or {}) do
+        local reagent = slot.reagentType == BASIC and slot.reagents and slot.reagents[1]
+        if reagent and reagent.itemID then reagents[#reagents + 1] = { itemID = reagent.itemID, qty = max(1, slot.quantityRequired or 1) } end
+    end
+    s = { type = schematic.recipeType, min = schematic.quantityMin, max = schematic.quantityMax,
+        outputItemID = schematic.outputItemID, reagents = reagents }
+    schematics[recipeID] = s
+    return s
+end
 
--- The recipe's Enum.TradeskillRecipeType, or nil until its schematic has loaded (not cached before then).
+-- The recipe's Enum.TradeskillRecipeType, or nil until its schematic has loaded.
 local function RecipeType(recipeID)
-    local cached = typeCache[recipeID]
-    if cached ~= nil then return cached end
-    local T = C_TradeSkillUI
-    if not (T.GetRecipeSchematic and Enum.TradeskillRecipeType) then return nil end
-    local ok, schematic = pcall(T.GetRecipeSchematic, recipeID, false)
-    if not (ok and schematic) then return nil end
-    typeCache[recipeID] = schematic.recipeType
-    salvageQuantity[recipeID] = max(1, schematic.quantityMax or 1)
-    return schematic.recipeType
+    local s = Schematic(recipeID)
+    return s and s.type
 end
 
 -- True for enchanting recipes, which are crafted onto a chosen item instead of producing one.
 function R:IsEnchant(recipeID)
-    local kinds = Enum.TradeskillRecipeType
-    return kinds ~= nil and RecipeType(recipeID) == kinds.Enchant
+    return RecipeType(recipeID) == Enum.TradeskillRecipeType.Enchant
 end
 
 -- True for salvage recipes (prospecting, milling...), which break down a chosen stack of items.
 function R:IsSalvage(recipeID)
-    local kinds = Enum.TradeskillRecipeType
-    return kinds ~= nil and RecipeType(recipeID) == kinds.Salvage
+    return RecipeType(recipeID) == Enum.TradeskillRecipeType.Salvage
 end
 
 -- Items consumed per craft of a salvage recipe.
 function R:SalvageQuantity(recipeID)
-    RecipeType(recipeID)
-    return salvageQuantity[recipeID] or 1
+    local s = Schematic(recipeID)
+    return s and max(1, s.max or 1) or 1
 end
 
 -- The open profession's trade categories (the same tree Blizzard's window shows), found by walking up
@@ -84,14 +152,8 @@ end
 function R:LoadCategories()
     local T = C_TradeSkillUI
     wipe(self.categories)
-    if not T.GetCategoryInfo then return end
-    -- Some clients return one table of IDs, others return the IDs as separate values.
     local order = {}
-    if T.GetCategories then
-        local result = { pcall(T.GetCategories) }
-        local ids = type(result[2]) == "table" and result[2] or { unpack(result, 2) }
-        for i, id in ipairs(ids) do order[id] = i end
-    end
+    for i, id in ipairs({ T.GetCategories() }) do order[id] = i end
     local function Add(id)
         while id and id ~= 0 and not self.categories[id] do
             local ok, info = pcall(T.GetCategoryInfo, id)
@@ -213,10 +275,45 @@ function R:BuildDisplay(recipes, collapsed, expandAll, showCategories, favorites
     return out
 end
 
+-- Working Overtime, a node of the Legacy professions talent tree: each point adds 4 percentage points to every
+-- skill up chance. The node ID is the one SkillUp Forever reads it by; the tree is the game's own constant.
+local OVERTIME_NODE, OVERTIME_PER_POINT = 110290, 0.04
+local overtimeBonus -- nil until the talent config can be read
+
+-- The chance bonus the open character's talents give (0 to 0.2), cached until the talents change.
+function R:SkillUpBonus()
+    local viewing = FP.AltProfs.viewing
+    if viewing then return viewing.bonus end -- that character's own bonus, as last recorded
+    if overtimeBonus then return overtimeBonus end
+    local configID = C_Traits.GetConfigIDByTreeID(Constants.LegacyConsts.LEGACY_TREE_PROFESSIONS_ID)
+    if not configID then return 0 end -- not loaded yet; ask again next time
+    local info = C_Traits.GetNodeInfo(configID, OVERTIME_NODE)
+    local rank = info and tonumber(info.activeRank or info.currentRank) or 0
+    overtimeBonus = min(max(rank, 0), info and info.maxRanks or 5) * OVERTIME_PER_POINT
+    return overtimeBonus
+end
+
+local function TalentsChanged(self)
+    overtimeBonus = nil
+    self.UI:QueueRefresh()
+end
+FP:RegisterEvent("TRAIT_CONFIG_UPDATED", TalentsChanged)
+FP:RegisterEvent("TRAIT_NODE_CHANGED", TalentsChanged)
+
+-- Chance (0 to 1) that a craft at `skill` gives a skill up: certain below yellow, falling in a line to nothing at grey,
+-- plus the talent bonus between the two. Nil when the recipe has no thresholds in the data.
+function R:SkillUpChance(recipeID, skill)
+    local yellow, grey = FP.RecipeYellow[recipeID], FP.RecipeGrey[recipeID]
+    if not yellow then return end
+    if skill < yellow then return 1 end
+    if skill >= grey then return 0 end
+    return min(1, (grey - skill) / (grey - yellow) + self:SkillUpBonus())
+end
+
 -- Items one craft of the recipe makes: the fewest and the most.
 function R:OutputQuantity(recipeID)
-    local ok, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, recipeID, false)
-    local lo, hi = ok and schematic and schematic.quantityMin, ok and schematic and schematic.quantityMax
+    local s = Schematic(recipeID)
+    local lo, hi = s and s.min, s and s.max
     if lo and hi and lo > 0 then return lo, hi end
     return 1, 1
 end
@@ -224,14 +321,10 @@ end
 -- What the recipe makes: { itemID, hyperlink... } as the game gives it.
 function R:OutputInfo(recipeID)
     local T = C_TradeSkillUI
-    if T.GetRecipeOutputItemData then
-        local ok, output = pcall(T.GetRecipeOutputItemData, recipeID)
-        if ok and output then return output end
-    end
-    if T.GetRecipeSchematic then
-        local ok, schematic = pcall(T.GetRecipeSchematic, recipeID, false)
-        if ok and schematic and schematic.outputItemID then return { itemID = schematic.outputItemID } end
-    end
+    local ok, output = pcall(T.GetRecipeOutputItemData, recipeID)
+    if ok and output then return output end
+    local s = Schematic(recipeID)
+    if s and s.outputItemID then return { itemID = s.outputItemID } end
 end
 
 function R:OutputItemID(recipeID)
@@ -242,15 +335,8 @@ end
 
 -- Basic reagents only: { itemID, qty }.
 function R:GetReagents(recipeID)
-    if schematics[recipeID] then return schematics[recipeID] end
-    local schem = C_TradeSkillUI.GetRecipeSchematic(recipeID, false)
-    local out = {}
-    for _, slot in ipairs(schem and schem.reagentSlotSchematics or {}) do
-        local reagent = slot.reagentType == BASIC and slot.reagents and slot.reagents[1]
-        if reagent and reagent.itemID then out[#out + 1] = { itemID = reagent.itemID, qty = max(1, slot.quantityRequired or 1) } end
-    end
-    if schem then schematics[recipeID] = out end -- don't cache when data wasn't ready
-    return out
+    local s = Schematic(recipeID)
+    return s and s.reagents or {}
 end
 
 -- Material evaluation for `count` crafts.
@@ -261,8 +347,9 @@ function R:Evaluate(recipeID, count)
     local reagents = self:GetReagents(recipeID)
     local ev = { reagents = {}, count = count, craftBags = 0, craftTotal = 0, haveAny = false, satisfied = 0, anyShort = false }
     local cb, ct = huge, huge
+    local crafter = self:Crafter()
     for i, r in ipairs(reagents) do
-        local bags, bank, total = FP.Inv:Owned(r.itemID)
+        local bags, bank, total = FP.Planner:Holding(crafter, r.itemID)
         local need = r.qty * count
         local short = max(0, need - total)
         ev.reagents[i] = { itemID = r.itemID, qty = r.qty, need = need, bags = bags, bank = bank, total = total, short = short }
@@ -290,26 +377,32 @@ end
 --   ev.craftWithAlts: whole crafts with current stock plus enabled alts (never below craftTotal)
 --   ev.plan: allocation for the requested count; ev.planMax: allocation for craftWithAlts crafts
 --   ev.altsCover: every shortage of the requested count can be met from alts
+--   ev.mailCovers: every shortage of the requested count is waiting in the crafter's mailbox
+--   reagent.mail: how many of it wait there
 --   reagent.alts / totalWithAlts / shortAfterAlts / shortage / plan: that reagent's slice of ev.plan
 function R:EvaluateAlts(ev)
     local P = FP.Planner
     if ev.altsVersion == P:Version() then return ev end
     ev.altsVersion = P:Version()
-    ev.craftWithAlts, ev.plan, ev.planMax, ev.altsCover = ev.craftTotal, nil, nil, false
+    ev.craftWithAlts, ev.plan, ev.planMax, ev.altsCover, ev.mailCovers = ev.craftTotal, nil, nil, false, false
     if #ev.reagents == 0 then return ev end
-    ev.plan = P:Plan(ev.reagents)
+    local crafter = self:Crafter()
+    ev.plan = P:Plan(ev.reagents, crafter)
+    local mailCovers = true
     for _, r in ipairs(ev.reagents) do
         local it = ev.plan.byItem[r.itemID]
         r.plan, r.alts, r.totalWithAlts = it, it.altAvailable, r.total + it.altAvailable
-        r.shortAfterAlts, r.shortage = it.stillMissing, it.shortage
+        r.shortAfterAlts, r.shortage, r.mail = it.stillMissing, it.shortage, it.mail
+        if it.localShort > 0 then mailCovers = false end
     end
-    ev.altsCover = ev.anyShort and ev.plan.totals.covered and P:Mode() ~= "never"
+    ev.mailCovers = ev.anyShort and mailCovers
+    ev.altsCover = ev.anyShort and not ev.mailCovers and ev.plan.totals.covered and P:Mode() ~= "never"
     if P:Mode() == "never" then return ev end
-    ev.craftWithAlts = max(ev.craftTotal, P:MaxCrafts(ev.reagents))
+    ev.craftWithAlts = max(ev.craftTotal, P:MaxCrafts(ev.reagents, crafter))
     if ev.craftWithAlts > ev.craftTotal then
         local reqs = {}
         for i, r in ipairs(ev.reagents) do reqs[i] = { itemID = r.itemID, need = r.qty * ev.craftWithAlts } end
-        ev.planMax = P:Plan(reqs)
+        ev.planMax = P:Plan(reqs, crafter)
     end
     return ev
 end
@@ -336,20 +429,27 @@ end
 
 -- Sort keys: lower sorts first, compared in order; ties fall back on the name.
 -- craftable: crafts from bags, then with the bank, then with enabled alts, then reagents already held in full.
-local function SortValue(self, e, key)
+-- chance: highest skill up chance first at the open profession's skill, then recipes with no data, then unlearned ones.
+local function SortValue(self, e, key, skill)
     if key == "difficulty" then return e.learned and (e.difficulty or 9) or 10 end
     if key == "craftable" then
         local ev = self:Evaluate(e.id)
-        return -ev.craftBags, -ev.craftTotal, -max(ev.craftTotal, FP.Planner:MaxCrafts(ev.reagents)), -ev.satisfied
+        return -ev.craftBags, -ev.craftTotal, -max(ev.craftTotal, FP.Planner:MaxCrafts(ev.reagents, self:Crafter())), -ev.satisfied
+    end
+    if key == "chance" then
+        if not e.learned then return 3 end
+        local chance = self:SkillUpChance(e.id, skill)
+        return chance and -chance or 2
     end
     if key == "profit" then
-        local profit = FP.UI.RecipeProfit(e.id)
+        local profit = FP.Prices:RecipeProfit(e.id)
         return profit and -profit or huge
     end
     return e.learned and 0 or 1
 end
 
--- o: search, categoryName, showUnlearned, unlearnedOnly, matsOnly, skillUps, hideTrivial, sortKey (name|difficulty|craftable|profit), sortDesc.
+-- o: search, categoryName, showUnlearned, unlearnedOnly, matsOnly, skillUps, hideTrivial, sortKey (name|difficulty|chance|craftable|profit),
+-- sortDesc, skill (the open profession's skill, for the chance sort).
 function R:GetFiltered(o)
     local out = {}
     local search = o.search and strlower(o.search) or ""
@@ -369,7 +469,7 @@ function R:GetFiltered(o)
     if key == "profit" and not FP.Prices:Available() then key = "name" end
     if key ~= "name" or o.sortDesc then
         local keys = {}
-        for _, e in ipairs(out) do keys[e] = { SortValue(self, e, key) } end
+        for _, e in ipairs(out) do keys[e] = { SortValue(self, e, key, o.skill) } end
         table.sort(out, function(a, b)
             if o.sortDesc then a, b = b, a end
             local va, vb = keys[a], keys[b]

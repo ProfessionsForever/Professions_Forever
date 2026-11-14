@@ -3,8 +3,6 @@ local L = FP.L
 local M = {}
 FP.Minimap = M
 
-local atan2 = math.atan2 or math.atan
-
 function M:Position()
     local a = math.rad(FP.db.minimap.angle)
     local r = Minimap:GetWidth() / 2 + 5
@@ -43,7 +41,7 @@ function M:Init()
             local cx, cy = Minimap:GetCenter()
             local scale = Minimap:GetEffectiveScale()
             local mx, my = GetCursorPosition()
-            FP.db.minimap.angle = math.deg(atan2(my / scale - cy, mx / scale - cx))
+            FP.db.minimap.angle = math.deg(math.atan2(my / scale - cy, mx / scale - cx))
             M:Position()
         end)
     end)

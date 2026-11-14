@@ -1,2 +1,5 @@
 .addons-path
 .vscode/settings.json
+TODO.md
+TODO-TESTS.md
+__pycache__/

@@ -5,7 +5,7 @@ local UI = FP.UI
 -- Spell buttons beside a profession: Disenchant (then click an item), the tracking spells and Bait and Tackle,
 -- which opens Fishing's crafting window.
 local SPELLS = {
-    [333] = { { id = 13262, needsItem = true } }, -- Enchanting: Disenchant
+    [FP.ENCHANTING] = { { id = FP.Disenchant.SPELL, needsItem = true } }, -- Enchanting: Disenchant
     [186] = { { id = 2580 } },                    -- Mining: Find Minerals
     [182] = { { id = 2383 } },                    -- Herbalism: Find Herbs
     [356] = { { id = 1278067 }, { id = 43308 } }, -- Fishing: Bait and Tackle, Find Fish
@@ -28,16 +28,17 @@ function UI:ExtraSpells(skillLine)
 end
 
 local function CreateButton(parent, size)
-    local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
+    local button = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate, BackdropTemplate")
     button:SetSize(size, size)
+    UI:Skin(button, "button")
     button:RegisterForClicks("AnyDown", "AnyUp")
     button:SetAttribute("useOnKeyDown", false) -- casting on mouse-down would leave no room to drag
     button:RegisterForDrag("LeftButton")
     button:SetScript("OnDragStart", function(s) if s.spell then C_Spell.PickupSpell(s.spell.id) end end)
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     button.icon = button:CreateTexture(nil, "ARTWORK")
-    button.icon:SetPoint("TOPLEFT", 1, -1)
-    button.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+    button.icon:SetPoint("TOPLEFT", 3, -3)
+    button.icon:SetPoint("BOTTOMRIGHT", -3, 3)
     button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     UI:Tooltip(button, "ANCHOR_RIGHT", function(tip)
         local name = button.spellName
@@ -80,10 +81,11 @@ end
 function UI:UpdateExtraSpellButtons()
     local f = self.frame
     if not (f and f.detail and f.detail.craftAll) then return end
-    local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
-    local skillLine = self.page == "recipes" and base and base.professionID
+    local base = C_TradeSkillUI.GetBaseProfessionInfo()
+    local skillLine = self.page == "recipes" and not FP:IsReadOnly() and base and base.professionID
     -- Protected frames can only anchor to frames, not to chains that run through text regions.
-    self:SyncExtraSpellButtons(f.detail, f.header, skillLine, 22, function(b)
+    local leftmost = self:SyncExtraSpellButtons(f.detail, f.header, skillLine, 22, function(b)
         b:SetPoint("RIGHT", f.rank, "LEFT", -6, 0)
     end)
+    self:UpdateDisenchantModeButton(skillLine, leftmost)
 end

@@ -14,6 +14,25 @@ local FONTS = {
     { "Skurri", "Fonts\\skurri.ttf" }, { "Morpheus", "Fonts\\MORPHEUS.ttf" },
 }
 
+-- The game's own fonts, then any that LibSharedMedia lists: other addons register theirs there.
+local function FontList()
+    local list, seen = {}, {}
+    for _, font in ipairs(FONTS) do
+        list[#list + 1] = font
+        seen[font[2]:lower()] = true
+    end
+    local media = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if media then
+        local extra = {}
+        for name, path in pairs(media:HashTable("font")) do
+            if type(path) == "string" and not seen[path:lower()] then extra[#extra + 1] = { name, path } end
+        end
+        table.sort(extra, function(a, b) return a[1] < b[1] end)
+        for _, font in ipairs(extra) do list[#list + 1] = font end
+    end
+    return list
+end
+
 StaticPopupDialogs["PROFESSIONSFOREVER_RELOAD_SKIN"] = {
     text = L["Reload your UI to fully remove the EllesmereUI skin."],
     button1 = L["Reload UI"],
@@ -47,7 +66,7 @@ end
 local function FontItems()
     local db = FP.db
     local items = {}
-    for _, font in ipairs(FONTS) do
+    for _, font in ipairs(FontList()) do
         items[#items + 1] = { text = font[1], checked = db.font == font[2], onSelect = function()
             db.font = font[2]
             UI:ApplyFonts()
@@ -60,7 +79,6 @@ end
 local function PickAccent()
     local db = FP.db
     local a = UI:GetAccent()
-    if not (ColorPickerFrame and ColorPickerFrame.SetupColorPickerAndShow) then return end
     -- The picker is DIALOG strata and opens at screen centre like this window, which is above it, so it would be hidden.
     ColorPickerFrame:SetFrameStrata("FULLSCREEN_DIALOG")
     if not O.pickerHooked then
@@ -87,7 +105,7 @@ local function BuildAppearance(page)
     O.Section(page, L["Theme"])
     O.DropList(page, L["Skin"], function() return L[UI.ActiveSkin().name] end, SkinItems)
     local fontDD = O.DropList(page, L["Font"], function()
-        for _, font in ipairs(FONTS) do
+        for _, font in ipairs(FontList()) do
             if font[2] == db.font then return font[1] end
         end
         return FONTS[1][1]
@@ -151,10 +169,32 @@ local function BuildGeneral(page)
     page.y = page.y - O.ROW_H
 
     O.Section(page, L["Shopping List"])
-    O.Check(page, L["Shopping List Scope"] .. ": " .. L["Account-Wide"], function() return db.shoppingScope == "account" end, function(v)
+    local scope = O.Check(page, L["Shopping List Scope"] .. ": " .. L["Account-Wide"], function() return db.shoppingScope == "account" end, function(v)
         db.shoppingScope = v and "account" or "char"
-        FP.Shop:Update()
+        FP:Changed("shop")
     end)
+    UI:Tooltip(scope, "ANCHOR_RIGHT", L["Share one list between all your characters of the same faction, so a different character can do the buying. The other faction has its own, since items can't be mailed across."])
+
+    O.Section(page, L["Disenchanting"])
+    local record = O.Check(page, L["Record Your Disenchant Results"], function() return db.deRecord end, function(v)
+        db.deRecord = v
+    end)
+    UI:Tooltip(record, "ANCHOR_RIGHT", L["Each time any of your characters disenchants an item, what it gave is saved, to check the chances against what Forever really drops."])
+    local observed = O.Check(page, L["Show Seen Rates"], function() return db.deShowObserved end, function(v)
+        db.deShowObserved = v
+        UI:UpdateDisenchantMode()
+    end)
+    UI:Tooltip(observed, "ANCHOR_RIGHT", L["Under each disenchant result's chance, in Disenchanting Mode and on item tooltips with every result shown: how often your characters really got it from that kind of item. Greyed and marked unreliable until 100 disenchants of that kind are recorded."])
+    local main = O.DropList(page, L["Main Enchanter"], function() return UI:MainEnchanterLabel() end, function()
+        local items = { { text = L["Automatic (Highest Skill)"], checked = db.mainEnchanter == nil,
+            onSelect = function() UI:SetMainEnchanter(nil) end } }
+        for _, e in ipairs(UI:Enchanters()) do
+            items[#items + 1] = { text = ("%s (%d)"):format(FP.Alts:Label(e.rec), e.rank), checked = db.mainEnchanter == e.key,
+                onSelect = function() UI:SetMainEnchanter(e.key) end }
+        end
+        return items
+    end)
+    UI:Tooltip(main, "ANCHOR_RIGHT", L["The character your other characters send gear to for disenchanting: the quick button, /pf de and the Overview's icon open Disenchanting Mode for them first. Automatic picks the one with the highest Enchanting skill. Characters of the other faction can't be mailed, so they come last whatever is picked here."])
 
     O.Section(page, L["Interface"])
     O.Check(page, L["Hide Minimap Button"], function() return db.minimap.hide end, function(v)
@@ -167,36 +207,51 @@ local function BuildGeneral(page)
     O.Check(page, L["Open the Transfer Planner at Your Bank"], function() return db.bankPrompt end, function(v)
         db.bankPrompt = v
     end)
+    O.Check(page, L["Open the Transfer Planner at a Mailbox"], function() return db.mailPrompt end, function(v)
+        db.mailPrompt = v
+    end)
+    O.Check(page, L["Show Skill Up Chance in the Recipe List"], function() return db.showSkillChance end, function(v)
+        db.showSkillChance = v
+        UI:UpdateList()
+    end)
 end
 
 local function ResetGeneral()
-    local db, d = FP.db, FP.defaults
+    local db = FP.db
     local replaced = db.replaceDefault
-    db.replaceDefault, db.shoppingScope, db.cooldownNotice, db.bankPrompt = d.replaceDefault, d.shoppingScope, d.cooldownNotice, d.bankPrompt
-    db.minimap.hide = d.minimap.hide
+    O.ResetKeys("replaceDefault", "shoppingScope", "cooldownNotice", "bankPrompt", "mailPrompt", "showSkillChance", "deRecord", "deShowObserved", "mainEnchanter")
+    db.minimap.hide = FP.defaults.minimap.hide
     FP.Minimap:Update()
-    FP.Shop:Update()
+    FP:Changed("shop")
+    FP.Launcher:Update() -- the main enchanter is back to Automatic
     if replaced ~= db.replaceDefault then FP:Print(L["Changing this needs a UI reload to take full effect."]) end
 end
 
 local function ResetAppearance()
-    local db, d = FP.db, FP.defaults
-    local was = db.skin
-    db.skin, db.font, db.fontSize, db.opacity, db.accent, db.locked = d.skin, d.font, d.fontSize, d.opacity, nil, d.locked
+    local was = FP.db.skin
+    O.ResetKeys("skin", "font", "fontSize", "opacity", "accent", "locked")
     UI:ResetWindow()
     UI:ApplyLock()
     UI:ApplySkin()
     if was == "ellesmere" and UI.euiApplied then OfferSkinReload() end
 end
 
-local function ResetAlts() FP.Planner:SetMode(FP.defaults.altMode) end
-
 local PAGES = {
     { key = "general", label = "General", build = BuildGeneral, reset = ResetGeneral },
     { key = "appearance", label = "Appearance", build = BuildAppearance, reset = ResetAppearance },
-    { key = "alts", label = "Alt Inventory", build = O.BuildAlts, reset = ResetAlts },
+    { key = "quick", label = "Quick Buttons", build = O.BuildQuick, reset = O.ResetQuick },
+    { key = "tooltips", label = "Tooltips", build = O.BuildTooltips, reset = O.ResetTooltips },
+    { key = "integrations", label = "Integrations", build = O.BuildIntegrations, reset = O.ResetIntegrations },
+    -- One page per addon, indented under Integrations (UI/Options/OptionsIntegrations.lua).
+    { key = "int_auctionator", label = "Auctionator", sub = true, build = O.BuildIntAuctionator, reset = O.ResetIntAuctionator },
+    { key = "int_waypoints", label = "Polestar & TomTom", sub = true, build = O.BuildIntWaypoints, reset = O.ResetIntWaypoints },
+    { key = "int_questie", label = "Questie", sub = true, build = O.BuildIntQuestie, reset = O.ResetIntQuestie },
+    { key = "int_syndicator", label = "Syndicator", sub = true, build = O.BuildIntSyndicator, reset = O.ResetIntSyndicator },
+    { key = "int_skillup", label = "SkillUp Forever", sub = true, build = O.BuildIntSkillUp, reset = O.ResetIntSkillUp },
+    { key = "int_ellesmere", label = "EllesmereUI", sub = true, build = O.BuildIntEllesmere },
     { key = "about", label = "About", build = O.BuildAbout },
 }
+local SUB_INDENT, SUB_ROW_H = 14, 26 -- sub-pages in the list: indented and a little shorter
 
 -- Two clicks, because a reset can't be undone; the second must follow within a few seconds.
 local function ResetButton(parent, label, w, onConfirm)
@@ -233,12 +288,14 @@ function O:RefreshNav()
     end
 end
 
-local function BuildNav(p, page, i)
-    local b = UI:Button(p, L[page.label], NAV_W, 28, function()
+-- `y`: the row's offset below the top of the list. Returns the offset of the next row.
+local function BuildNav(p, page, y)
+    local sub = page.sub
+    local b = UI:Button(p, L[page.label], NAV_W - (sub and SUB_INDENT or 0), sub and 22 or 28, function()
         UI.TabSound()
         O:Select(page.key)
     end)
-    b:SetPoint("TOPLEFT", 12, PAGE_TOP - (i - 1) * NAV_ROW_H)
+    b:SetPoint("TOPLEFT", 12 + (sub and SUB_INDENT or 0), PAGE_TOP - y)
     b.text:ClearAllPoints()
     b.text:SetPoint("LEFT", 12, 0)
     b.text:SetPoint("RIGHT", -4, 0)
@@ -248,6 +305,7 @@ local function BuildNav(p, page, i)
     b.bar:SetPoint("TOPLEFT", 1, -1)
     b.bar:SetPoint("BOTTOMLEFT", 1, 1)
     page.nav = b
+    return y + (sub and SUB_ROW_H or NAV_ROW_H)
 end
 
 function O:Init()
@@ -287,9 +345,9 @@ function O:Init()
     divider:SetPoint("TOPLEFT", NAV_W + 18, PAGE_TOP)
     divider:SetPoint("BOTTOMLEFT", NAV_W + 18, 12)
 
-    local tallest = MIN_HEIGHT
-    for i, page in ipairs(PAGES) do
-        BuildNav(p, page, i)
+    local tallest, navY = MIN_HEIGHT, 0
+    for _, page in ipairs(PAGES) do
+        navY = BuildNav(p, page, navY)
         local f = CreateFrame("Frame", nil, p)
         f:SetPoint("TOPLEFT", PAGE_LEFT, PAGE_TOP)
         f:SetPoint("BOTTOMRIGHT", -16, 12)
@@ -301,7 +359,8 @@ function O:Init()
         end
         tallest = math.max(tallest, 56 - f.y) -- top gap, content, bottom gap
     end
-    p:SetHeight(tallest)
+    -- Tall enough for the list on the left too, with the Reset All Options button under it.
+    p:SetHeight(math.max(tallest, -PAGE_TOP + navY + 12 + 24 + 12))
 
     ResetButton(p, L["Reset All Options"], NAV_W, function() FP:ResetOptions() end):SetPoint("BOTTOMLEFT", 12, 12)
 

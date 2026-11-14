@@ -13,6 +13,7 @@ local Data = FP.CooldownData
 local floor, max = math.floor, math.max
 local DAY, HOUR, MINUTE = 86400, 3600, 60
 local MIN_SPELL_COOLDOWN = 60 -- the spell-cooldown fallback ignores the global cooldown and other short ones
+Cooldowns.MIN_SPELL_COOLDOWN = MIN_SPELL_COOLDOWN
 local SCAN_INTERVAL = 5 -- seconds before the same profession is scanned again
 local CLOCK = "|TInterface\\Icons\\INV_Misc_PocketWatch_01:12|t"
 local lastScan = {}
@@ -25,7 +26,9 @@ local function ReadRemaining(recipeID)
         if (charges or 0) > 0 then return nil end -- a charge is available
         return cooldown
     end
-    local info = C_Spell and C_Spell.GetSpellCooldown and C_Spell.GetSpellCooldown(recipeID)
+    local info = C_Spell.GetSpellCooldown(recipeID)
+    -- Some states hand addon code secret values, which can't be compared; the next scan reads them again.
+    if info and issecretvalue(info.duration) then return end
     if info and (info.duration or 0) > MIN_SPELL_COOLDOWN then
         local left = info.startTime + info.duration - GetTime()
         if left > 0 then return left end
@@ -33,7 +36,7 @@ local function ReadRemaining(recipeID)
 end
 
 local function OpenProfession()
-    local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
+    local base = C_TradeSkillUI.GetBaseProfessionInfo()
     if base then return base.professionName, base.professionID end
 end
 
@@ -118,6 +121,7 @@ end
 
 -- The detail pane line, coloured: the cooldown's length, then ready or the time left. Empty for a recipe without one.
 function Cooldowns:DetailText(recipeID)
+    if FP:IsReadOnly() then return "" end
     local c = Entry(recipeID)
     if c and c.ignored then return "" end
     local length, left = self.Length(recipeID), self:Remaining(recipeID)
@@ -137,6 +141,7 @@ end
 
 -- Clock and time for a recipe-list row; only while the recipe is on cooldown.
 function Cooldowns:RowText(recipeID)
+    if FP:IsReadOnly() then return "" end -- someone else's recipes: your cooldowns say nothing about them
     local left = self:Remaining(recipeID)
     if not left or left == 0 then return "" end
     return CLOCK .. " |cffe63333" .. self.Format(left) .. "|r  "
@@ -194,10 +199,10 @@ end
 -- login. Only adds or extends: with the profession closed, "no cooldown" can't be trusted.
 function Cooldowns:Probe()
     local mine = Mine()
-    if not (mine and IsPlayerSpell) then return end
+    if not mine then return end
     local changed
     for id, d in pairs(Data) do
-        local info = IsPlayerSpell(id) and C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(id)
+        local info = IsPlayerSpell(id) and C_Spell.GetSpellInfo(id)
         if info and info.name then
             local src = { name = info.name, icon = info.iconID }
             local remaining = ReadRemaining(id)
@@ -209,11 +214,7 @@ function Cooldowns:Probe()
     if changed then self:Changed() end
 end
 
-function Cooldowns:Changed()
-    local panel = FP.CooldownPanel
-    if panel then panel:Update() end
-    FP.UI:RefreshFooter()
-end
+function Cooldowns:Changed() FP:Changed("cooldowns") end
 
 ---------------------------------------------------------------------------
 -- Every character
@@ -260,7 +261,7 @@ function Cooldowns:List()
                 for _, p in ipairs(FP:GetProfessions()) do mine[p.skillLine] = true end
                 for id, d in pairs(Data) do
                     if mine[d[2]] and not (rec.cooldowns and rec.cooldowns[id]) then
-                        local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(id)
+                        local info = C_Spell.GetSpellInfo(id)
                         if info and info.name then
                             entries[#entries + 1] = { id = id, name = info.name, icon = info.iconID, unknown = true,
                                 prof = C_TradeSkillUI.GetTradeSkillDisplayName(d[2]), remaining = 0 }
@@ -321,43 +322,8 @@ function Cooldowns:Announce()
     if not FP.db.cooldownNotice then return end
     for _, g in ipairs(self:List()) do
         if g.ready > 0 then
-            local r, gr, b = FP.Alts:ClassColor(g.rec.class)
-            local who = ("|cff%02x%02x%02x%s|r"):format(floor(r * 255 + 0.5), floor(gr * 255 + 0.5), floor(b * 255 + 0.5),
-                FP.Alts:Label(g.rec))
+            local who = RGBToColorCode(FP.Alts:ClassColor(g.rec.class)) .. FP.Alts:Label(g.rec) .. "|r"
             FP:Print(L["Cooldowns ready on %s: %s"]:format(who, table.concat(g.readyNames, ", ")))
         end
     end
-end
-
--- Checks this client against the cooldown data: whether each listed recipe is known without its profession open, and
--- what the game returns for the open profession's learned recipes.
-function Cooldowns:Debug()
-    local T = C_TradeSkillUI
-    local mine = Mine() or {}
-    for id, d in pairs(Data) do
-        local e = FP.Recipes.byID[id]
-        local known = IsPlayerSpell and IsPlayerSpell(id)
-        if known or (e and e.learned) or mine[id] then
-            FP:Print(("data %d %s: IsPlayerSpell=%s, learned in open profession=%s, tracked=%s, readyAt=%s"):format(id,
-                (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or "?", tostring(known),
-                tostring(e and e.learned), tostring(mine[id] ~= nil), tostring(mine[id] and mine[id].readyAt)))
-        end
-    end
-    if not T.IsTradeSkillReady() then return FP:Print(L["Open a profession to also check its recipes."]) end
-    local scanned, viaRecipe, viaSpell = 0, 0, 0
-    for _, e in ipairs(FP.Recipes.list) do
-        if e.learned then
-            scanned = scanned + 1
-            local ok, cooldown, isDay, charges, maxCharges = pcall(T.GetRecipeCooldown, e.id)
-            local info = C_Spell and C_Spell.GetSpellCooldown and C_Spell.GetSpellCooldown(e.id)
-            local spellLeft = info and info.duration and info.duration > MIN_SPELL_COOLDOWN
-            if ok and cooldown then viaRecipe = viaRecipe + 1 end
-            if spellLeft then viaSpell = viaSpell + 1 end
-            if ((ok and cooldown) or spellLeft) and not Data[e.id] then
-                FP:Print(("not in the data: %s (%d): recipe cooldown=%s day=%s charges=%s/%s, spell duration=%s"):format(e.name, e.id,
-                    tostring(cooldown), tostring(isDay), tostring(charges), tostring(maxCharges), tostring(info and info.duration)))
-            end
-        end
-    end
-    FP:Print(("cooldowns: %d learned recipes, %d with a recipe cooldown, %d with a spell cooldown"):format(scanned, viaRecipe, viaSpell))
 end

@@ -19,12 +19,8 @@ function UI:SetNumRows(height)
     self.numRows = math.max(1, math.floor((height - 192 - FOOTER) / RecipeRowHeight()))
 end
 
-function UI:GetCount()
-    local n = tonumber(self.frame and self.frame.detail.qty:GetText()) or 1
-    return math.max(1, math.min(999, math.floor(n)))
-end
-
 function UI:QueueRefresh()
+    FP.Launcher:QueueUpdate()
     if self.pending or not self.frame or not self.frame:IsShown() then return end
     self.pending = true
     C_Timer.After(0.1, function()
@@ -47,8 +43,6 @@ function UI:Refresh()
     self:UpdateDetail()
     self:RefreshOverview()
     self:RefreshFooter()
-    if FP.Shop.frame and FP.Shop.frame:IsShown() then FP.Shop:Update() end
-    if FP.Transfer.frame and FP.Transfer.frame:IsShown() then FP.Transfer:Update() end
 end
 
 function UI:Show(page)
@@ -72,8 +66,8 @@ function UI:Show(page)
 end
 
 function UI:OnTradeSkillClosed()
-    -- The overview has no trade skill open, so a close event isn't about this window.
-    if self.page == "overview" then return end
+    -- The overview and another character's profession have no trade skill open, so a close event isn't about them.
+    if self.page == "overview" or FP.AltProfs.viewing then return end
     if self.frame and self.frame:IsShown() and not self.CombatBlocked(self.frame) then
         self.closing = true
         self.frame:Hide()
@@ -98,6 +92,7 @@ UI.SCALE_MIN, UI.SCALE_MAX = 0.6, 1.6
 function UI:SetScale(scale)
     FP.db.scale = math.max(UI.SCALE_MIN, math.min(UI.SCALE_MAX, math.floor(scale * 20 + 0.5) / 20))
     if self.frame then self.frame:SetScale(FP.db.scale) end
+    self:ReflowSidePanels() -- its top moved on the screen: docked panels may need other heights or places
     FP.Options:Refresh()
 end
 
@@ -124,7 +119,7 @@ function UI:Create()
     f:SetResizable(true)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
-    if f.SetResizeBounds then f:SetResizeBounds(920, 640, 1500, 1000) end
+    f:SetResizeBounds(920, 640, 1500, 1000)
     self:Skin(f, "window")
     tinsert(UISpecialFrames, "ProfessionsForeverFrame")
     UI.CloseInCombat(f)
@@ -133,11 +128,17 @@ function UI:Create()
         if UI.stationTicker then UI.stationTicker:Cancel() UI.stationTicker = nil end
         UI.CloseMenu()
         UI:CloseSidePanels()
+        UI:SetDisenchantMode(false)
         UI:ResetCraftQty()
+        FP.AltProfs:Stop()
+        UI.overviewChar = nil
         PlaySound(UI.page == "overview" and SOUNDKIT.IG_SPELLBOOK_CLOSE or SOUNDKIT.IG_CHARACTER_INFO_CLOSE)
         -- With the replacement off, Blizzard's window shares this trade skill, so leave it open.
-        if not UI.closing and FP.db.replaceDefault and C_TradeSkillUI.CloseTradeSkill then pcall(C_TradeSkillUI.CloseTradeSkill) end
+        if not UI.closing and FP.db.replaceDefault then C_TradeSkillUI.CloseTradeSkill() end
     end)
+
+    -- Docked side panels move over from the mailbox or bank to the main window when it opens there.
+    f:HookScript("OnShow", function() UI.ScheduleSidePanelReflow() end)
 
     self:CreateTitleBar(f)
     self:CreateHeader(f)
@@ -158,7 +159,11 @@ function UI:CreateTitleBar(f)
     tb:EnableMouse(true)
     tb:RegisterForDrag("LeftButton")
     tb:SetScript("OnDragStart", function() if not FP.db.locked then f:StartMoving() end end)
-    tb:SetScript("OnDragStop", function() f:StopMovingOrSizing() SavePosition(f) end)
+    tb:SetScript("OnDragStop", function()
+        f:StopMovingOrSizing()
+        SavePosition(f)
+        UI:ReflowSidePanels() -- the room below and beside it changed
+    end)
     tb:EnableMouseWheel(true)
     tb:SetScript("OnMouseWheel", function(_, delta)
         if IsControlKeyDown() and not FP.db.locked then UI:SetScale(FP.db.scale + delta * 0.05) end
@@ -179,10 +184,16 @@ function UI:CreateTitleBar(f)
     gear:SetPoint("CENTER")
     gear:SetTexture("Interface\\Buttons\\UI-OptionsButton")
     self:Tooltip(opts, "ANCHOR_BOTTOM", L["Options"])
-    f.leftButton = opts
+    local reagents = FP.ReagentSearch:CreateButton(tb, 20)
+    reagents:SetPoint("RIGHT", opts, "LEFT", -4, 0)
+    f.leftButton = reagents
     f.clearWay = self:Button(tb, L["Clear Waypoint"], 110, 20, function() FP.Waypoint:Clear() end)
-    f.clearWay:SetPoint("RIGHT", opts, "LEFT", -4, 0)
+    f.clearWay:SetPoint("RIGHT", reagents, "LEFT", -4, 0)
     f.clearWay:SetShown(FP.Waypoint:HasActive())
+    self:Tooltip(f.clearWay, "ANCHOR_BOTTOM", function(tip)
+        tip:AddLine(L["Clear Waypoint"])
+        tip:AddLine(L["Removes the waypoint ProfessionsForever set in Polestar or TomTom. It also clears itself when you arrive."], 1, 1, 1, true)
+    end)
     f.title:SetPoint("RIGHT", f.clearWay, "LEFT", -4, 0)
 end
 
@@ -195,16 +206,35 @@ function UI:CreateResizeGrip(f)
     grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
     grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-    grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
-    grip:SetScript("OnMouseUp", function() f:StopMovingOrSizing() SavePosition(f) end)
-    f.grip = grip
-
-    -- Fires every frame while resizing, so only re-layout here; the data itself hasn't changed.
-    f:SetScript("OnSizeChanged", function(_, _, h)
-        UI:SetNumRows(h)
+    local function Relayout()
+        UI:SetNumRows(f:GetHeight())
         UI:UpdateList()
         UI:UpdateDetail()
         UI:RefreshProfessions()
+        UI:LayoutOverview()
+        UI:LayoutFooter()
+    end
+    grip:SetScript("OnMouseDown", function()
+        f.resizing = true
+        f:StartSizing("BOTTOMRIGHT")
+    end)
+    grip:SetScript("OnMouseUp", function()
+        f:StopMovingOrSizing()
+        f.resizing = false
+        SavePosition(f)
+        Relayout()
+    end)
+    f.grip = grip
+
+    -- While the grip is held this fires every frame, so only sizes and positions change then (the list redraws only
+    -- when a row is gained or lost); the full refresh follows on release. Other size changes refresh at once.
+    f:SetScript("OnSizeChanged", function(_, _, h)
+        if not f.resizing then return Relayout() end
+        local rows = UI.numRows
+        UI:SetNumRows(h)
+        if UI.numRows ~= rows then UI:UpdateList() end
+        UI:LayoutDetail()
+        UI:LayoutProfessionBar()
         UI:LayoutOverview()
         UI:LayoutFooter()
     end)

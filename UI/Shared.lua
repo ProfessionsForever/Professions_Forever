@@ -1,7 +1,7 @@
 local _, FP = ...
 local UI = FP.UI
 
--- Constants, colors and small helpers shared by the main window's files.
+-- Constants, colors and small helpers shared by the main window, the side panels and the options.
 local ROW_DENSITIES = { compact = 18, normal = 22, roomy = 26, spacious = 30 }
 local CARD_H = 44
 local TILE_W, TILE_H, TILE_GAP = 54, 36, 3 -- craftable-count tiles
@@ -15,23 +15,17 @@ end
 function UI.TabSound() PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
 UI.RecipeRowHeight = RecipeRowHeight
 
--- Hoverable badge (icon + number) in a reagent card's top-right corner; onClick is optional.
-function UI:Badge(row, texture, onEnter, onClick)
-    local b = CreateFrame("Frame", nil, row)
-    b:SetHeight(14)
-    b:EnableMouse(true)
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetSize(12, 12)
-    b.icon:SetPoint("LEFT")
-    b.icon:SetTexture(texture)
-    b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    b.text = self:Text(b, -1, "LEFT")
-    b.text:SetPoint("LEFT", b.icon, "RIGHT", 2, 0)
-    self:Tooltip(b, "ANCHOR_TOP", function() onEnter(row) end)
-    if onClick then
-        b:SetScript("OnMouseUp", function(_, button) if button == "LeftButton" then onClick(row) end end)
-    end
-    return b
+-- The colour code for an { r, g, b } colour, from Blizzard's own helper.
+function UI.Hex(c) return RGBToColorCode(unpack(c)) end
+
+-- Chat-link click (shift by default): puts the link in the active chat box. True when it did, so the click is spent.
+function UI.LinkToChat(link)
+    if not (link and IsModifiedClick("CHATLINK")) then return false end
+    return ChatFrameUtil.InsertLink(link) and true or false
+end
+
+function UI.LinkItemToChat(itemID)
+    return itemID and UI.LinkToChat(select(2, C_Item.GetItemInfo(itemID))) or false
 end
 
 -- A framed icon beside the game tooltip; it hides whenever the tooltip is cleared so other tooltips never show it.
@@ -56,38 +50,51 @@ function UI:ShowTooltipIcon(texture)
     tipIcon:Show()
 end
 
--- Lays out the vendor / shopping-list / queue badges right-to-left and keeps the name clear of them.
-local function LayoutBadges(row)
-    local right = -6
-    local leftmost
-    for _, b in ipairs(row.badges) do
-        local n
-        if b == row.vBadge then n = row.hasVendor and 1 or 0
-        elseif b == row.aBadge then n = row.altQty or 0
-        else n = (b == row.sBadge and row.shopQty or row.queueQty) or 0 end
-        b:SetShown(n > 0)
-        if n > 0 then
-            b.text:SetText(b == row.vBadge and "" or n)
-            b:SetWidth(14 + b.text:GetStringWidth())
-            b:ClearAllPoints()
-            b:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, -4)
-            right = right - b:GetWidth() - 6
-            leftmost = b
-        end
-    end
-    row.name:ClearAllPoints()
-    row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, 0)
-    if leftmost then row.name:SetPoint("RIGHT", leftmost, "LEFT", -4, 0) else row.name:SetPoint("RIGHT", -6, 0) end
-end
-UI.LayoutBadges = LayoutBadges
-
 local STATUS_COLORS = {
     full = { 0.2, 0.9, 0.2 }, bank = { 0.2, 0.8, 0.9 }, partial = { 1, 0.82, 0 },
     missing = { 0.9, 0.2, 0.2 }, none = { 0.5, 0.5, 0.5 },
 }
 UI.STATUS_COLORS = STATUS_COLORS
 UI.ALT_COLOR = { 0.75, 0.6, 1 } -- materials on other characters
+UI.MAIL_COLOR = { 1, 0.55, 0.75 } -- materials waiting in the mailbox
 UI.CHAIN_COLOR = { 1, 0.6, 0.25 } -- craftable after crafting its reagents
+
+-- Tooltip section for one planned item (a plan item from FP.Planner): who holds it, what the plan takes from each,
+-- and what is still missing. Returns false when no other character is known to hold any.
+function UI:AddAltLines(tip, it)
+    local L, Alts, Planner = FP.L, FP.Alts, FP.Planner
+    local b = Alts:GetAltBreakdown(it.itemID)
+    if #b.enabled == 0 and #b.ignored == 0 then return false end
+    local send = {}
+    for _, s in ipairs(it.sources) do send[s.key] = s.transfer end
+    local alt = self.ALT_COLOR
+    tip:AddLine(" ")
+    if #b.enabled > 0 then
+        tip:AddLine(L["Other Characters:"], 1, 0.82, 0)
+        for _, e in ipairs(b.enabled) do
+            local r, g, bl = Alts:ClassColor(e.class)
+            local text = e.bank > 0 and L["%d (%d in bank)"]:format(e.count, e.bank) or tostring(e.count)
+            if send[e.key] then text = text .. "  " .. L["send %d"]:format(send[e.key]) end
+            tip:AddDoubleLine(Alts:Label(e), text, r, g, bl, 1, 1, 1)
+        end
+        tip:AddLine(" ")
+        tip:AddDoubleLine(L["Available on Enabled Characters"], b.enabledTotal, 0.8, 0.8, 0.8, alt[1], alt[2], alt[3])
+        if it.transfer > 0 then
+            tip:AddDoubleLine(Planner:Applies() and L["Transfer Needed"] or L["Suggested Transfer"], it.transfer, 0.8, 0.8, 0.8, 1, 1, 1)
+        end
+        if it.localShort > 0 then
+            local c = it.stillMissing > 0 and STATUS_COLORS.missing or STATUS_COLORS.full
+            tip:AddDoubleLine(L["Still Missing After Transfers"], it.stillMissing, 0.8, 0.8, 0.8, c[1], c[2], c[3])
+        end
+    end
+    if #b.ignored > 0 then
+        tip:AddLine(" ")
+        tip:AddLine(L["Ignored Characters:"], 0.6, 0.6, 0.6)
+        for _, e in ipairs(b.ignored) do
+            tip:AddDoubleLine("  " .. Alts:Label(e), e.count, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+        end
+    end
+end
 
 -- The "Skill: 120 / 150" tooltip line of a profession; nothing when it has no cap to show.
 function UI.AddSkillLine(tip, rank, maxRank)
@@ -95,18 +102,23 @@ function UI.AddSkillLine(tip, rank, maxRank)
         tip:AddLine(("%s: %d / %d"):format(FP.L["Skill"], rank or 0, maxRank), 0.8, 0.8, 0.8)
     end
 end
+
+-- A learned profession's waypoint hint; a secondary profession past Journeyman needs a vendor's skill book, and later a quest, not a trainer.
+function UI.AddTrainerHint(tip, skillLine, rank, maxRank)
+    local L, W = FP.L, FP.Waypoint
+    local book, quest = W.SkillBook(skillLine, rank, maxRank), W.ArtisanQuest(skillLine, rank, maxRank)
+    if book then
+        tip:AddLine(L["The next rank needs a skill book from a vendor: %s."]:format(W.SkillBookName(book)), 1, 0.82, 0, true)
+    elseif quest then
+        tip:AddLine(L["The next rank needs a quest, finished with %s."]:format(quest.name), 1, 0.82, 0, true)
+    end
+    if W:NavAvailable() then
+        tip:AddLine(book and L["Right-click: waypoint to the nearest skill book vendor"]
+            or quest and L["Right-click: waypoint to the quest giver"] or L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1)
+    end
+end
 -- Enum.TradeskillRelativeDifficulty: 0 optimal, 1 medium, 2 easy, 3 trivial
 local DIFF_COLORS = { [0] = { 1, 0.5, 0.25 }, [1] = { 1, 1, 0 }, [2] = { 0.25, 0.75, 0.25 }, [3] = { 0.55, 0.55, 0.55 } }
 local DIFF_LABELS = { [0] = "Skill Up: Optimal", [1] = "Skill Up: Medium", [2] = "Skill Up: Easy", [3] = "Skill Up: Trivial" }
 local WHITE_RGB = { 1, 1, 1 }
 UI.DIFF_COLORS, UI.DIFF_LABELS, UI.WHITE_RGB = DIFF_COLORS, DIFF_LABELS, WHITE_RGB
-
-local function ItemName(itemID)
-    local name = C_Item.GetItemNameByID(itemID)
-    if not name then
-        C_Item.RequestLoadItemDataByID(itemID) -- GET_ITEM_INFO_RECEIVED triggers a refresh
-        name = "item:" .. itemID
-    end
-    return name
-end
-UI.ItemName = ItemName

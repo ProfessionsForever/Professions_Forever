@@ -4,15 +4,32 @@ FP.Prices = P
 
 local CALLER = "ProfessionsForever"
 
-local function API() return _G.Auctionator and Auctionator.API and Auctionator.API.v1 end
+local function API() return FP.db.useAuctionator and _G.Auctionator and Auctionator.API and Auctionator.API.v1 end
 
 function P:Available() return API() ~= nil end
 
--- Auctionator's last-scan lowest buyout for one item, in copper; nil when unavailable or never scanned.
-function P:Unit(itemID)
+-- Asks Auctionator to say when its prices change (a full scan finished, or a search's prices were processed), so the
+-- windows showing prices redraw with them. Registered once, when Auctionator is in use: at login, or when the Use
+-- Auctionator switch is turned on. While it is off again, the updates are ignored.
+local watching = false
+function P:WatchScans()
     local api = API()
-    if not (api and api.GetAuctionPriceByItemID) then return nil end
-    local ok, price = pcall(api.GetAuctionPriceByItemID, CALLER, itemID)
+    if watching or not (api and api.RegisterForDBUpdate) then return end
+    watching = pcall(api.RegisterForDBUpdate, CALLER, function()
+        if API() then FP:Changed("prices") end
+    end)
+end
+FP:RegisterEvent("PLAYER_LOGIN", function() P:WatchScans() end)
+
+-- Auctionator's last-scan lowest buyout for one item, in copper; nil when unavailable or never scanned. With `link`
+-- the price is that exact item's: gear with a random enchantment ("of the Bear") shares its ID with every other
+-- enchantment of it, and their prices differ widely.
+function P:Unit(itemID, link)
+    local api = API()
+    if not api then return nil end
+    local ok, price
+    if link then ok, price = pcall(api.GetAuctionPriceByItemLink, CALLER, link)
+    else ok, price = pcall(api.GetAuctionPriceByItemID, CALLER, itemID) end
     if ok and type(price) == "number" and price > 0 then return price end
 end
 
@@ -23,9 +40,47 @@ function P:VendorUnit(itemID)
     if ok and type(price) == "number" and price > 0 then return price end
 end
 
+-- A reagent's unit price in copper and where it came from: a vendor's price when known, else the auction price.
+function P:ReagentUnit(itemID)
+    local vendor = self:VendorUnit(itemID)
+    if vendor then return vendor, "vendor" end
+    local auction = self:Unit(itemID)
+    if auction then return auction, "auction" end
+end
+
+-- What reagents ({ itemID, need }) cost: the total in copper of those with a price, how many have one, how many don't.
+function P:CraftCost(reagents)
+    local total, priced, unpriced = 0, 0, 0
+    for _, reagent in ipairs(reagents) do
+        local unit = self:ReagentUnit(reagent.itemID)
+        if unit then
+            total = total + unit * reagent.need
+            priced = priced + 1
+        else
+            unpriced = unpriced + 1
+        end
+    end
+    return total, priced, unpriced
+end
+
+-- Items one craft makes; a range is averaged.
+function P:AverageMade(recipeID)
+    local lo, hi = FP.Recipes:OutputQuantity(recipeID)
+    return (lo + hi) / 2
+end
+
+-- One craft's profit in copper after the standard auction house cut; nil when any reagent or the product can't be priced.
+function P:RecipeProfit(recipeID)
+    local R = FP.Recipes
+    local ev = R:Evaluate(recipeID)
+    if #ev.reagents == 0 or R:IsEnchant(recipeID) then return end
+    local cost, _, unpriced = self:CraftCost(ev.reagents)
+    if unpriced > 0 then return end
+    return self:Profit(R:OutputItemID(recipeID), self:AverageMade(recipeID), cost).profit
+end
+
 function P:Format(copper)
-    local fn = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString
-    return fn(math.floor(copper + 0.5))
+    return C_CurrencyInfo.GetCoinTextureString(math.floor(copper + 0.5))
 end
 
 -- Auction house cut: the standard rate, and the neutral auction house's.

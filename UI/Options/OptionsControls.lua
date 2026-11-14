@@ -1,5 +1,4 @@
 local _, FP = ...
-local L = FP.L
 local UI = FP.UI
 local O = {}
 FP.Options = O
@@ -75,6 +74,7 @@ function O.Check(page, label, get, set)
     local t = UI:Text(page, 0)
     t:SetPoint("LEFT", cb, "RIGHT", 4, 0)
     t:SetText(label)
+    cb.label = t
     page.y = page.y - ROW_H
     return cb
 end
@@ -96,6 +96,14 @@ function O.ActionButton(page, label, w, onClick)
     b:SetPoint("LEFT", page, "TOPLEFT", LABEL_X, RowCenter(page))
     page.y = page.y - ROW_H
     return b
+end
+
+-- Puts the named options back to their defaults; each page's reset names its own.
+function O.ResetKeys(...)
+    for i = 1, select("#", ...) do
+        local key = select(i, ...)
+        FP.db[key] = FP.defaults[key]
+    end
 end
 
 function O:Refresh()

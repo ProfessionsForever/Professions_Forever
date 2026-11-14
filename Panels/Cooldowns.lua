@@ -16,17 +16,8 @@ local function BuildRows(groups)
     return rows
 end
 
-function Panel:Open()
-    if not self.frame then self:Create() end
-    if not self.frame:IsShown() then
-        FP.UI:PlaceSidePanel(self.frame)
-        self.frame:Show()
-    end
-end
-
-function Panel:Toggle()
-    if self.frame and self.frame:IsShown() then self.frame:Hide() else self:Open() end
-end
+function Panel:Open() FP.UI:ShowSidePanel(self) end
+Panel.Toggle = FP.UI.ToggleSidePanel
 
 local function RowTooltip(row)
     local e = row.entry
@@ -71,14 +62,14 @@ function Panel:Update()
     local list = BuildRows(groups)
     local colors = UI.STATUS_COLORS
 
-    FauxScrollFrame_Update(f.scroll, #list, ROWS, ROW_H)
-    f.rowEdge:SetBar(#list > ROWS)
-    if f.scroll.fpEUISetRange then f.scroll:fpEUISetRange(math.max(0, #list - ROWS) * ROW_H) end
+    local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
+    FauxScrollFrame_Update(f.scroll, #list, shown, ROW_H)
+    f.scroll.fpSetRange(math.max(0, #list - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     f.empty:SetShown(#list == 0)
 
     for i, row in ipairs(f.rows) do
-        local e = list[offset + i]
+        local e = i <= shown and list[offset + i] or nil
         row.entry = e
         if not e then
             row:Hide()
@@ -127,94 +118,35 @@ end
 
 function Panel:Create()
     local UI = FP.UI
-    local f = CreateFrame("Frame", "ProfessionsForeverCooldownFrame", UIParent, "BackdropTemplate")
+    local f = UI:CreateSidePanel({ name = "ProfessionsForeverCooldownFrame", key = "cooldowns", title = L["Cooldowns"],
+        width = 460, height = 460,
+        onShow = function(s)
+            s.ticker = C_Timer.NewTicker(REFRESH, function() Panel:Update() end)
+            Panel:Update()
+        end,
+        onHide = function(s)
+            if s.ticker then s.ticker:Cancel() s.ticker = nil end
+        end })
     self.frame = f
-    f:Hide() -- frames start shown, which would skip OnShow and leave unpopulated rows visible
-    f:SetSize(400, 460)
-    f:SetFrameStrata("MEDIUM")
-    f:SetToplevel(true)
-    f:SetMovable(true)
-    f:SetClampedToScreen(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    UI:Skin(f, "window")
-    tinsert(UISpecialFrames, "ProfessionsForeverCooldownFrame")
-    f:SetScript("OnShow", function(s)
-        PlaySound(SOUNDKIT.IG_QUEST_LIST_OPEN)
-        s.ticker = C_Timer.NewTicker(REFRESH, function() Panel:Update() end)
-        Panel:Update()
-    end)
-    f:SetScript("OnHide", function(s)
-        PlaySound(SOUNDKIT.IG_QUEST_LIST_CLOSE)
-        if s.ticker then s.ticker:Cancel() s.ticker = nil end
-    end)
-    UI:MakeSidePanelDraggable(f, "cooldowns")
 
-    local title = UI:Text(f, 2)
-    title:SetPoint("LEFT", f, "TOPLEFT", 12, -UI.TITLE_H / 2)
-    title:SetText(L["Cooldowns"])
-    title:SetTextColor(1, 0.82, 0)
-    local close = UI:Button(f, "X", 22, 20, function() f:Hide() end)
-    close:SetPoint("RIGHT", f, "TOPRIGHT", -6, -UI.TITLE_H / 2)
-    UI:AddPinButton(f, close)
-
-    local scroll = CreateFrame("ScrollFrame", "ProfessionsForeverCooldownScroll", f, "FauxScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 8, -40)
-    scroll:SetPoint("BOTTOMRIGHT", -30, 40)
-    scroll:SetScript("OnVerticalScroll", function(s, offset)
-        FauxScrollFrame_OnVerticalScroll(s, offset, ROW_H, function() Panel:Update() end)
-    end)
-    f.scroll = scroll
-    local scrollBar = scroll.ScrollBar or _G["ProfessionsForeverCooldownScrollScrollBar"]
-    if not UI:AttachEUIThinScrollbar(scroll, scrollBar, f, { top = 40, bottom = 40 }) then
-        UI:EUIWidget(scrollBar, "scrollbar")
-    end
-
-    f.rowEdge = UI:RowEdge(f, 30, 8)
-    f.rows = {}
-    for i = 1, ROWS do
-        local row = CreateFrame("Button", nil, f)
-        row:SetHeight(ROW_H)
-        row:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -40 - (i - 1) * ROW_H)
-        row:SetPoint("TOPRIGHT", f.rowEdge, "TOPRIGHT", 0, -40 - (i - 1) * ROW_H)
-        row.bg = row:CreateTexture(nil, "BACKGROUND")
-        row.bg:SetAllPoints()
-        row.bg:SetColorTexture(1, 1, 1, 0.07)
-        row.hl = row:CreateTexture(nil, "HIGHLIGHT")
-        row.hl:SetAllPoints()
-        row.hl:SetColorTexture(1, 1, 1, 0.08)
-        row.icon = row:CreateTexture(nil, "ARTWORK")
-        row.icon:SetSize(ROW_H - 4, ROW_H - 4)
-        row.icon:SetPoint("LEFT", 14, 0)
-        row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        row.time = UI:Text(row, 0, "RIGHT")
-        row.time:SetPoint("RIGHT", -6, 0)
-        row.time:SetWidth(70)
-        row.prof = UI:Text(row, -1, "RIGHT")
-        row.prof:SetPoint("RIGHT", row.time, "LEFT", -6, 0)
-        row.prof:SetWidth(90)
-        row.prof:SetWordWrap(false)
-        row.prof:SetTextColor(0.6, 0.6, 0.6)
-        row.name = UI:Text(row, 0)
-        row.name:SetWordWrap(false)
-        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        row:SetScript("OnEnter", function(s)
-            GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-            if RowTooltip(s) == false then GameTooltip:Hide() return end
-            GameTooltip:Show()
-        end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        row:SetScript("OnClick", RowClick)
-        f.rows[i] = row
-    end
-    f:EnableMouseWheel(true)
-    f:SetScript("OnMouseWheel", function(_, delta)
-        if scroll.fpEUIScrollTo then
-            scroll.fpEUIScrollTo(scroll:GetVerticalScroll() - delta * ROW_H * 3)
-        elseif scrollBar then
-            scrollBar:SetValue(scrollBar:GetValue() - delta * ROW_H * 3)
-        end
-    end)
+    UI:AddPanelList(f, { name = "ProfessionsForeverCooldownScroll", top = 40, bottom = 40, rows = ROWS, rowH = ROW_H,
+        update = function() Panel:Update() end, rowBg = true, tooltip = RowTooltip, onClick = RowClick, rightClick = true,
+        build = function(row)
+            row.icon = row:CreateTexture(nil, "ARTWORK")
+            row.icon:SetSize(ROW_H - 4, ROW_H - 4)
+            row.icon:SetPoint("LEFT", 14, 0)
+            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            row.time = UI:Text(row, 0, "RIGHT")
+            row.time:SetPoint("RIGHT", -6, 0)
+            row.time:SetWidth(70)
+            row.prof = UI:Text(row, -1, "RIGHT")
+            row.prof:SetPoint("RIGHT", row.time, "LEFT", -6, 0)
+            row.prof:SetWidth(90)
+            row.prof:SetWordWrap(false)
+            row.prof:SetTextColor(0.6, 0.6, 0.6)
+            row.name = UI:Text(row, 0)
+            row.name:SetWordWrap(false)
+        end })
 
     f.empty = UI:Text(f, 0, "CENTER")
     f.empty:SetPoint("CENTER", 0, 20)

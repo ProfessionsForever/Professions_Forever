@@ -1,15 +1,15 @@
 ## Interface: 16001
 ## Title: ProfessionsForever
-## Notes: A skinnable professions window for WoW: Forever with bag, bank and alt awareness, a crafting queue, shopping list with Auctionator pricing, alt transfer planner, recipe cooldowns, and navigation to vendors, trainers and bankers.
+## Notes: A replacement professions window for WoW: Forever that knows your bags, bank, mail and alts: a crafting queue, a shopping list with Auctionator pricing, a transfer planner, Disenchanting Mode and disenchant advice, recipe cooldowns, and navigation to vendors, trainers and bankers.
 ## Author: Thorgrim Lightfist - PvE
 ## X-Email: professionsforever@gmail.com
-## X-License: All Rights Reserved
-## Version: 0.9.4
+## X-License: GPL-3.0-only
+## Version: 0.10.0
 ## Category: Professions
 ## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
 ## SavedVariables: ProfessionsForeverDB
 ## SavedVariablesPerCharacter: ProfessionsForeverCharDB
-## OptionalDeps: Auctionator, Syndicator, TomTom, Polestar, Questie, QuestieDB, EllesmereUI
+## OptionalDeps: Auctionator, Syndicator, TomTom, Polestar, Questie, QuestieDB, EllesmereUI, SkillUpForever
 ## AddonCompartmentFunc: ProfessionsForever_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: ProfessionsForever_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: ProfessionsForever_OnAddonCompartmentLeave
@@ -22,48 +22,77 @@ Core\Inventory.lua
 Alts\AltInventory.lua
 Alts\TransferPlanner.lua
 Alts\Outgoing.lua
+Alts\AltProfessions.lua
 Core\Prices.lua
 Core\Tools.lua
 Core\Recipes.lua
 Core\Chain.lua
 Data\Cooldowns.lua
 Data\Items.lua
+Data\Recipes.lua
+Core\ReagentUses.lua
+Core\KnownRecipes.lua
+Data\Disenchant.lua
+Core\Disenchant.lua
+Core\DisenchantRecord.lua
 Core\Cooldowns.lua
-UI\Skin.lua
-UI\Widgets.lua
-UI\Completion.lua
-UI\CombatClose.lua
+Core\Queue.lua
+Core\QueueRunner.lua
+Core\Shopping.lua
+UI\Common\Skin.lua
+UI\Common\Scrollbar.lua
+UI\Common\Widgets.lua
+UI\Common\Completion.lua
+UI\Common\ListHeader.lua
+UI\Common\ItemAutocomplete.lua
+UI\Common\CombatClose.lua
 UI\ExtraSpell.lua
 UI\ProfessionOpener.lua
-UI\SidePanel.lua
-Core\Craft.lua
+UI\Common\SidePanel.lua
+UI\Craft.lua
 UI\Shared.lua
 UI\Footer.lua
 UI\UI.lua
+UI\Redraw.lua
 UI\ProfessionBar.lua
+UI\RecipeInfo.lua
 UI\RecipeList.lua
 UI\RecipePanel.lua
 UI\Profit.lua
+UI\ReagentCards.lua
 UI\Detail.lua
+UI\DisenchantMode.lua
+UI\DisenchantTooltip.lua
 UI\DetailPanel.lua
 UI\Overview.lua
-Panels\ShoppingList.lua
-Panels\ShoppingExport.lua
-Panels\ShoppingTracker.lua
-Panels\ShoppingSuggest.lua
-Panels\ShoppingVendor.lua
+Panels\Shopping\ShoppingList.lua
+Panels\Shopping\ShoppingExport.lua
+Panels\Shopping\ShoppingTracker.lua
+Panels\Shopping\ShoppingVendor.lua
 Panels\Queue.lua
+Panels\QueueDrag.lua
 Panels\TransferRows.lua
 Panels\TransferPanel.lua
 Panels\Cooldowns.lua
+Panels\SkillUp.lua
+Panels\ReagentSearch.lua
+Data\ClassicNpcs.lua
 Data\Npcs.lua
-Core\Waypoint.lua
-Core\WaypointRecord.lua
-Core\WaypointVendors.lua
-Core\WaypointTrainers.lua
-Core\WaypointBankers.lua
-UI\OptionsControls.lua
-UI\OptionsAlts.lua
-UI\OptionsAbout.lua
-UI\Options.lua
+Waypoints\Waypoint.lua
+Waypoints\WaypointRecord.lua
+Waypoints\WaypointVendors.lua
+Waypoints\WaypointTrainers.lua
+Waypoints\WaypointBankers.lua
+UI\Options\OptionsControls.lua
+UI\Options\OptionsAlts.lua
+UI\Options\OptionsIntegrations.lua
+UI\Options\OptionsQuick.lua
+UI\Options\OptionsTooltips.lua
+UI\Options\OptionsAbout.lua
+UI\Options\Options.lua
 UI\Minimap.lua
+UI\Launcher.lua
+UI\WhatsNew.lua
+#@do-not-package@
+Core\Debug.lua
+#@end-do-not-package@

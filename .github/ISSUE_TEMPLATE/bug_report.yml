@@ -45,4 +45,4 @@ body:
     id: skin
     attributes:
       label: Skin in use
-      placeholder: Modern Dark, Classic, Minimal or EllesmereUI
+      placeholder: Modern Dark, Blackout, Classic, Minimal or EllesmereUI

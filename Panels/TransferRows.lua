@@ -13,33 +13,64 @@ function Transfer.BankNeeds(plan)
     return out
 end
 
--- Flat list for the scroll area: this character's bank, then per character, every needed material it holds, taken or
--- not, then what no one can supply.
-function Transfer.BuildRows(plan)
-    local rows, groups, byKey = {}, {}, {}
-    local bank = Transfer.BankNeeds(plan)
-    if #bank > 0 then
-        rows[#rows + 1] = { kind = "section", text = L["Withdraw from Your Bank"] }
-        for _, b in ipairs(bank) do rows[#rows + 1] = { kind = "bank", it = b } end
+-- What this character has to collect from its mailbox for the queue: for each material, the part bags and bank don't
+-- cover that the mailbox does.
+function Transfer.MailNeeds(plan)
+    local out = {}
+    for _, it in ipairs(plan.items) do
+        if it.fromMail > 0 then out[#out + 1] = { itemID = it.itemID, qty = it.fromMail, mail = it.mail } end
     end
-    local sending = FP.Outgoing:Pending()
-    if #sending > 0 then
-        rows[#rows + 1] = { kind = "section", text = L["To Send from This Character"] }
-        for _, p in ipairs(sending) do
-            rows[#rows + 1] = { kind = "sendto", p = p }
-            for _, item in ipairs(p.items) do rows[#rows + 1] = { kind = "send", p = p, item = item } end
+    return out
+end
+
+-- Flat list for the scroll area: this character's bank and mailbox, then what this character should send others, then per
+-- character, every needed material it holds, taken or not, then what no one can supply. For another character's plan
+-- (`view`, its key): what waits in that character's mailbox (to show why it needs no more of it; only it can collect
+-- it), then the groups, where the current character is one of them, with its Mail button, and what no one can supply.
+function Transfer.BuildRows(plan, view)
+    local rows, groups, byKey = {}, {}, {}
+    local me, mailTo = FP.Alts:GetCharacterKey(), nil
+    if view then
+        for _, p in ipairs(FP.Outgoing:Pending()) do
+            if p.key == view then mailTo = p end
+        end
+        local mail = Transfer.MailNeeds(plan)
+        if #mail > 0 then
+            rows[#rows + 1] = { kind = "section", text = L["Waiting in %s's Mailbox"]:format(FP.Alts:Label(FP.db.characters[view])) }
+            for _, m in ipairs(mail) do rows[#rows + 1] = { kind = "mail", it = m } end
+        end
+    else
+        local bank = Transfer.BankNeeds(plan)
+        if #bank > 0 then
+            rows[#rows + 1] = { kind = "section", text = L["Withdraw from Bank"] }
+            for _, b in ipairs(bank) do rows[#rows + 1] = { kind = "bank", it = b } end
+        end
+        local mail = Transfer.MailNeeds(plan)
+        if #mail > 0 then
+            rows[#rows + 1] = { kind = "section", text = L["Collect from Your Mailbox"] }
+            for _, m in ipairs(mail) do rows[#rows + 1] = { kind = "mail", it = m } end
+        end
+        local sending = FP.Outgoing:Pending()
+        if #sending > 0 then
+            rows[#rows + 1] = { kind = "section", text = L["To Send from This Character"] }
+            for _, p in ipairs(sending) do
+                rows[#rows + 1] = { kind = "sendto", p = p }
+                for _, item in ipairs(p.items) do rows[#rows + 1] = { kind = "send", p = p, item = item } end
+            end
         end
     end
     for _, it in ipairs(plan.items) do
         for _, opt in ipairs(it.options) do
             local g = byKey[opt.key]
             if not g then
-                g = { key = opt.key, name = opt.name, realm = opt.realm, class = opt.class, opts = {}, usesBank = false }
+                g = { key = opt.key, name = opt.name, realm = opt.realm, class = opt.class, opts = {}, usesBank = false, usesMail = false,
+                    me = opt.key == me, mailTo = opt.key == me and mailTo or nil }
                 byKey[opt.key] = g
                 groups[#groups + 1] = g
             end
             g.opts[#g.opts + 1] = { it = it, opt = opt }
             if opt.fromBank > 0 then g.usesBank = true end
+            if opt.fromMail > 0 then g.usesMail = true end
         end
     end
     table.sort(groups, function(a, b)
@@ -78,6 +109,9 @@ function Transfer.RowTooltip(row)
         if c.usesBank then
             tip:AddLine(L["Some of these items are in this character's bank."], 0.2, 0.8, 0.9, true)
         end
+        if c.usesMail then
+            tip:AddLine(L["Some of these items are in this character's mailbox."], unpack(FP.UI.MAIL_COLOR))
+        end
     elseif e.kind == "send" then
         tip:SetItemByID(e.item.itemID)
         tip:AddLine(" ")
@@ -91,6 +125,10 @@ function Transfer.RowTooltip(row)
         if o.fromBank > 0 then
             tip:AddDoubleLine(L["In the Bank"], o.fromBank, 0.2, 0.8, 0.9, 0.2, 0.8, 0.9)
         end
+        if o.fromMail > 0 then
+            local c = FP.UI.MAIL_COLOR
+            tip:AddDoubleLine(L["In the Mailbox"], o.fromMail, c[1], c[2], c[3], c[1], c[2], c[3])
+        end
         if o.off then
             tip:AddLine(L["Turned off: this material is not taken from this character."], 1, 0.6, 0.2, true)
         end
@@ -102,6 +140,12 @@ function Transfer.RowTooltip(row)
         tip:AddLine(" ")
         tip:AddDoubleLine(L["Take"], e.it.qty, 0.8, 0.8, 0.8, 1, 1, 1)
         tip:AddDoubleLine(L["In the Bank"], e.it.bank, 0.2, 0.8, 0.9, 0.2, 0.8, 0.9)
+    elseif e.kind == "mail" then
+        local c = FP.UI.MAIL_COLOR
+        tip:SetItemByID(e.it.itemID)
+        tip:AddLine(" ")
+        tip:AddDoubleLine(L["Take"], e.it.qty, 0.8, 0.8, 0.8, 1, 1, 1)
+        tip:AddDoubleLine(L["In the Mailbox"], e.it.mail, c[1], c[2], c[3], c[1], c[2], c[3])
     elseif e.kind == "missing" then
         tip:SetItemByID(e.it.itemID)
         tip:AddLine(" ")

@@ -1,7 +1,7 @@
 ProfessionsForever
 ==================
 
-A skinnable replacement professions window for WoW: Forever with bag and bank awareness, a crafting queue, a shopping list, and optional navigation to vendors, trainers and bankers.
+A replacement professions window for WoW: Forever that knows your bags, bank, mail and alts, with a crafting queue, a shopping list that follows it, Disenchanting Mode, and optional navigation to vendors, trainers and bankers.
 
 
 INSTALLATION
@@ -21,7 +21,7 @@ USAGE
 - Open or close the window: Professions keybind, /pf, the minimap button, or the micro-menu Professions button.
 - Open a profession: click its tab or Overview card.
 - Add a recipe to the queue: "Add to Queue" in the recipe panel.
-- Add missing reagents to the shopping list: click the red banner, or "Add missing to Shopping List".
+- Put missing reagents on the shopping list: queue the recipe; the list follows the queue (click the red banner to open it).
 - Navigate to a vendor, trainer or banker: right-click a reagent card, profession tab or the "From bank" tile.
 - Scale the window: Ctrl + mouse wheel on the title bar.
 
@@ -33,17 +33,19 @@ Overview page (the starting tab)
 - A card for every profession you know, including cooking, first aid and fishing, with tier, skill bar and rank / max.
 - Click a card to open that profession. Right-click to navigate to the nearest trainer of the tier you need.
 - Drag a card onto an action bar for direct access to the profession.
+- The Character drop-down shows another of your characters' professions. Click a card to browse its recipes read-only, with materials counted from that character's bags and bank, and queue crafts for it: the characters holding the materials are told what to mail.
 
 Summary footer (every tab)
-- Four cells along the bottom of the window show your crafting queue, cooldowns, transfer plan and shopping list (with estimated cost when Auctionator is installed) at a glance. Click one to open or close its window. Hover a cell whose text is cut off to read all of it.
+- Cells along the bottom of the window show your crafting queue, cooldowns, transfer plan and shopping list (with estimated cost when Auctionator is installed) at a glance, plus the Skill Up Route with SkillUp Forever. Click one to open or close its window. Hover a cell whose text is cut off to read all of it.
 
 Recipe browser
 - Search by recipe name or by reagent name.
-- Sort by name, skill-up difficulty, craftable amount, or profit (with Auctionator). Right-click the sort button to reverse the order.
+- Sort by name, skill up difficulty, skill up chance, craftable amount, or profit (with Auctionator). The arrow next to Sort reverses the order.
 - Filters drop-down: show unlearned, unlearned only, has materials, orange and yellow only, hide grey recipes, favorites only, and hiding the category headers.
 - Expand and collapse every category with the + and - buttons.
 - Row spacing drop-down: compact, normal, roomy or spacious rows.
-- Recipes are coloured by skill-up difficulty, with a status stripe for materials: bags, bank, partial or none.
+- Recipes are coloured by skill up difficulty, with a status stripe for materials: bags, bank, partial or none. Learned recipes show their skill up chance (such as 75%).
+- The recipe you last clicked in each profession is selected again when you come back to it.
 - Hover an unlearned recipe to see where it comes from: the trainer you've seen teach it, or the vendors Questie knows.
 - Ctrl-click a recipe, or its icon in the detail panel, to preview what it makes in the dressing room when it can be worn.
 
@@ -56,11 +58,14 @@ Reagent cards
 
 Crafting queue
 - Queue recipes across any number of professions, each with its own quantity (- / + buttons, Shift for steps of 10).
-- Craft Queue works through the list and opens each profession as needed. Stop Craft cancels the current craft and moves on. Stop Queue ends the run.
-- One click adds every missing reagent for the whole queue to the shopping list. Shared materials are counted once.
+- Craft Queue works through the list and opens each profession as needed; between recipes, a click on the game world crafts the next one. Stop Craft cancels the current craft and moves on. Stop Queue ends the run.
+- Queueing a recipe whose reagents you can craft yourself queues those first, sized to what you're short of. With only part of the materials, the queue holds back the early steps so the final crafts aren't left short.
+- Rows are marked when something is missing: red when no one has it, blue when it's in the bank, pink when it's waiting in the mailbox.
+- What the queue is short of goes on the shopping list by itself and follows the queue as it changes (with the shared list, the queues of all your characters of the same faction). Shared materials are counted once. Quantities you change or add yourself are kept; "Reset to Queue" in the shopping list undoes your changes to the queue's items.
+- The character picker in the title bar shows and edits another of your characters' queue (it crafts only on that character); the Transfer Planner follows it and shows who should send that character what.
 
 Shopping list
-- Per-character or account-wide, with needed, owned and to-buy columns.
+- Shared by all your characters of the same faction (the default), or one list per character, with needed, owned, alts and to-buy columns.
 - Click an item to search for it at the auction house.
 - With Auctionator: a unit price per item, a cost column, an estimated total, and a one-click send to an Auctionator shopping list.
 - Export as plain text.
@@ -72,7 +77,32 @@ Alt inventory and transfer planner
 - Tooltips on the tile, on a reagent's alt badge and on shopping list rows show which character holds what and how much to transfer.
 - Settings choose the mode: Never (alts ignored), Show only (shown, but shopping is unchanged) or Include in planning (default: enabled alts supply materials, so only the remainder is bought). Each character can be enabled or disabled, or removed from the cache. In the Transfer Planner, every character holding a needed material is listed under its name: tick or untick it to take the material from that character or not, or type an amount to take exactly that many (right-click a row to let the planner decide again). Once you change any character for a material, the planner no longer fills the rest from the others; what is left shows as unavailable.
 - The Transfer Planner window lists, per character, what to retrieve for the whole crafting queue and what nothing can supply. Nothing is mailed for you. Once items move, the plan shrinks on its own.
-- Publish saves the plan account-wide. When you log into an alt it prints what to send to the crafter, and opening a mailbox shows the same list in the Transfer Planner. Items you mail to the crafter are counted off. Publish again after collecting your mail.
+- Sending between characters follows the queues on its own: when you log into an alt it prints what to send to each character whose queue needs its materials, and opening a mailbox shows the same list in the Transfer Planner, with a Mail button that attaches it. Change or clear a queue and the list follows.
+- Mail counts as a third place your items can be. What waits in a character's mailbox is that character's, so it isn't asked for again or bought, including auction purchases you haven't collected. At the mailbox, "Collect from Mailbox" takes what your queue needs (never cash-on-delivery mail). Viewing another character's plan shows what waits in its mailbox.
+- The Transfer Planner opens by itself at a mailbox or bank when there is something to send, collect or withdraw, and closes again with it.
+
+Disenchanting Mode
+- On the Enchanting tab, the dust icon swaps the recipes for the gear in your bags and bank that can be disenchanted, plus the unbound gear on your other characters (to mail over). The list has the recipe list's search, sort, groups, row spacing and filters (quality, bank items, other characters, equipment set pieces, only what's worth disenchanting).
+- Pick an item to see what it may give, with chances and amounts, and whether it's worth more sold to a vendor, disenchanted or sold at auction (with Auctionator, after the auction house cut). The best choice is highlighted, and the Disenchant button casts Disenchant on it. Items in an equipment set are marked and ask for confirmation first.
+- On a character without Enchanting, the quick button, /pf de and the Overview icon list the gear you could send your enchanter. Pick your main enchanter under Options, General, Disenchanting, or at the bottom of the right-click enchanter menu.
+
+Disenchant advice and your own results
+- Weapons and armour that can be disenchanted say what to do with them on their tooltip: Disenchant, Vendor or Auction, with the best lit and what it earns. Hold Shift for every result with its chance and value. The Tooltips options page sets when and how much it shows.
+- Every disenchant your characters do is recorded, by item level. Under each expected chance, Disenchanting Mode and the tooltip show how often you've really seen that result, your average amount, and what your disenchants were really worth, greyed until 100 disenchants of that kind are recorded.
+
+Recipe Search
+- Find any recipe in the game, in any profession, learned or not, by name or by reagent. Hover a recipe for what it makes, its reagents and which of your characters know it; click one of your recipes to open it.
+
+Quick buttons and Skill Up Route
+- A movable bar of icons opens the cooldowns, transfer planner, shopping list, crafting queue and Disenchanting Mode without the main window, each with a count of what is waiting. It can also have a button for each profession with a crafting window, which opens it like its tab (Options, Quick Buttons).
+- With SkillUp Forever installed, the Skill Up Route window shows its levelling route for each profession; click a step to go to its trainer, vendor or recipe.
+
+Side windows
+- The crafting queue, transfer planner and shopping list share a row of buttons to open and close each other.
+- Side windows dock beside the main window, or beside the open mailbox or bank while the main window is closed, and always stay on screen: at a large UI scale they get shorter, and with no room beside the main window one docks over it. Pin a window to keep it in place.
+
+What's New
+- After an update, the first login shows a short list of what's new. /pf whatsnew or the What's New button under Options, About shows it again.
 
 Recipe cooldowns
 - A recipe with a cooldown (transmutes, Mooncloth and the like) shows the cooldown's length above the description in the recipe panel, then either "ready" or the time left. A recipe on cooldown also shows its time next to its name in the list, and its craft buttons are off until it is ready.
@@ -88,11 +118,12 @@ Navigation (optional)
 - Waypoints go through Polestar (when its integration setting is on) or TomTom.
 - Targets: vendors for a recipe or reagent, the nearest trainer for a profession tier, the nearest banker.
 - "Track location" on an unlearned recipe sets a waypoint to the trainer or vendor that teaches it, using Questie and the trainers you have visited. Where no location is known, the recipe panel says so.
-- Trainers, bankers and vendors you open are remembered (with the recipes and items a vendor sells), so the lookup improves as you play and works without Questie. They are saved for the whole account and only used for characters of a faction that has opened them.
+- Trainers, bankers and vendors you open are remembered (with the recipes and items a vendor sells), so the lookup improves as you play. They are saved for the whole account and only used for characters of a faction that has opened them.
+- The addon ships with the locations of the profession trainers, bankers and vendors of reagents and recipes, so navigation works without Questie.
 - Right-click Polestar's arrow, or use the "Clear waypoint" button, to remove it. Waypoints also clear on arrival.
 
 Look and feel
-- Three skins: Modern Dark, Classic and Minimal, plus an EllesmereUI skin when EllesmereUI is installed. Pick them from the Skin drop-down on the settings page.
+- Four skins: Modern Dark, Blackout, Classic and Minimal, plus an EllesmereUI skin when EllesmereUI is installed. Pick them from the Skin drop-down on the Appearance page.
 - Adjustable font, font size, scale, background opacity and accent colour.
 - Blizzard's own sounds for opening and closing the window, the crafting queue, the shopping list and the settings, and for switching tabs.
 - The default professions keybind and the micro-menu Professions button open this window.
@@ -101,22 +132,29 @@ Look and feel
 OPTIONAL INTEGRATIONS
 ---------------------
 
-- Auctionator: prices, cost totals, send-to-Auctionator.
+- Auctionator: prices, cost totals, send-to-Auctionator, disenchant values; prices update as soon as a scan or search finishes.
 - Syndicator: live bank counts, and the inventory of your other characters for the alt features.
 - Questie: vendor, trainer and banker locations. Current Questie releases keep their database in the separate QuestieDB addon, which is read directly, so QuestieDB alone is enough; older Questie releases that bundle the database work too.
-- TomTom or Polestar: waypoints and the navigation arrow.
-- EllesmereUI: an EllesmereUI skin for the windows.
+- TomTom or Polestar: waypoints and the navigation arrow; with Polestar, multi-step routes are printed to chat.
+- SkillUp Forever: the Skill Up Route window, footer cell and quick button.
+- EllesmereUI: an EllesmereUI skin for the windows; side windows dock beside its bank window.
 
-Features that need a missing addon are hidden rather than shown disabled.
+Features that need a missing addon are hidden rather than shown disabled. Each has its own page under Integrations in the options.
 
 
 SLASH COMMANDS
 --------------
 
 /pf, /professions, /professionsforever   Toggle the window
+/pf queue                                Toggle the crafting queue
 /pf shop                                 Toggle the shopping list
 /pf transfer                             Toggle the transfer planner
 /pf cooldowns, /pf cd                    Toggle the cooldowns window
+/pf recipe                               Toggle Recipe Search, searching by recipe name
+/pf reagent                              Toggle Recipe Search, searching by reagent
+/pf de, /pf disenchant                   Toggle Disenchanting Mode (enchanters: open Enchanting first, or macro /cast Enchanting then /pf de)
+/pf route                                Toggle the Skill Up Route window (needs SkillUp Forever)
+/pf whatsnew                             Show what's new in this version
 /pf options                              Open the settings
 /pf reset                                Reset window position and size
 /pf clearway                             Remove the active waypoint
@@ -130,20 +168,19 @@ SETTINGS
 
 Open them with /pf options or the Options button in the title bar.
 
-- Skin, font, font size, scale, background opacity, accent colour
-- Replace the default professions window (on or off)
-- Shopping list scope: per character or account-wide
-- Alt inventory mode (Never, Show only, Include in planning) and which characters may supply materials
-- Hide the minimap button
-- Reset window position and size
-- Reset all options (click twice to confirm)
+- General: replace the default professions window; shopping list scope (shared by your characters of the same faction, or per character); disenchanting (record your results, show seen rates, main enchanter); minimap button, cooldowns at login, opening the Transfer Planner at your bank or a mailbox, skill up chance in the recipe list
+- Appearance: skin, font, font size, scale, background opacity, accent colour; reset window position and size
+- Quick Buttons: show, lock, profession buttons, how many per row and which way they grow
+- Tooltips: disenchant advice on item tooltips: on or off, always or with Shift, how much, and which characters need Enchanting
+- Integrations: an overview of the supported addons and the alt inventory mode (Never, Show only, Include in planning) with which characters may supply materials; under it, a page for each addon: Auctionator, Polestar & TomTom, Questie, Syndicator, SkillUp Forever and EllesmereUI
+- Each page has its own reset, and Reset all options resets everything (click twice to confirm)
 
 
 NOTES AND LIMITS
 ----------------
 
 - Recipe data comes from the client, so the recipe list only exists for a profession while it is open. Queued recipes keep their own copy of their reagents.
-- Crafting automation: Blizzard may require a fresh click to start a craft, so a queue run can pause and ask you to click again. Stop Craft uses a secure button to cancel the current cast.
+- Crafting automation: the game only lets an addon start a craft from a click. Between recipes the queue waits, then crafts the next one when you click the game world; switching to another profession needs a click on Craft Queue. Stop Craft uses a secure button to cancel the current cast.
 - Source information for unlearned recipes is limited: Blizzard supplies none on this client, so it comes from Questie and from trainers you have visited.
 - Navigation features depend on third-party data and have not been verified against every vendor or trainer.
 
@@ -152,3 +189,13 @@ SUPPORT
 -------
 
 Bug reports and questions: professionsforever@gmail.com
+
+
+LICENSE AND CREDITS
+-------------------
+
+ProfessionsForever is free software under the GNU General Public License, version 3 (see LICENSE).
+
+- Trainer, banker and vendor locations, trainer spell lists and vendor stock (Data/ClassicNpcs.lua) come from the cmangos classic-db project, https://github.com/cmangos/classic-db, licensed GPL-3.0. World of Warcraft content and materials are trademarks and copyrights of Blizzard Entertainment. classic-db is not affiliated with Blizzard.
+- Recipe, skill, faction and map data (Data/Recipes.lua, Data/Items.lua, Data/Cooldowns.lua) come from the wago.tools DB2 tables for WoW: Forever.
+- Disenchant loot tables and odds (Data/Disenchant.lua) come from cmangos classic-db (GPL-3.0); its level brackets from the wago.tools tables for WoW: Forever.

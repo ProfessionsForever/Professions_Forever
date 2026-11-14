@@ -1,18 +1,17 @@
 local _, FP = ...
 local L = FP.L
 local UI = FP.UI
-local Skin = UI.ActiveSkin
 local CARD_H, TILE_W, TILE_H, TILE_GAP = UI.CARD_H, UI.TILE_W, UI.TILE_H, UI.TILE_GAP
-local STATUS_COLORS, ItemName = UI.STATUS_COLORS, UI.ItemName
 local PreviewLink, FillCostTip, FillProfitTip = UI.PreviewLink, UI.FillCostTip, UI.FillProfitTip
-
-local BADGE_QUEUE = "Interface\\Icons\\Trade_Engineering"
-local BADGE_SHOP = "Interface\\Icons\\INV_Misc_Coin_01"
-local BADGE_VENDOR = "Interface\\Icons\\INV_Misc_Map_01"
-local BADGE_ALTS = "Interface\\Icons\\INV_Letter_15"
 
 local function SelectedRecipe()
     return FP.selected and FP.Recipes.byID[FP.selected]
+end
+
+-- How many crafts the panel's quantity box asks for, 1 to 999.
+function UI:GetCount()
+    local n = tonumber(self.frame and self.frame.detail.qty:GetText()) or 1
+    return math.max(1, math.min(999, math.floor(n)))
 end
 
 -- Right panel: the selected recipe's details.
@@ -72,7 +71,7 @@ function UI:CreateDetailHeader(d, c)
         self:Skin(t, "button")
         t:EnableMouse(true)
         t.num = self:Text(t, 1, "CENTER")
-        t.num:SetPoint("TOP", 0, -2)
+        t.num:SetPoint("TOP", 0, -5)
         t.label = self:Text(t, -3, "CENTER")
         t.label:SetPoint("BOTTOM", 0, 2)
         t.label:SetText(label)
@@ -89,7 +88,7 @@ function UI:CreateDetailHeader(d, c)
         end)
         return t
     end
-    d.statBank = Tile(L["From Bank"], L["Extra crafts you can make by also using materials in your bank."])
+    d.statBank = Tile(L["From Bank"], L["Extra crafts using materials in your bank."])
     d.statAlts = Tile(L["From Alts"], function(tip, s) UI:FillAltTileTip(tip, s.ev) end)
     d.statAlts:SetPoint("TOPRIGHT", -12, -12)
     d.statBank.isBank = true
@@ -173,97 +172,6 @@ function UI:CreateDetailHeader(d, c)
     d.desc:SetTextColor(1, 1, 1)
 end
 
--- The grid of reagent cards; d.AddReagentCard(i) creates card i when a recipe needs it.
-function UI:CreateReagentCards(d, c)
-    d.rows = {}
-    d.AddReagentCard = function(i)
-        local row = CreateFrame("Button", nil, c, "BackdropTemplate")
-        self:Skin(row, "button")
-        row.stripe = row:CreateTexture(nil, "ARTWORK")
-        row.stripe:SetWidth(4)
-        row.stripe:SetPoint("TOPLEFT", 1, -1)
-        row.stripe:SetPoint("BOTTOMLEFT", 1, 1)
-        row.icon = row:CreateTexture(nil, "ARTWORK")
-        row.icon:SetSize(CARD_H - 10, CARD_H - 10)
-        row.icon:SetPoint("LEFT", 10, 0)
-        row.name = self:Text(row, 0)
-        row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, 0)
-        row.name:SetPoint("RIGHT", -6, 0)
-        row.name:SetWordWrap(false)
-        row.count = self:Text(row, 1)
-        row.count:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 8, 0)
-        row.bankTag = self:Text(row, -1, "RIGHT")
-        row.bankTag:SetPoint("BOTTOMRIGHT", -6, 4)
-        row.bankTag:SetTextColor(unpack(STATUS_COLORS.bank))
-        row.count:SetPoint("RIGHT", row.bankTag, "LEFT", -4, 0)
-        row.count:SetWordWrap(false)
-        row.vBadge = self:Badge(row, BADGE_VENDOR, function(r)
-            GameTooltip:AddLine(L["Sold by a vendor"], 1, 0.82, 0)
-            GameTooltip:AddLine(FP.Waypoint:VendorSummary(r.itemID), 1, 1, 1, true)
-            GameTooltip:AddLine(L["Click: waypoint to the nearest vendor"], 0.5, 0.8, 1)
-        end, function(r) FP.Waypoint:NearestVendor(r.itemID) end)
-        row.qBadge = self:Badge(row, BADGE_QUEUE, function(r)
-            GameTooltip:AddLine(L["Crafting Queue"], 0.4, 0.8, 1)
-            GameTooltip:AddLine(L["%d needed by queued recipes:"]:format(r.queueQty or 0), 1, 1, 1)
-            for _, u in ipairs(FP.Queue:UsageList(r.itemID)) do
-                GameTooltip:AddDoubleLine(u.name .. " x" .. u.crafts, u.need, 0.8, 0.8, 0.8, 1, 1, 1)
-            end
-        end)
-        row.sBadge = self:Badge(row, BADGE_SHOP, function(r)
-            local want, have = r.shopQty or 0, r.owned or 0
-            GameTooltip:AddLine(L["Shopping List"], 1, 0.82, 0)
-            GameTooltip:AddDoubleLine(L["On the List"], tostring(want), 0.8, 0.8, 0.8, 1, 1, 1)
-            GameTooltip:AddDoubleLine(L["You Have"], tostring(have), 0.8, 0.8, 0.8, 1, 1, 1)
-            GameTooltip:AddDoubleLine(L["Still to Buy"], tostring(math.max(0, want - have)), 0.8, 0.8, 0.8, 1, 1, 1)
-        end)
-        row.aBadge = self:Badge(row, BADGE_ALTS, function(r)
-            local it = r.reagent and r.reagent.plan
-            if not it then return end
-            GameTooltip:AddLine(ItemName(r.itemID), 1, 1, 1)
-            GameTooltip:AddDoubleLine(L["Need for Requested Crafts"], it.need, 0.8, 0.8, 0.8, 1, 1, 1)
-            GameTooltip:AddDoubleLine(L["Current Bags"], it.bags, 0.8, 0.8, 0.8, 1, 1, 1)
-            GameTooltip:AddDoubleLine(L["Current Bank"], it.bank, 0.8, 0.8, 0.8, 1, 1, 1)
-            UI:AddAltLines(GameTooltip, it)
-        end)
-        row.badges = { row.vBadge, row.sBadge, row.qBadge, row.aBadge }
-        row:SetScript("OnEnter", function(s)
-            s:SetBackdropBorderColor(unpack(UI:GetAccent()))
-            if not s.itemID then return end
-            GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-            GameTooltip:SetItemByID(s.itemID)
-            local unit = FP.Prices:Unit(s.itemID)
-            if unit then GameTooltip:AddLine(L["Auction Price: %s each"]:format(FP.Prices:Format(unit)), 1, 0.82, 0) end
-            GameTooltip:AddLine(" ")
-            if (s.queueQty or 0) > 0 then GameTooltip:AddLine(L["In Crafting Queue: %d"]:format(s.queueQty), 0.4, 0.8, 1) end
-            if (s.shopQty or 0) > 0 then GameTooltip:AddLine(L["On Shopping List: %d"]:format(s.shopQty), 1, 0.82, 0) end
-            if (s.altQty or 0) > 0 then
-                GameTooltip:AddLine(L["On Other Characters: %d"]:format(s.altQty), unpack(UI.ALT_COLOR))
-            end
-            if s.hasVendor then
-                GameTooltip:AddLine(L["Sold by: %s"]:format(FP.Waypoint:VendorSummary(s.itemID)), 1, 0.82, 0, true)
-                GameTooltip:AddLine(L["Right-click: waypoint to the nearest vendor"], 0.5, 0.8, 1)
-            end
-            GameTooltip:AddLine(L["Click to add this reagent to the shopping list."], 0.5, 0.8, 1)
-            GameTooltip:Show()
-        end)
-        row:SetScript("OnLeave", function(s)
-            s:SetBackdropBorderColor(unpack(Skin().button.border))
-            GameTooltip:Hide()
-        end)
-        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        row:SetScript("OnClick", function(s, btn)
-            if UI.LinkItemToChat(s.itemID) then return end
-            if btn == "RightButton" then
-                if s.hasVendor and s.itemID then FP.Waypoint:NearestVendor(s.itemID) end
-            elseif s.itemID and s.need then
-                FP.Shop:Add(s.itemID, s.need)
-                FP:Print(L["Added %d item(s) to the shopping list."]:format(1))
-            end
-        end)
-        d.rows[i] = row
-    end
-end
-
 -- Banner, requirements, cost, quantity, craft buttons and the enchant / salvage target.
 function UI:CreateDetailActions(d, c)
     d.banner = self:Text(c, 1)
@@ -318,36 +226,53 @@ function UI:CreateDetailActions(d, c)
     d.enchantBtn = self:Button(c, L["Enchant"], 120, 24, function() UI.DoCraft(1) end)
     d.enchantBtn:SetPoint("BOTTOMLEFT", 12, 18)
     d.enchantBtn:Hide()
+    -- In their place for another player's or character's profession: why it can't be crafted here.
+    d.readOnly = self:Text(c, 0)
+    d.readOnly:SetPoint("BOTTOMLEFT", 12, 23)
+    d.readOnly:SetPoint("RIGHT", -12, 0)
+    d.readOnly:SetJustifyH("LEFT")
+    d.readOnly:SetWordWrap(false)
+    d.readOnly:SetTextColor(0.75, 0.75, 0.75)
+    d.readOnly:Hide()
     for _, b in ipairs({ d.craft, d.craftAll, d.enchantBtn }) do
         self:Tooltip(b, "ANCHOR_TOP", function(tip)
             if not d.craftBlock then return false end
             tip:AddLine(d.craftBlock, 1, 0.3, 0.3, true)
         end)
     end
-    local function AddMissing()
-        local e = FP.selected and FP.Recipes:Evaluate(FP.selected, UI:GetCount())
-        if not e then return end
-        FP.Recipes:EvaluateAlts(e)
-        local n = FP.Shop:AddRecipeMissing(e)
-        FP:Print(L["Added %d item(s) to the shopping list."]:format(n))
+    -- Queueing opens the queue, and the transfer planner too when other characters hold materials it needs.
+    local function Queue(add)
+        FP.Queue:Open()
+        add()
+        FP.Queue:OpenTransferIfNeeded()
     end
-    d.addMissing = self:Button(c, L["Add Missing"], 110, 24, AddMissing)
-    d.addMissing:SetPoint("BOTTOMLEFT", 12, 46)
+    -- Queueing puts what the recipe is short of on the shopping list (Core/Shopping.lua); the banner opens the list.
     d.bannerBtn = CreateFrame("Button", nil, c)
     d.bannerBtn:SetAllPoints(d.banner)
-    d.bannerBtn:SetScript("OnClick", AddMissing)
+    d.bannerBtn:SetScript("OnClick", function() FP.Shop:Open() end)
     d.addQueue = self:Button(c, L["Queue"], 80, 24, function()
         if not FP.selected then return end
-        FP.Queue:AddWithPrerequisites(FP.selected, UI:GetCount())
+        local viewing = FP.AltProfs.viewing
+        if viewing then
+            FP.Queue:AddFor(viewing.key, FP.selected, viewing.skillLine, UI:GetCount()) -- into that character's queue
+        else
+            Queue(function() FP.Queue:AddWithPrerequisites(FP.selected, UI:GetCount()) end)
+        end
         d.qty:SetText("1")
     end)
-    d.addQueue:SetPoint("LEFT", d.addMissing, "RIGHT", 6, 0)
+    d.addQueue:SetPoint("BOTTOMLEFT", 12, 46)
+    self:Tooltip(d.addQueue, "ANCHOR_TOP", function(tip)
+        local e = SelectedRecipe()
+        if not e or e.learned then return false end
+        tip:AddLine(L["Not Learned"], 1, 0.3, 0.3)
+        tip:AddLine(L["You can queue it to plan and shop for its materials. The queue skips it until it is learned."], 0.8, 0.8, 0.8, true)
+    end)
     d.queueAll = self:Button(c, L["Queue All"], 80, 24, function()
-        if FP.selected and d.queueAllCount > 0 then FP.Queue:Add(FP.selected, d.queueAllCount) end
+        if FP.selected and d.queueAllCount > 0 then Queue(function() FP.Queue:Add(FP.selected, d.queueAllCount) end) end
     end)
     d.queueAll:SetPoint("LEFT", d.addQueue, "RIGHT", 6, 0)
     d.queueAllCount = 0
-    self:Tooltip(d.queueAll, "ANCHOR_TOP", L["Adds as many crafts of this recipe as your bags can supply to the queue."])
+    self:Tooltip(d.queueAll, "ANCHOR_TOP", L["Queues as many crafts as your bags can supply."])
 
     d.track = self:Button(c, L["Track"], 80, 24, function()
         local e = SelectedRecipe()

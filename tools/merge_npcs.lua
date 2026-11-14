@@ -1,5 +1,5 @@
 -- Merges the trainers, bankers and vendors players recorded (SavedVariables/ProfessionsForever.lua files)
--- into Data/Npcs.lua, keeping what is already there.
+-- into Data/Npcs.lua. NPCs in the player files replace what Data/Npcs.lua has for them; the rest is kept.
 --
 -- Usage: luajit tools/merge_npcs.lua <ProfessionsForever.lua>...
 --
@@ -47,7 +47,11 @@ local function clean(e)
     if not (uiMap and x and y) then return end
     local c = { uiMap = math.floor(uiMap), x = x, y = y, npc = text(e.npc), sub = text(e.sub), skill = text(e.skill),
         zone = text(e.zone), alliance = e.alliance == true or nil, horde = e.horde == true or nil }
-    if type(e.items) == "string" and e.items:match("^,[%d,]*,$") then c.items = e.items end
+    if type(e.ver) == "string" and e.ver:match("^%d+[%d.]*$") then c.ver = e.ver end
+    c.build = number(e.build, 1, 1e9)
+    for _, k in ipairs({ "items", "ranks", "noRanks" }) do
+        if type(e[k]) == "string" and e[k]:match("^,[%d,]*,$") then c[k] = e[k] end
+    end
     c.recipes = names(e.recipes)
     return c
 end
@@ -77,28 +81,33 @@ end
 local function mergeEntry(dst, src)
     for _, k in ipairs({ "npc", "sub", "skill", "zone" }) do dst[k] = dst[k] or src[k] end
     dst.alliance, dst.horde = dst.alliance or src.alliance, dst.horde or src.horde
-    if dst.items or src.items then dst.items = joinIds(union(ids(dst.items), ids(src.items))) end
+    for _, k in ipairs({ "items", "ranks", "noRanks" }) do
+        if dst[k] or src[k] then dst[k] = joinIds(union(ids(dst[k]), ids(src[k]))) end
+    end
     dst.recipes = sorted(union(dst.recipes, src.recipes))
 end
 
-local data = { trainerRecipes = {} }
-for _, kind in ipairs(KINDS) do data[kind] = {} end
+local function newSet()
+    local set = { trainerRecipes = {} }
+    for _, kind in ipairs(KINDS) do set[kind] = {} end
+    return set
+end
 
--- Adds one table of recordings: the existing Data/Npcs.lua first, then each player's file.
-local function add(source)
+-- Adds one table of recordings to set, combining with what set already has for the same NPC.
+local function add(set, source)
     for _, kind in ipairs(KINDS) do
         for id, e in pairs(type(source[kind]) == "table" and source[kind] or {}) do
             local c = type(id) == "number" and clean(e)
             if c then
-                local old = data[kind][id]
-                if old then mergeEntry(old, c) else data[kind][id] = c end
+                local old = set[kind][id]
+                if old then mergeEntry(old, c) else set[kind][id] = c end
             end
         end
     end
     for name, list in pairs(type(source.trainerRecipes) == "table" and source.trainerRecipes or {}) do
         name = text(name)
         if name and type(list) == "string" and list:match("^[%d,]+$") then
-            data.trainerRecipes[name] = union(data.trainerRecipes[name] or {}, ids(list))
+            set.trainerRecipes[name] = union(set.trainerRecipes[name] or {}, ids(list))
         end
     end
 end
@@ -107,15 +116,37 @@ local function count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n 
 
 local FP = {}
 load(TARGET, "ProfessionsForever", FP)
-add(FP.NpcData or {})
+local data = newSet()
+add(data, FP.NpcData or {})
 local before = {}
 for _, kind in ipairs(KINDS) do before[kind] = count(data[kind]) end
 
+-- The player files are combined with each other, then each NPC they have replaces the shipped entry, so
+-- re-recording an NPC updates it (a corrected zone or position).
+local incoming = newSet()
 for i = 1, #arg do
     local env = load(arg[i])
     local db = env.ProfessionsForeverDB
     if type(db) ~= "table" then error(arg[i] .. ": no ProfessionsForeverDB in this file", 0) end
-    add(db)
+    add(incoming, db)
+end
+-- Stock and factions are still combined with the shipped entry: sold-out limited-supply items drop off a
+-- vendor's list, and each faction only adds its own flag.
+for _, kind in ipairs(KINDS) do
+    for id, e in pairs(incoming[kind]) do
+        local old = data[kind][id]
+        if old then
+            e.alliance, e.horde = e.alliance or old.alliance, e.horde or old.horde
+            for _, k in ipairs({ "items", "ranks", "noRanks" }) do
+                if e[k] or old[k] then e[k] = joinIds(union(ids(e[k]), ids(old[k]))) end
+            end
+            e.recipes = sorted(union(e.recipes, old.recipes))
+        end
+        data[kind][id] = e
+    end
+end
+for name, list in pairs(incoming.trainerRecipes) do
+    data.trainerRecipes[name] = union(data.trainerRecipes[name] or {}, list)
 end
 
 -- Output ---------------------------------------------------------------
@@ -133,7 +164,7 @@ local function field(k, v)
     return ("%s = %d"):format(k, v)
 end
 
-local ORDER = { "npc", "sub", "skill", "zone", "uiMap", "x", "y", "alliance", "horde", "items" }
+local ORDER = { "npc", "sub", "skill", "zone", "uiMap", "x", "y", "alliance", "horde", "ver", "build", "ranks", "noRanks", "items" }
 
 local function entryText(e)
     local parts = {}

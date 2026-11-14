@@ -1,9 +1,10 @@
 local _, FP = ...
-local Shop = FP.Shop
+local UI = FP.UI
 
 local DELAY, MIN_CHARS, MAX_MATCHES = 0.12, 2, 40
 
--- The shopping list's search covers every tradeable item the game has (Data/Items.lua). It is searched in place as
+-- Item name autocomplete for any edit box (the shopping list's add box, Recipe Search's reagent box). The search
+-- covers every tradeable item the game has (Data/Items.lua). It is searched in place as
 -- one string rather than as a table per item, so it costs about the size of the file and each lookup is a plain find.
 local names, lower
 
@@ -14,15 +15,15 @@ local function Load()
 end
 
 -- Names containing `typed` (lowercase), those starting with it first, each in the list's alphabetical order; the
--- names go in `ids` as well. Stops at MAX_MATCHES.
-local function Search(typed, ids)
+-- names go in `ids` as well. Stops at MAX_MATCHES. With `filter`, only items it accepts (by ID) are listed.
+local function Search(typed, ids, filter)
     Load()
     wipe(ids)
     local out, within = {}, {}
     local function Add(group, from, to)
         local line = strsub(names, from, to)
         local name, id = strmatch(line, "^(.-)\t(%d+)$")
-        if name then
+        if name and (not filter or filter(tonumber(id))) then
             ids[name] = tonumber(id)
             group[#group + 1] = name
         end
@@ -54,18 +55,18 @@ local function Search(typed, ids)
     return out
 end
 
--- Suggests item names for the add box, with a list opening upward. The match runs shortly after the last keystroke,
+-- Suggests item names for edit box `eb`, with a list opening upward. The match runs shortly after the last keystroke,
 -- so typing never waits on it.
 -- Returns an object: :Resolve(text) gives the item ID for what was typed, :Selected() the row picked with the arrows.
--- onPick(name) is called when a row is clicked.
-function Shop:AttachSuggest(eb, onPick)
+-- onPick(name) is called when a row is clicked. `filter(itemID)` narrows the items offered.
+function UI:AttachItemAutocomplete(eb, onPick, filter)
     local token = 0
     local s, ids = {}, {}
 
     local function Matches(text)
         local typed = strlower(text)
         if #typed < MIN_CHARS or strfind(typed, "[\t\n]") then return {} end
-        return Search(typed, ids)
+        return Search(typed, ids, filter)
     end
 
     -- An exact name, then an ID, link or cached name, then the first suggestion.
@@ -79,7 +80,7 @@ function Shop:AttachSuggest(eb, onPick)
         return ids[Matches(text)[1]]
     end
 
-    local completion = FP.UI:AttachCompletion(eb, Matches, true, onPick)
+    local completion = UI:AttachCompletion(eb, Matches, true, onPick)
     function s:Selected() return completion:Selected() end
 
     -- The box fires OnTextChanged repeatedly with the same text, which would hide the grey text over and over.

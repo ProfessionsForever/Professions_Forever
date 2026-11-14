@@ -45,28 +45,46 @@ function FP:RestoreBlizzard()
         pf:SetFrameStrata(savedStrata or "MEDIUM")
         pf:SetAlpha(1)
         pf:EnableMouse(true)
+        -- The panel manager laid the frame out at the speck scale, so place it again at the real one.
+        if pf:IsShown() then UpdateUIPanelPositions(pf) end
     end
 end
 
--- Linked, guild and NPC crafting views keep Blizzard's window.
+-- True while the window shows a profession that isn't yours to craft from: another player's (a chat link), or one of
+-- your other characters' (Alts/AltProfessions.lua). The second value is the owner's name.
+function FP:IsReadOnly()
+    local viewing = FP.AltProfs.viewing
+    if viewing then return true, viewing.owner end
+    local linked, name = C_TradeSkillUI.IsTradeSkillLinked()
+    return linked and true or false, name
+end
+
 function FP:IsOwnProfession()
-    local T = C_TradeSkillUI
-    return not (T.IsTradeSkillLinked() or T.IsTradeSkillGuild() or T.IsNPCCrafting())
+    return not self:IsReadOnly()
 end
 
 ---------------------------------------------------------------------------
 -- Professions
 ---------------------------------------------------------------------------
 -- Skill lines to look for when GetProfessions() leaves a profession out, and to offer as learnable.
-local SECONDARY_SKILLS = { 129, 185, 356 } -- First Aid, Cooking, Fishing
-FP.SECONDARY_SKILLS = SECONDARY_SKILLS
+-- The three secondary professions every character can have beside its two primary ones, in the Overview's order.
+local SECONDARY_SKILLS = { 185, 356, 129 } -- Cooking, Fishing, First Aid
 local PRIMARY_SKILLS = { 171, 164, 333, 202, 182, 773, 755, 165, 186, 393, 197 }
+FP.SECONDARY_SKILLS = SECONDARY_SKILLS
+FP.ENCHANTING = 333 -- the skill line whose spells include Disenchant (Core/Disenchant.lua)
 local isSecondary = {}
 for _, id in ipairs(SECONDARY_SKILLS) do isSecondary[id] = true end
 
 function FP:IsSecondary(skillLine) return isSecondary[skillLine] == true end
 
+-- The learned professions, built once and kept until a skill line changes (SKILL_LINES_CHANGED, which also fires on
+-- every skill up), since many places read it on each refresh. Treat the result as read-only.
+local professions
+
+function FP:ForgetProfessions() professions = nil end
+
 function FP:GetProfessions()
+    if professions then return professions end
     local out, seen = {}, {}
     -- Up to two primary and five secondary profession indices, with gaps.
     local indices = { GetProfessions() }
@@ -102,7 +120,25 @@ function FP:GetProfessions()
             }
         end
     end
+    professions = out
     return out
+end
+
+-- The open profession's name, level, modifier, cap and skill line ID; while another character's profession is
+-- viewed, its saved ones.
+function FP.RankInfo()
+    local viewing = FP.AltProfs.viewing
+    if viewing then return viewing.name, viewing.rank, viewing.modifier, viewing.maxRank, viewing.skillLine end
+    local base = C_TradeSkillUI.GetBaseProfessionInfo()
+    if not base then return end
+    local name = base.professionName or ""
+    local level, max = base.skillLevel or 0, base.maxSkillLevel or 0
+    if max == 0 then
+        for _, p in ipairs(FP:GetProfessions()) do
+            if p.name == name then level, max = p.rank or 0, p.maxRank or 0 break end
+        end
+    end
+    return name, level, base.skillModifier or 0, max, base.professionID
 end
 
 -- Professions the player doesn't have yet, for the Overview's "visit a trainer" cards.
@@ -136,7 +172,7 @@ function FP:OpenProfession(skillLine)
 end
 
 function FP:Open()
-    if C_TradeSkillUI.IsTradeSkillReady() and FP:IsOwnProfession() then
+    if C_TradeSkillUI.IsTradeSkillReady() then
         FP:SuppressBlizzard()
         FP.UI:Show("recipes")
     else

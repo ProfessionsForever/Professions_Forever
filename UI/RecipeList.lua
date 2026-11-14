@@ -1,11 +1,21 @@
 local _, FP = ...
 local L = FP.L
 local UI = FP.UI
-local Skin = UI.ActiveSkin
 local STATUS_COLORS, DIFF_COLORS, DIFF_LABELS, WHITE_RGB = UI.STATUS_COLORS, UI.DIFF_COLORS, UI.DIFF_LABELS, UI.WHITE_RGB
-local RecipeRowHeight, RankInfo = UI.RecipeRowHeight, UI.RankInfo
+local RecipeRowHeight, RankInfo = UI.RecipeRowHeight, FP.RankInfo
+local PreviewLink, Hex = UI.PreviewLink, UI.Hex -- UI/RecipeInfo.lua, UI/Shared.lua
 local MAX_ROWS = 60
 local GREY_RGB = { 0.5, 0.5, 0.5 }
+
+-- Where the recipe last clicked in the shown profession is remembered (FP.db.lastRecipe): by skill line, or for
+-- another character's profession by its key and skill line, so the two don't move each other's selection. nil until the
+-- game says which profession is open: right after a login or reload it reports 0 for a moment (seen 2026-11-13).
+local function LastRecipeKey()
+    local viewing = FP.AltProfs.viewing
+    if viewing then return viewing.key .. ":" .. viewing.skillLine end
+    local skillLine = select(5, RankInfo())
+    if skillLine and skillLine ~= 0 then return skillLine end
+end
 
 ---------------------------------------------------------------------------
 -- Recipe list
@@ -25,21 +35,32 @@ function UI:RefreshFilter()
     o.categoryName = self.categoryName
     o.skillUps, o.hideTrivial, o.sortKey, o.sortDesc = db.skillUpsOnly, db.hideTrivial, db.sortKey, db.sortDesc
     o.favoritesOnly = db.favoritesOnly
+    o.skill = select(2, RankInfo()) or 0
     self.filtered = FP.Recipes:GetFiltered(o)
     self.display = FP.Recipes:BuildDisplay(self.filtered, db.collapsedCategories, (self.search or "") ~= "", not db.hideCategories, db.favoritesOnly)
     if self.pendingRecipe and FP.Recipes.byID[self.pendingRecipe] then
         FP.selected, self.pendingRecipe, self.scrollToSelected = self.pendingRecipe, nil, true
+        self.selectionStandIn = nil -- a recipe asked for (Recipe Search, a chat link) wins over the remembered one
     end
-    if not FP.selected or not FP.Recipes.byID[FP.selected] then
-        -- Back on a profession: the recipe last clicked in it, if the current filters still show it.
-        local _, _, _, _, skillLine = RankInfo()
-        local last = skillLine and db.lastRecipe[skillLine]
-        FP.selected = nil
+    -- Back on a profession: the recipe last clicked in it, if the current filters still show it. When it can't be found
+    -- yet, the first listed recipe stands in and the remembered one is tried again on later refreshes: right after a
+    -- login or reload the list can be built before the game says which profession is open, the key it is saved under.
+    -- A click (UI:Select) ends the waiting.
+    if not FP.selected or not FP.Recipes.byID[FP.selected] or self.selectionStandIn then
+        local lastKey = LastRecipeKey()
+        local last = lastKey and db.lastRecipe[lastKey]
+        local found
         for _, e in ipairs(self.filtered) do
-            if e.id == last then FP.selected = last break end
+            if e.id == last then found = last break end
         end
-        FP.selected = FP.selected or (self.filtered[1] and self.filtered[1].id or nil)
-        self.scrollToSelected = true
+        if found then
+            if FP.selected ~= found then FP.selected, self.scrollToSelected = found, true end
+            self.selectionStandIn = nil
+        elseif not FP.selected or not FP.Recipes.byID[FP.selected] then
+            FP.selected = self.filtered[1] and self.filtered[1].id or nil
+            self.scrollToSelected = true
+            self.selectionStandIn = last ~= nil or lastKey == nil -- something to wait for
+        end
     end
     self:SyncFilters()
 end
@@ -53,8 +74,7 @@ function UI:ScrollToSelected()
             if i > offset and i <= offset + self.numRows then return end
             local top = math.max(0, math.min(i - 1 - math.floor(self.numRows / 2), #self.display - self.numRows))
             local y = top * RecipeRowHeight()
-            if f.scroll.fpEUIScrollTo then f.scroll.fpEUIScrollTo(y)
-            elseif f.scroll.ScrollBar then f.scroll.ScrollBar:SetValue(y) end
+            f.scroll.fpScrollTo(y)
             return
         end
     end
@@ -64,106 +84,15 @@ end
 function UI:Relist()
     self:RefreshFilter()
     self.scrollToSelected = false -- a search or filter change starts at the top
-    local scrollBar = self.frame.scroll.ScrollBar
-    if scrollBar then scrollBar:SetValue(0) end
+    self.frame.scroll.fpScrollTo(0)
     self:UpdateList()
     self:UpdateDetail()
 end
 
--- True when any filter preset differs from its default.
-local function PresetsActive(db)
-    for k, default in pairs(FP.filterDefaults) do
-        if db[k] ~= default then return true end
-    end
-    return false
-end
-
--- Refreshes the sort, category, density and filter dropdowns.
+-- Redraws the search, sort, category, row spacing and filter rows (UI/Common/ListHeader.lua).
 function UI:SyncFilters()
     local f = self.frame
-    if not (f and f.filtersDD and f.sortDD and f.filterReset) then return end
-    f.sortDD:Sync()
-    if f.rowDensity then f.rowDensity:Sync() end
-    f.filtersDD:Sync()
-    local db = FP.db
-    local presetsActive = PresetsActive(db)
-    f.filtersDD:SetBackdropBorderColor(unpack(presetsActive and self:GetAccent() or Skin().button.border))
-    f.sortDir.arrow:SetTexture(FP.db.sortDesc and "Interface\\Buttons\\Arrow-Down-Up" or "Interface\\Buttons\\Arrow-Up-Up")
-    f.categoryDD:Sync()
-    f.categoryDD:SetActive(true) -- the favorites group is always available
-    f.expandAll:SetShown(not db.hideCategories)
-    f.collapseAll:SetShown(not db.hideCategories)
-    f.categoryDD:ClearAllPoints()
-    f.categoryDD:SetPoint("TOPLEFT", f.left, "TOPLEFT", 6, -34)
-    f.categoryDD:SetPoint("TOPRIGHT", db.hideCategories and f.rowDensity or f.collapseAll, "TOPLEFT", -4, 0)
-    f.filterReset:SetActive(self.categoryName ~= nil or presetsActive)
-    f.expandAll:SetActive(next(FP.Recipes.categories) ~= nil)
-    f.collapseAll:SetActive(next(FP.Recipes.categories) ~= nil)
-end
-
--- "Trained by" text for a remembered trainer record.
-local function TrainerText(trainer)
-    return L["Trained by: %s"]:format(trainer.zone and ("%s (%s)"):format(trainer.npc, trainer.zone) or trainer.npc)
-end
-
--- What the recipe makes, when it can be worn and so previewed.
-local function PreviewLink(recipeID)
-    local output = FP.Recipes:OutputInfo(recipeID)
-    local link = output and (output.hyperlink or (output.itemID and select(2, C_Item.GetItemInfo(output.itemID))))
-    if link and C_Item.IsDressableItemByID(link) then return link end
-end
-
--- Ctrl-click preview: opens the dressing room on the recipe's result. Returns true when it did.
-function UI.PreviewRecipe(recipeID)
-    local link = recipeID and PreviewLink(recipeID)
-    if not (link and DressUpLink(link)) then return false end
-    if DressUpFrame then DressUpFrame:Raise() end -- already-open dressing room stays under our clicked window otherwise
-    return true
-end
-
--- A learned recipe is tracked in the game's own objective tracker (shows its reagents as you gather them);
--- an unlearned one gets a waypoint to where it is learned.
-function UI.TrackRecipe(e)
-    if not e.learned then return FP.Waypoint:ForRecipe(e.id) end
-    C_TradeSkillUI.SetRecipeTracked(e.id, not C_TradeSkillUI.IsRecipeTracked(e.id, false), false)
-    UI:UpdateDetail()
-end
-
--- Chat-link click: link the thing, or track the recipe when no chat box takes it. True when the click was spent.
-function UI.LinkOrTrack(link, e)
-    if UI.LinkToChat(link) then return true end
-    if e and IsModifiedClick("RECIPEWATCHTOGGLE") then UI.TrackRecipe(e) return true end
-    return false
-end
-
--- Adds where an unlearned recipe comes from (source text, trainer, vendors) to the shared GameTooltip.
-function UI.AddSourceLines(recipeID)
-    local src = C_TradeSkillUI.GetRecipeSourceText and C_TradeSkillUI.GetRecipeSourceText(recipeID)
-    local hasSrc = src and src ~= ""
-    if src and hasSrc then GameTooltip:AddLine(src, 1, 0.82, 0, true) end
-    local trainer = FP.Waypoint:TrainerFor(recipeID)
-    if trainer then GameTooltip:AddLine(TrainerText(trainer), 1, 0.82, 0, true) end
-    local sold, loading = FP.Waypoint:Summary(recipeID)
-    if sold then GameTooltip:AddLine(L["Sold by: %s"]:format(sold), 1, 0.82, 0, true) end
-    if loading then GameTooltip:AddLine(L["Looking up vendors..."], 0.6, 0.6, 0.6) end
-    if not (hasSrc or trainer or sold or loading) then
-        GameTooltip:AddLine(L["Source not discovered yet"], 1, 0.82, 0)
-        GameTooltip:AddLine(L["Visit a trainer for this profession and ProfessionsForever will remember what they teach."], 0.75, 0.75, 0.75, true)
-        GameTooltip:AddLine(L["Recipes a trainer doesn't offer are usually sold by a vendor, dropped, or earned from a quest."], 0.6, 0.6, 0.6, true)
-    end
-    if FP.Waypoint:Available(recipeID) and (trainer or sold) and not PreviewLink(recipeID) then
-        GameTooltip:AddLine(L["Ctrl-click: set a TomTom waypoint"], 0.5, 0.8, 1)
-    end
-end
-
--- One line on where an unlearned recipe is learned from, and whether a location is known to set a waypoint to.
-local function SourceSummary(recipeID)
-    local trainer = FP.Waypoint:TrainerFor(recipeID)
-    if trainer then return TrainerText(trainer), true end
-    local sold, loading = FP.Waypoint:Summary(recipeID)
-    if sold then return L["Sold by: %s"]:format(sold), true end
-    if loading then return L["Looking up vendors..."], false end
-    return L["Location not currently known"], false
+    if f and f.listHeader then f.listHeader:Sync() end
 end
 
 -- Crafts from bags, the extra the bank adds, and the extra enabled alts add: the same split as the detail tiles.
@@ -171,13 +100,17 @@ local function Craftable(recipeID)
     local ev = FP.Recipes:Evaluate(recipeID)
     local withAlts = ev.craftTotal
     if #ev.reagents > 0 and FP.Planner:Mode() ~= "never" then
-        withAlts = math.max(ev.craftTotal, FP.Planner:MaxCrafts(ev.reagents))
+        withAlts = math.max(ev.craftTotal, FP.Planner:MaxCrafts(ev.reagents, FP.Recipes:Crafter()))
     end
     return ev, ev.craftBags, ev.craftTotal - ev.craftBags, withAlts - ev.craftTotal
 end
 
-local function Hex(c)
-    return ("|cff%02x%02x%02x"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+-- The skill up chance of a learned recipe, in its difficulty colour; nothing once it is grey or when the option is off.
+local function ChanceText(e, skill)
+    if not (FP.db.showSkillChance and e.learned) then return "" end
+    local chance = FP.Recipes:SkillUpChance(e.id, skill)
+    if not chance or chance <= 0 then return "" end
+    return Hex(DIFF_COLORS[e.difficulty] or WHITE_RGB) .. math.floor(chance * 100 + 0.5) .. "%|r "
 end
 
 -- "4 +7 +12": bags in green, then what the bank adds in cyan, then what alts add in purple. With nothing craftable it
@@ -199,7 +132,7 @@ function UI:EnsureRows(n)
         local row = CreateFrame("Button", nil, f.list)
         row:SetHeight(rowHeight)
         row:SetPoint("TOPLEFT", f.list, "TOPLEFT", 0, -(i - 1) * rowHeight)
-        row:SetPoint("TOPRIGHT", f.rowEdge, "TOPRIGHT", 0, -(i - 1) * rowHeight)
+        row:SetPoint("TOPRIGHT", f.list, "TOPRIGHT", -UI.BAR_GUTTER, -(i - 1) * rowHeight)
         row.sel = row:CreateTexture(nil, "BACKGROUND")
         row.sel:SetAllPoints()
         row.hl = row:CreateTexture(nil, "HIGHLIGHT")
@@ -250,8 +183,14 @@ function UI:EnsureRows(n)
             else GameTooltip:AddLine(e.name, 1, 1, 1) end
             GameTooltip:AddLine(e.name, 1, 0.82, 0)
             GameTooltip:AddLine(e.learned and L["Learned"] or L["Not Learned"], 0.6, 0.6, 0.6)
+            local required = not e.learned and UI.RequiredSkillText(e.id)
+            if required then GameTooltip:AddLine(required) end
             local difficulty = DIFF_LABELS[e.difficulty]
             if difficulty then GameTooltip:AddLine(L[difficulty], 1, 0.82, 0) end
+            local chance = e.learned and FP.Recipes:SkillUpChance(e.id, select(2, RankInfo()) or 0)
+            if chance and chance > 0 and chance < 1 then
+                GameTooltip:AddLine(L["Skill Up Chance: %d%%"]:format(math.floor(chance * 100 + 0.5)), 0.8, 0.8, 0.8)
+            end
             local cooldown = FP.Cooldowns:DetailText(e.id)
             if cooldown ~= "" then GameTooltip:AddLine(cooldown) end
             local description = UI.RecipeDescription(e.id)
@@ -279,7 +218,7 @@ function UI:EnsureRows(n)
         row:SetHeight(rowHeight)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", f.list, "TOPLEFT", 0, -(i - 1) * rowHeight)
-        row:SetPoint("TOPRIGHT", f.rowEdge, "TOPRIGHT", 0, -(i - 1) * rowHeight)
+        row:SetPoint("TOPRIGHT", f.list, "TOPRIGHT", -UI.BAR_GUTTER, -(i - 1) * rowHeight)
         row.bar:SetSize(4, rowHeight - 4)
         row.icon:SetSize(rowHeight - 4, rowHeight - 4)
     end
@@ -292,10 +231,10 @@ function UI:UpdateList()
     local data, n = self.display, #self.display
     local rowHeight = RecipeRowHeight()
     FauxScrollFrame_Update(f.scroll, n, self.numRows, rowHeight)
-    f.rowEdge:SetBar(n > self.numRows)
-    if f.scroll.fpEUISetRange then f.scroll:fpEUISetRange(math.max(0, n - self.numRows) * rowHeight) end
+    f.scroll.fpSetRange(math.max(0, n - self.numRows) * rowHeight)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     local a = self:GetAccent()
+    local skill = select(2, RankInfo()) or 0
     for i, row in ipairs(self.rows) do
         local item = (i <= self.numRows) and data[offset + i] or nil
         local e = item and item.recipe
@@ -334,7 +273,7 @@ function UI:UpdateList()
             local dc = e.learned and (DIFF_COLORS[e.difficulty] or WHITE_RGB) or GREY_RGB
             row.name:SetTextColor(dc[1], dc[2], dc[3])
             row.name:SetText(e.learned and e.name or (e.name .. " *"))
-            row.mats:SetText(FP.Cooldowns:RowText(e.id) .. (#ev.reagents > 0 and CraftableText(ev, bags, bank, alts) or ""))
+            row.mats:SetText(ChanceText(e, skill) .. FP.Cooldowns:RowText(e.id) .. (#ev.reagents > 0 and CraftableText(ev, bags, bank, alts) or ""))
             row.mats:SetTextColor(1, 1, 1)
             if e.id == FP.selected then row.sel:SetColorTexture(a[1], a[2], a[3], 0.25) else row.sel:SetColorTexture(0, 0, 0, 0) end
             row:Show()
@@ -346,13 +285,12 @@ function UI:UpdateList()
 end
 
 function UI:Select(recipeID)
-    FP.selected = recipeID
-    local _, _, _, _, skillLine = RankInfo()
-    if skillLine then FP.db.lastRecipe[skillLine] = recipeID end
+    FP.selected, self.selectionStandIn = recipeID, nil
+    local lastKey = LastRecipeKey()
+    if lastKey then FP.db.lastRecipe[lastKey] = recipeID end
     self:UpdateList()
     self:UpdateDetail()
 end
-UI.PreviewLink, UI.SourceSummary = PreviewLink, SourceSummary
 
 -- Shows a recipe in the main window, opening its profession first when another one is open. The selection waits in
 -- pendingRecipe until the profession's recipes have loaded, and lapses if that never happens.

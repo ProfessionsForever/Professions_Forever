@@ -4,17 +4,23 @@ local W = FP.Waypoint
 local Questie, Spawns, Friendly, HasWord = W.Questie, W.Spawns, W.Friendly, W.HasWord
 local indexes = W.indexes
 
--- Questie's "Banker" NPCs plus every banker whose window you've opened.
+-- Recorded and shipped bankers, plus Questie's "Banker" NPCs for the ones those lack.
 function W:NearestBanker()
     if not self:CheckNav() then return end
     local db, zoneDB = Questie()
     W.Search("sub", db, function()
-        local cands = {}
+        local cands, have = {}, {}
+        for id, t in W.Known("bankers") do
+            if W.Usable(t) then
+                cands[#cands + 1] = { name = t.npc, uiMap = t.uiMap, x = t.x, y = t.y, area = t.zone }
+                have[id] = true
+            end
+        end
         if db then
             for sub, ids in pairs(indexes.sub.map) do
                 if HasWord(sub:lower(), "banker") then
                     for _, id in ipairs(ids) do
-                        if Friendly(db, id) then
+                        if not have[id] and Friendly(db, id) then
                             local name = db.QueryNPCSingle(id, "name")
                             for _, spot in ipairs(Spawns(db, zoneDB, id)) do
                                 spot.name = name
@@ -25,15 +31,11 @@ function W:NearestBanker()
                 end
             end
         end
-        for _, t in W.Known("bankers") do
-            if W.Usable(t) then cands[#cands + 1] = { name = t.npc, uiMap = t.uiMap, x = t.x, y = t.y } end
-        end
 
         local pick, dist = W.PickNearest(cands)
         if not pick then return FP:Print(L["No known banker location. Open a bank and it will be remembered."]) end
-        local name = pick.name or "?"
-        W.PlaceNearest(pick, dist, pick.name or L["Banker"],
-            "Nearest banker: %s (about %d yards)", "Nearest banker: %s (on another continent)", name)
+        W.PlaceNearest(pick, dist, W.Where(pick.name or L["Banker"], pick.area),
+            "Nearest banker: %s (about %d yards)", "Nearest banker: %s (on another continent)", W.Where(pick.name or "?", pick.area))
     end)
 end
 

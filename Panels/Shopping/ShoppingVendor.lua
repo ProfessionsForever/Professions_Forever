@@ -90,6 +90,6 @@ function Shop:QueueVendorUpdate(force)
     end)
 end
 
-local ev = CreateFrame("Frame")
-for _, e in ipairs({ "MERCHANT_SHOW", "MERCHANT_UPDATE", "BAG_UPDATE_DELAYED" }) do ev:RegisterEvent(e) end
-ev:SetScript("OnEvent", function(_, event) Shop:QueueVendorUpdate(event == "MERCHANT_SHOW") end)
+-- Bag changes reach the button through Shop:Update (FP:Changed("inventory")).
+FP:RegisterEvent("MERCHANT_SHOW", function() Shop:QueueVendorUpdate(true) end)
+FP:RegisterEvent("MERCHANT_UPDATE", function() Shop:QueueVendorUpdate() end)

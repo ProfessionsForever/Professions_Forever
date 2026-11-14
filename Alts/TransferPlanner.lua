@@ -25,11 +25,11 @@ function Planner:Applies() return self:Mode() == "include" end
 function Planner:Version() return version end
 
 -- Anything that can change a plan's inputs calls this: bags, bank, alt snapshots, enabled characters, the mode.
+-- It only drops the cached plans; the caller says what changed with FP:Changed, which redraws the windows.
 -- Requirement changes (queue contents, craft quantity) need no call because the requirements are part of the cache key.
 function Planner:Invalidate()
     version = version + 1
     if cacheSize > 0 then wipe(cached) cacheSize = 0 end
-    if FP.Transfer then FP.Transfer:QueueUpdate() end
 end
 
 function Planner:SetMode(mode)
@@ -40,11 +40,7 @@ end
 -- Settings or alt-cache changes: recalculate and redraw every consumer of the plan.
 function FP:RefreshPlanning()
     Planner:Invalidate()
-    self.Shop:SyncFromQueue()
-    self.UI:QueueRefresh()
-    self.Queue:Update()
-    self.Shop:Update()
-    if self.Options.RefreshCharacters then self.Options:RefreshCharacters() end
+    self:Changed("plan")
 end
 
 -- Merges repeated items; entries are { itemID, need }.
@@ -76,20 +72,44 @@ local function Signature(reqs)
     return table.concat(sigBuffer, ":")
 end
 
-local function Allocate(list, mode)
-    local Alts, Inv = FP.Alts, FP.Inv
+-- Plans are made for a crafter: the current character (nil), or another one whose profession is viewed in the main
+-- window (its key, see Alts/AltProfessions.lua). Bags, bank, their total, and mail of an item that `key`
+-- (nil = current) holds; mail is apart from the total, as in Inv:Owned.
+function Planner:Holding(key, id)
+    if key == nil or key == FP.Alts:GetCharacterKey() then return FP.Inv:Owned(id) end
+    local bags, bank, mail = FP.Alts:Counts(key)
+    local b, k = bags[id] or 0, bank[id] or 0
+    return b, k, b + k, mail[id] or 0
+end
+
+-- The characters that can supply the crafter: Alts:Eligible() for the current one; for another, every enabled
+-- character of its faction (mail can't cross factions), the current one included.
+local function Sources(crafter)
+    if not crafter then return FP.Alts:Eligible() end
+    local chars, me, out = FP.db.characters, FP.Alts:GetCharacterKey(), {}
+    local faction = chars[crafter].faction
+    for _, key in ipairs({ me, unpack(FP.Alts:Eligible()) }) do
+        local rec = chars[key]
+        if key ~= crafter and (faction == nil or rec.faction == nil or rec.faction == faction) then out[#out + 1] = key end
+    end
+    return out
+end
+
+local function Allocate(list, mode, crafter)
+    local Alts = FP.Alts
     local chars = FP.db.characters
     local applies = mode == "include"
     local items, byItem = {}, {}
     local result = { mode = mode, applies = applies, items = items, byItem = byItem, characters = {}, byCharacter = {} }
-    local sources = mode == "never" and {} or Alts:Eligible()
+    local sources = mode == "never" and {} or Sources(crafter)
 
     local selected = {}
     -- o is an option of item it; it becomes one of the item's sources.
     local function Take(it, o, take)
         o.left = o.left - take
         o.transfer, o.fromBags = take, min(o.bags, take)
-        o.fromBank = take - o.fromBags
+        o.fromBank = min(o.bank, take - o.fromBags)
+        o.fromMail = take - o.fromBags - o.fromBank
         selected[o.key] = true
         it.sources[#it.sources + 1] = o
         it.transfer = it.transfer + take
@@ -98,22 +118,25 @@ local function Allocate(list, mode)
     local short, score = {}, {}
     for i, req in ipairs(list) do
         local id = req.itemID
-        local bags, bank, total = Inv:Owned(id)
-        local it = { itemID = id, need = req.need, bags = bags, bank = bank, have = total,
-            localShort = max(0, req.need - total), altAvailable = 0, transfer = 0, sources = {}, options = {} }
+        -- What waits in the crafter's mailbox is its own: it counts as had, after the bags and the bank.
+        local bags, bank, total, mail = Planner:Holding(crafter, id)
+        local it = { itemID = id, need = req.need, bags = bags, bank = bank, mail = mail, have = total + mail,
+            fromMail = max(0, min(mail, req.need - total)),
+            localShort = max(0, req.need - total - mail), altAvailable = 0, transfer = 0, sources = {}, options = {} }
         local open, touched = {}, false
         for _, key in ipairs(sources) do
             local rec = chars[key]
-            local bagCount, bankCount = Alts:Counts(key)
-            local b, k = bagCount[id] or 0, bankCount[id] or 0
-            if b + k > 0 then
-                local want = Alts:Taken(key, id)
+            local b, k, held, m = Planner:Holding(key, id)
+            held = held + m
+            if held > 0 then
+                -- Amounts chosen by hand are saved with the crafter's queue, so every plan for it uses them.
+                local want = Alts:Taken(key, id, crafter)
                 if want ~= nil then touched = true end
-                if want ~= 0 then it.altAvailable = it.altAvailable + b + k end
+                if want ~= 0 then it.altAvailable = it.altAvailable + held end
                 if it.localShort > 0 then
                     -- Every character holding the material is offered, whether or not it ends up supplying any.
                     local o = { key = key, name = rec.name or key, realm = rec.realm, class = rec.class,
-                        owns = b + k, bags = b, bank = k, left = b + k, transfer = 0, fromBags = 0, fromBank = 0,
+                        owns = held, bags = b, bank = k, mail = m, left = held, transfer = 0, fromBags = 0, fromBank = 0, fromMail = 0,
                         manual = want ~= nil, off = want == 0 }
                     it.options[#it.options + 1] = o
                     if want == nil then
@@ -187,14 +210,16 @@ local function Allocate(list, mode)
         for _, s in ipairs(it.sources) do
             local c = result.byCharacter[s.key]
             if not c then
-                c = { key = s.key, name = s.name, realm = s.realm, class = s.class, items = {}, units = 0, usesBank = false }
+                c = { key = s.key, name = s.name, realm = s.realm, class = s.class, items = {}, units = 0, usesBank = false,
+                    usesMail = false }
                 result.byCharacter[s.key] = c
                 result.characters[#result.characters + 1] = c
             end
             c.items[#c.items + 1] = { itemID = it.itemID, need = it.need, transfer = s.transfer, owns = s.owns,
-                fromBags = s.fromBags, fromBank = s.fromBank }
+                fromBags = s.fromBags, fromBank = s.fromBank, fromMail = s.fromMail }
             c.units = c.units + s.transfer
             if s.fromBank > 0 then c.usesBank = true end
+            if s.fromMail > 0 then c.usesMail = true end
         end
     end
     totals.characters = #result.characters
@@ -207,35 +232,47 @@ local function Allocate(list, mode)
 end
 
 -- reqs: array of { itemID, need }. Returns the shared, cached result:
---   items[i] / byItem[id] = { itemID, need, bags, bank, have, localShort, altAvailable, transfer, stillMissing,
+--   items[i] / byItem[id] = { itemID, need, bags, bank, mail, have (all three), fromMail (what must be collected
+--                             from the mailbox), localShort, altAvailable, transfer, stillMissing,
 --                             shortage (what still has to be acquired when alts count),
 --                             options = { every enabled character holding it, while it is short: key, name, realm, class,
---                             owns, bags, bank, transfer, fromBags, fromBank, manual (amount chosen by hand), off (set to 0) },
+--                             owns, bags, bank, mail, transfer, fromBags, fromBank, fromMail, manual (amount chosen by
+--                             hand), off (set to 0) },
 --                             sources = the options that supply something, largest first }
 --   characters = { { key, name, realm, class, items = { itemID, transfer, owns, ... }, units, usesBank } }
 --   totals, applies
 -- Treat the result as read-only. Amounts chosen per character in the Transfer Planner (Alts:SetTake) are final for
 -- that material: once any character is set by hand, the planner no longer fills the rest from the others.
-function Planner:Plan(reqs)
+-- `crafter`: another character's key to plan for it instead (see Holding); nil plans for the current character.
+function Planner:Plan(reqs, crafter)
     local mode = self:Mode()
-    local key = mode .. "|" .. Signature(reqs)
+    local key = mode .. "|" .. (crafter or "") .. "|" .. Signature(reqs)
     local hit = cached[key]
     if hit then return hit end
     if cacheSize >= MAX_CACHED then wipe(cached) cacheSize = 0 end
-    local result = Allocate(Normalize(reqs), mode)
+    local result = Allocate(Normalize(reqs), mode, crafter)
     cached[key], cacheSize = result, cacheSize + 1
     return result
 end
 
--- Crafts possible when everything enabled alts hold is added to what the current character has.
--- reagents: { itemID, qty }. Never lower than the current character alone can do.
-function Planner:MaxCrafts(reagents)
+-- Crafts possible when everything enabled alts hold is added to what the crafter (nil = current character) has.
+-- reagents: { itemID, qty }. Never lower than the crafter alone can do.
+function Planner:MaxCrafts(reagents, crafter)
     if #reagents == 0 then return 0 end
     local useAlts = self:Mode() ~= "never"
+    local sources = crafter and useAlts and Sources(crafter)
     local best = huge
     for _, r in ipairs(reagents) do
-        local _, _, total = FP.Inv:Owned(r.itemID)
-        local alts = useAlts and FP.Alts:GetEnabledAltTotal(r.itemID) or 0
+        local _, _, total = self:Holding(crafter, r.itemID)
+        local alts = 0
+        if sources then
+            for _, key in ipairs(sources) do
+                local _, _, held, mail = self:Holding(key, r.itemID)
+                alts = alts + held + mail
+            end
+        elseif useAlts then
+            alts = FP.Alts:GetEnabledAltTotal(r.itemID)
+        end
         best = min(best, floor((total + alts) / r.qty))
     end
     return best

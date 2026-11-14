@@ -9,6 +9,27 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Check addon code",
+			"detail": "Syntax, unknown or accidental globals, unused locals, .toc vs files on disk, locale strings and unused exports",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/check.py",
+			"problemMatcher": []
+		},
+		{
+			"label": "Check addon code with map",
+			"detail": "The same checks, plus who uses each file's functions and the shared helpers that may be in the wrong file",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/check.py --map",
+			"problemMatcher": []
+		},
+		{
+			"label": "Update all data",
+			"detail": "Runs every wago.tools / classic-db generator in turn, so all the data files come from the same Forever build",
+			"dependsOrder": "sequence",
+			"dependsOn": ["Update cooldown data", "Update item data", "Update recipe data", "Update NPC data", "Update disenchant data"],
+			"problemMatcher": []
+		},
+		{
 			"label": "Update cooldown data",
 			"type": "shell",
 			"command": "python3 ${workspaceFolder}/tools/gen_cooldowns.py",
@@ -18,6 +39,24 @@
 			"label": "Update item data",
 			"type": "shell",
 			"command": "python3 ${workspaceFolder}/tools/gen_items.py",
+			"problemMatcher": []
+		},
+		{
+			"label": "Update recipe data",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/gen_recipes.py",
+			"problemMatcher": []
+		},
+		{
+			"label": "Update NPC data",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/gen_npcs.py",
+			"problemMatcher": []
+		},
+		{
+			"label": "Update disenchant data",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/gen_disenchant.py",
 			"problemMatcher": []
 		}
 	]

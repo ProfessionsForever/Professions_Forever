@@ -42,11 +42,8 @@ function Shop:ShowExport()
         eb:SetScript("OnEscapePressed", function() f:Hide() end)
         sf:SetScrollChild(eb)
         sf:HookScript("OnSizeChanged", function(_, w) eb:SetWidth(w) end)
-        if FP.UI:AttachEUIThinScrollbar(sf, scrollBar, f, { top = 34, bottom = 40 }, eb) then
-            sf:SetPoint("BOTTOMRIGHT", -16, 40) -- the thin bar needs no gutter
-        else
-            FP.UI:EUIWidget(scrollBar, "scrollbar")
-        end
+        FP.UI:AttachScrollbar(sf, scrollBar, f, { top = 34, bottom = 40 }, eb)
+        sf:SetPoint("BOTTOMRIGHT", -16, 40) -- the thin bar needs no gutter
         f.edit = eb
         local close = FP.UI:Button(f, L["Close"], 80, ACTION_BUTTON_H, function() f:Hide() end)
         close:SetPoint("BOTTOM", 0, 10)

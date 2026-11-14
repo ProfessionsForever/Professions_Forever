@@ -16,6 +16,21 @@ function UI:Tooltip(w, anchor, fill)
     w:HookScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- Grey hint text in an empty edit box, `gap` pixels right of where typed text starts, so the blinking cursor sits
+-- just before it instead of over its first letter. It follows the box's text inset, which EllesmereUI's restyle
+-- changes (UI/Common/Skin.lua calls eb.fpPlaceholder again then). The caller shows and hides it.
+local PLACEHOLDER_GAP = 3
+function UI:AddPlaceholder(eb, text)
+    local ph = self:Text(eb, -1)
+    if text then ph:SetText(text) end
+    ph:SetTextColor(0.5, 0.5, 0.5)
+    eb.fpPlaceholder = function()
+        ph:SetPoint("LEFT", (eb:GetTextInsets()) + PLACEHOLDER_GAP, 0)
+    end
+    eb.fpPlaceholder()
+    return ph
+end
+
 -- Adds a red X inside the right end of an edit box that empties it. It is dimmed while the box is empty. Call it after
 -- the box's OnTextChanged script is set, so that script stays in place.
 function UI:AddClearButton(eb, tip)
@@ -120,22 +135,6 @@ function UI:Button(parent, label, w, h, onClick, secure)
     return b
 end
 
--- List rows anchor their right side to this frame. :SetBar(true) keeps the column the scroll bar sits in;
--- :SetBar(false) gives it to the rows, for lists that fit. `inset` is the rows' current distance from the right edge.
-function UI:RowEdge(parent, barInset, freeInset)
-    local edge = CreateFrame("Frame", nil, parent)
-    edge:SetSize(1, 1)
-    function edge:SetBar(show)
-        local inset = show and barInset or freeInset
-        if self.inset == inset then return end
-        self.inset = inset
-        self:ClearAllPoints()
-        self:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -inset, 0)
-    end
-    edge:SetBar(true)
-    return edge
-end
-
 -- Windows sit at this frame level. Other addons nest frames under siblings of ours (EllesmereUI's unit frames are at 3
 -- to 30), and Raise() only reorders siblings, so a fresh window at level 1 draws under them until the user clicks it.
 -- Blizzard's action button text (counts, keybinds) is at 500.
@@ -156,11 +155,11 @@ function UI:Stepper(eb, min, max, onChange)
     eb.minus = self:Button(eb:GetParent(), "-", 18, 20, function() Step(-1) end)
     eb.plus = self:Button(eb:GetParent(), "+", 18, 20, function() Step(1) end)
     eb.plus:SetPoint("LEFT", eb, "RIGHT", 3, 0)
-    eb.fpStepper = function()
+    eb.fpEUILayout = function()
         eb.minus:ClearAllPoints()
         eb.minus:SetPoint("RIGHT", eb, "LEFT", EUI() and -3 or -8, 0)
     end
-    eb.fpStepper()
+    eb.fpEUILayout()
 end
 
 ---------------------------------------------------------------------------
@@ -214,6 +213,7 @@ local function CreateMenu()
     menu:EnableMouse(true)
     menu:EnableMouseWheel(true)
     menu:Hide()
+    menu.fpOpaque = true -- a solid layer under the skin, so see-through skins (Minimal) stay readable
     UI:Skin(menu, "button")
     menu:SetScript("OnMouseWheel", function(s, delta)
         local maxOffset = math.max(0, #s.items - s.visible)
@@ -290,7 +290,8 @@ function UI:OpenMenu(anchor, items, width)
     menu:Show()
 end
 
--- A button showing getLabel() with a down arrow; clicking opens getItems(). Call :Sync() to refresh the label.
+-- A button showing getLabel() with a down arrow; clicking opens getItems(). getLabel() is called right away, so it
+-- must work as soon as the dropdown is made.
 function UI:Dropdown(parent, w, h, getLabel, getItems)
     local b = self:Button(parent, "", w, h, function(s) UI:OpenMenu(s, getItems()) end)
     b.text:ClearAllPoints()
@@ -303,5 +304,9 @@ function UI:Dropdown(parent, w, h, getLabel, getItems)
     b.arrow:SetPoint("RIGHT", -6, 0)
     b.arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
     function b:Sync() self.text:SetText(getLabel()) end
+    -- The label is drawn at once and again whenever the dropdown is shown, so it is never blank; call :Sync() for a
+    -- change while it is on screen.
+    b:Sync()
+    b:HookScript("OnShow", b.Sync)
     return b
 end

@@ -9,13 +9,20 @@ UI.WHITE = WHITE
 -- Skins. Every frame is registered with UI:Skin(frame, kind) and styled via SetBackdrop*,
 -- so skin addons can also hook these named frames.
 ---------------------------------------------------------------------------
-FP.skinOrder = { "dark", "classic", "minimal", "ellesmere" }
+FP.skinOrder = { "dark", "blackout", "classic", "minimal", "ellesmere" }
 FP.skins = {
     dark = {
         name = "Modern Dark", accent = { 0.2, 0.6, 1 },
         window = { bg = { 0.06, 0.06, 0.08, 1 }, border = { 0.22, 0.22, 0.28, 1 } },
         panel = { bg = { 0.11, 0.11, 0.14, 0.9 }, border = { 0.2, 0.2, 0.25, 1 } },
         button = { bg = { 0.16, 0.16, 0.2, 1 }, border = { 0.3, 0.3, 0.36, 1 } },
+    },
+    -- The EllesmereUI look without EllesmereUI: black windows, thin grey borders, teal accent.
+    blackout = {
+        name = "Blackout", accent = { 0.047, 0.824, 0.616 },
+        window = { bg = { 0, 0, 0, 0.95 }, border = { 0.2, 0.2, 0.2, 1 } },
+        panel = { bg = { 0.04, 0.04, 0.04, 0.85 }, border = { 0.2, 0.2, 0.2, 1 } },
+        button = { bg = { 0.08, 0.08, 0.08, 1 }, border = { 0.2, 0.2, 0.2, 1 } },
     },
     classic = {
         name = "Classic", accent = { 1, 0.82, 0 },
@@ -120,21 +127,19 @@ function UI:Skin(f, kind)
     return f
 end
 
--- Edit boxes and scroll bars EllesmereUI restyles. Its styling can't be undone without a reload.
+-- Edit boxes EllesmereUI restyles. Its styling can't be undone without a reload. A box placed to allow for
+-- InputBoxTemplate's caps, which EllesmereUI's square box doesn't have, re-anchors itself in w.fpEUILayout.
 local PAD_INPUT = { padInput = true }
 local function ApplyEUIWidget(w)
     local S = EUI()
     if not S then return end
-    if w.fpEUI == "scrollbar" then
-        S.ScrollBar(w)
-    else
-        S.EditBox(w, w.fpEUI == "editbox" and PAD_INPUT or nil)
-    end
+    S.EditBox(w, w.fpEUI == "editbox" and PAD_INPUT or nil)
     UI.euiApplied = true
-    if w.fpStepper then w.fpStepper() end
+    if w.fpEUILayout then w.fpEUILayout() end
+    if w.fpPlaceholder then w.fpPlaceholder() end
 end
 
--- kind: "editbox" (left-aligned text), "numbox" (centered number) or "scrollbar". Call after anchoring.
+-- kind: "editbox" (left-aligned text) or "numbox" (centered number). Call after anchoring.
 function UI:EUIWidget(w, kind)
     if not w then return end
     w.fpEUI = kind
@@ -142,93 +147,12 @@ function UI:EUIWidget(w, kind)
     ApplyEUIWidget(w)
 end
 
-function UI:AttachEUIThinScrollbar(scroll, nativeBar, trackParent, trackInsets, child)
-    if not (EllesmereUI and EllesmereUI.AttachSmoothScrollbar) then return false end
-    trackInsets = trackInsets or {}
-    local rightInset, thumbWidth, hitWidth = 2, 4, 20
-    -- A real scroll frame passes its scroll child; list frames use a proxy whose height fpEUISetRange sets.
-    local range = child
-    if not range then
-        range = CreateFrame("Frame", nil, scroll)
-        range:SetSize(1, 1)
-        range:Hide()
-    end
-    local updateThumb, scrollTo = EllesmereUI.AttachSmoothScrollbar(scroll, {
-        child = range, trackParent = trackParent or scroll, width = thumbWidth, rightInset = rightInset,
-        topInset = trackInsets.top, bottomInset = trackInsets.bottom,
-    })
-    local hitArea = CreateFrame("Button", nil, trackParent or scroll)
-    hitArea:SetWidth(hitWidth)
-    hitArea:SetFrameLevel((trackParent or scroll):GetFrameLevel() + 1)
-    hitArea:EnableMouse(true)
-    hitArea:RegisterForClicks("LeftButtonDown")
-    -- Scroll range, top inset, thumb height and how far the thumb can travel.
-    local function Track()
-        local maxScroll = math.max(0, range:GetHeight() - scroll:GetHeight())
-        local topInset = trackInsets.top or 4
-        local trackHeight = (trackParent or scroll):GetHeight() - topInset - (trackInsets.bottom or topInset)
-        local thumbHeight = math.max(30, trackHeight * scroll:GetHeight() / (scroll:GetHeight() + maxScroll))
-        return maxScroll, topInset, thumbHeight, trackHeight - thumbHeight
-    end
-    local function UpdateHitArea()
-        local maxScroll, topInset, thumbHeight, maxTravel = Track()
-        if maxScroll <= 0 or maxTravel <= 0 then hitArea:Hide(); return end
-        local y = math.max(0, math.min(maxTravel, scroll:GetVerticalScroll() / maxScroll * maxTravel))
-        hitArea:ClearAllPoints()
-        hitArea:SetPoint("TOPRIGHT", trackParent or scroll, "TOPRIGHT", -(rightInset + thumbWidth), -topInset - y)
-        hitArea:SetHeight(thumbHeight)
-        hitArea:Show()
-    end
-    if child then
-        scroll:HookScript("OnScrollRangeChanged", function()
-            UpdateHitArea()
-            if nativeBar then nativeBar:Hide() end
-        end)
-        scroll:HookScript("OnVerticalScroll", UpdateHitArea)
-    end
-    hitArea:SetScript("OnMouseDown", function(self, button)
-        if button ~= "LeftButton" then return end
-        local _, startY = GetCursorPosition()
-        startY = startY / self:GetEffectiveScale()
-        local startScroll = scroll:GetVerticalScroll()
-        self:SetScript("OnUpdate", function(s)
-            if not IsMouseButtonDown("LeftButton") then s:SetScript("OnUpdate", nil); return end
-            local maxScroll, _, _, maxTravel = Track()
-            if maxTravel <= 0 then return end
-            local _, cursorY = GetCursorPosition()
-            local currentY = cursorY / s:GetEffectiveScale()
-            scrollTo(startScroll + (startY - currentY) / maxTravel * maxScroll)
-        end)
-    end)
-    hitArea:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" then self:SetScript("OnUpdate", nil) end
-    end)
-    scroll.fpEUISetRange = function(_, extraHeight)
-        -- With nothing to scroll the range must be strictly below the viewport, or float rounding leaves a sliver of range and the bar stays.
-        if (extraHeight or 0) > 0 then
-            range:SetHeight(scroll:GetHeight() + extraHeight)
-        else
-            range:SetHeight(1)
-            scrollTo(0)
-        end
-        updateThumb()
-        UpdateHitArea()
-        if nativeBar then nativeBar:Hide() end
-    end
-    scroll.fpEUIScrollTo = scrollTo
-    if nativeBar then
-        nativeBar:EnableMouse(false)
-        nativeBar:Hide()
-    end
-    return true
-end
-
 function UI:ApplySkin()
     for _, f in ipairs(skinned) do ApplyBackdrop(f) end
     for _, w in ipairs(euiWidgets) do ApplyEUIWidget(w) end
     self:ApplyFonts()
     if self.frame then
-        self:SyncFilters() self:UpdateList() self:UpdateDetail()
+        self:SyncFilters() self:UpdateList() -- ApplyFonts above redraws the detail panel
         self:RefreshProfessions() self:RefreshFooterSelection()
     end
 end
@@ -262,11 +186,24 @@ function UI:Text(parent, delta, justify)
     texts[#texts + 1] = fs
     SetFontSafe(fs)
     fs:SetJustifyH(justify or "LEFT")
+    fs:SetShadowColor(0, 0, 0, 1)
+    fs:SetShadowOffset(1, -1)
     return fs
 end
 
-function UI:ApplyFonts()
+local function ApplyAllFonts()
     for _, fs in ipairs(texts) do SetFontSafe(fs) end
     -- The star's position depends on the name's font size.
-    if self.frame and self.frame.detail then self:UpdateDetail() end
+    if UI.frame and UI.frame.detail then UI:UpdateDetail() end
+end
+
+-- A font file the game hasn't used yet may not draw on the first pass, so the fonts are applied again a moment later.
+function UI:ApplyFonts()
+    ApplyAllFonts()
+    if self.fontsRetry then return end
+    self.fontsRetry = true
+    C_Timer.After(0.3, function()
+        self.fontsRetry = false
+        ApplyAllFonts()
+    end)
 end

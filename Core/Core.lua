@@ -17,25 +17,42 @@ function FP:Print(msg)
     print("|cff33bbffProfessionsForever|r: " .. tostring(msg))
 end
 
+-- An item's name, or "item:<id>" until the game has loaded it (GET_ITEM_INFO_RECEIVED then triggers a refresh).
+function FP.ItemName(itemID)
+    local name = C_Item.GetItemNameByID(itemID)
+    if not name then
+        C_Item.RequestLoadItemDataByID(itemID)
+        name = "item:" .. itemID
+    end
+    return name
+end
+
 ---------------------------------------------------------------------------
 -- Events (handlers run under xpcall so one error never breaks the others)
 ---------------------------------------------------------------------------
 local frame = CreateFrame("Frame")
-local handlers = {}
+local handlers = {} -- [event] = { { fn, unit }, ... } in the order registered; `unit` on the list is what the frame asked for
 frame:SetScript("OnEvent", function(_, event, ...)
-    local h = handlers[event]
-    if h then xpcall(h, geterrorhandler(), FP, ...) end
+    for _, h in ipairs(handlers[event]) do
+        if not h.unit or h.unit == ... then xpcall(h.fn, geterrorhandler(), FP, ...) end
+    end
 end)
 
--- One handler per event. `unit` (optional) limits a unit event to that unit.
+-- Any file may add a handler for an event; they are called as fn(FP, ...) in the order they registered, which is
+-- the .toc's load order, so a later file can rely on what an earlier one's handler set. `unit` (optional) limits a
+-- unit event to that unit.
 function FP:RegisterEvent(name, fn, unit)
-    handlers[name] = fn
-    -- pcall: tolerate events missing on this client
-    if unit then
-        pcall(frame.RegisterUnitEvent, frame, name, unit)
-    else
-        pcall(frame.RegisterEvent, frame, name)
+    local list = handlers[name]
+    if not list then
+        list = { unit = unit }
+        handlers[name] = list
+        if unit then frame:RegisterUnitEvent(name, unit) else frame:RegisterEvent(name) end
+    elseif list.unit ~= unit then
+        -- Handlers that want different units: take the event for every unit; each keeps its own filter.
+        list.unit = nil
+        frame:RegisterEvent(name)
     end
+    list[#list + 1] = { fn = fn, unit = unit }
 end
 
 ---------------------------------------------------------------------------
@@ -43,6 +60,10 @@ end
 ---------------------------------------------------------------------------
 -- Recipe-list filter presets; used for first run and by the filter reset button.
 FP.filterDefaults = { showUnlearned = false, unlearnedOnly = false, hasMatsOnly = false, skillUpsOnly = false, hideTrivial = false, favoritesOnly = false, hideCategories = false }
+-- Disenchanting Mode's Filters menu (UI/DisenchantMode.lua): other characters' gear, bank items, each quality, equipment
+-- set pieces, and only items worth more disenchanted. Its reset button puts these back.
+FP.deFilterDefaults = { deShowOthers = true, deShowBank = true, deShowUncommon = true, deShowRare = true, deShowEpic = true,
+    deHideSets = false, deWorthOnly = false }
 
 local defaults = {
     scale = 1, width = 920, height = 640, locked = false,
@@ -54,25 +75,61 @@ local defaults = {
     characters = {}, -- [name-realm] = cached bags and bank of each character, see AltInventory.lua
     skipImport = {}, -- [name-realm] = true for Syndicator characters removed from that cache
     transfers = {}, -- [crafter name-realm] = what each alt should send it, see Outgoing.lua
+    professionData = {}, -- [skill line] = a profession's category tree, see AltProfessions.lua
     sortKey = "name", sortDesc = false,
     lastRecipe = {}, -- [skill line ID] = the recipe last clicked in that profession
     collapsedCategories = {}, -- [categoryID] = true for recipe-list categories the user collapsed
     trackShopping = false, -- show the shopping list tracker on screen
-    replaceDefault = true, shoppingScope = "char",
+    replaceDefault = true, shoppingScope = "account", -- one shopping list shared by all your characters (or "char")
     trainerRecipes = {}, -- [recipe name] = "npcId,npcId" of the trainers seen teaching it
     trainers = {}, -- [npc id] = { npc, sub, uiMap, x, y, zone, skill, alliance, horde } for trainers you've opened
     bankers = {}, -- same shape, for bankers whose window you've opened
     vendors = {}, -- same shape plus items = ",itemID,itemID," (their stock) and recipes = { names }, for merchants you've opened
     minimap = { hide = false, angle = 215 },
+    quickButtons = false, -- show the movable bar of buttons that open the queue, shopping list, transfer planner and cooldowns
+    quickButtonsLocked = false,
+    quickProfessions = true, -- a quick button for each profession with a crafting window
+    quickHeader = true, -- the addon name above the quick buttons
+    quickColumns = 6, -- quick buttons per row; more rows are added as needed
+    quickGrowX = "right", -- right | left: the side the quick buttons grow toward from the handle
+    quickGrowY = "down", -- down | up: the way new rows of quick buttons are added
     cooldownNotice = true, -- at login, name the characters with a recipe cooldown ready
     bankPrompt = true, -- open the transfer planner at the bank when the queue needs something from it
+    mailPrompt = true, -- open the transfer planner at a mailbox when this character has something to send or collect
     showIgnoredCooldowns = false, -- list the cooldowns turned off in the Cooldowns window
-    shopping = {}, -- account-wide list: [itemID] = needed
+    showSkillChance = true, -- the skill up chance beside each learned recipe in the list
+    -- Integrations: each is used only when its addon is loaded and its switch here is on.
+    printRoutes = true, -- print Polestar's route to a ProfessionsForever waypoint when it has more than one step
+    useAuctionator = true, -- prices for profit, costs and the shopping list
+    useQuestie = true, -- Questie's NPC database for vendor, trainer and banker waypoints
+    useSyndicator = true, -- Syndicator's bank and other characters' inventory (read at login)
+    footerSkillUp = true, -- SkillUp Forever's Skill Up Route cell in the footer
+    quickSkillUp = true, -- SkillUp Forever's Skill Up Route button on the quick buttons
+    deSort = "name", -- Disenchanting Mode's list order: name | level | quality | value
+    deSortDesc = false, -- Disenchanting Mode's list order reversed
+    deCollapsed = {}, -- [group] = true for Disenchanting Mode groups the user collapsed: "bags", "bank" or a character key
+    deTooltip = true, -- disenchant results on item tooltips
+    deTooltipShow = "always", -- always | shift (only while Shift is held)
+    deTooltipDetail = "shift", -- terse (one line) | full (every result) | shift (one line, every result with Shift)
+    deTooltipNeeds = "any", -- who must know Enchanting for it to show: none | any (character) | self
+    deTooltipVerdict = true, -- lead with the best choice: disenchant, vendor or auction
+    deTooltipBoundSelf = true, -- leave it off soulbound gear unless this character knows Enchanting
+    deRecord = true, -- record what each disenchant gives, in deObserved
+    deShowObserved = true, -- show your observed disenchant rates next to the expected ones
+    deObserved = {}, -- what your disenchants gave, see Core/DisenchantRecord.lua
+    deTooltipAuctionator = true, -- leave it out while Auctionator shows its own disenchant prices
+    shopping = {}, -- the shared list from before it was per faction, moved into shoppingFaction at login (Core/Shopping.lua)
+    shoppingFaction = {}, -- the shared shopping list, one per faction: [faction] = { [itemID] = needed }
 }
 FP.defaults = defaults
 
+-- Options saved without a default (nil until the user sets one), which a reset clears: the accent colour picked over
+-- the skin's own, and where the shopping tracker and the quick buttons were dragged to. One more key has no default
+-- and is not an option: euiAdopted, set once EllesmereUI's look has been adopted, so a reset leaves it.
+local NO_DEFAULT = { "accent", "trackerPos", "launcherPos", "mainEnchanter" } -- mainEnchanter: nil is Automatic
+
 -- Saved data rather than options, so a reset leaves it alone.
-local DATA_KEYS = { trainerRecipes = true, trainers = true, bankers = true, vendors = true, shopping = true, characters = true, skipImport = true, transfers = true }
+local DATA_KEYS = { trainerRecipes = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true }
 
 local function Merge(dst, src)
     for k, v in pairs(src) do
@@ -86,11 +143,13 @@ local function Merge(dst, src)
 end
 
 function FP:LoadSettings()
+    FP.freshInstall = ProfessionsForeverDB == nil -- no saved settings yet: What's New stays quiet (UI/WhatsNew.lua)
     ProfessionsForeverDB = ProfessionsForeverDB or {}
     ProfessionsForeverCharDB = ProfessionsForeverCharDB or {}
     Merge(ProfessionsForeverDB, FP.filterDefaults)
+    Merge(ProfessionsForeverDB, FP.deFilterDefaults)
     Merge(ProfessionsForeverDB, defaults)
-    Merge(ProfessionsForeverCharDB, { shopping = {}, queue = {}, queueTakes = {}, shoppingQueue = {}, makes = {} })
+    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {} })
     self.db, self.chardb = ProfessionsForeverDB, ProfessionsForeverCharDB
 end
 
@@ -102,16 +161,21 @@ function FP:ResetOptions()
         if not DATA_KEYS[k] then db[k] = nil end
     end
     for k in pairs(FP.filterDefaults) do db[k] = nil end
-    db.accent, db.trackerPos = nil, nil
+    for k in pairs(FP.deFilterDefaults) do db[k] = nil end
+    for _, k in ipairs(NO_DEFAULT) do db[k] = nil end
     Merge(db, FP.filterDefaults)
+    Merge(db, FP.deFilterDefaults)
     Merge(db, defaults)
 
     local UI = self.UI
     UI:ResetWindow()
     UI:ApplyLock()
     UI:ApplySkin()
+    UI:LayoutFooter()
     self.Minimap:Position()
     self.Minimap:Update()
+    self.Launcher:Update()
+    if self.Launcher.bar then self.Launcher:Place() end
     self:UpdateBindings()
     if replaced ~= db.replaceDefault then self:Print(L["Changing this needs a UI reload to take full effect."]) end
 
@@ -120,7 +184,7 @@ function FP:ResetOptions()
     shop:UpdateTracker()
     if shop.frame and shop.frame:IsShown() then shop:Update() end
     UI:ReflowSidePanels()
-    self.Planner:Invalidate()
+    self:RefreshPlanning()
     self.Options:Refresh()
     self:Print(L["Options reset to defaults."])
 end
@@ -132,27 +196,31 @@ local function Refresh(self) self.UI:QueueRefresh() end
 local function Reload(self)
     self.Recipes:Reload()
     self.Chain:Record()
+    self.AltProfs:RecordOpen()
     self.Cooldowns:Scan()
     self.UI:QueueRefresh()
-end
-local function RefreshWithTracker(self)
-    self.UI:QueueRefresh()
-    self.Shop:UpdateTracker()
 end
 
 -- Startup
 FP:RegisterEvent("ADDON_LOADED", function(self, name)
     if name == addonName then
         self:LoadSettings()
-    elseif name == "Blizzard_Professions" then
+    elseif name == "Blizzard_Professions" and not InCombatLockdown() then -- else the next TRADE_SKILL_SHOW out of combat hides it
         self:SuppressBlizzard()
     end
 end)
 
 FP:RegisterEvent("PLAYER_LOGIN", function(self)
+    self.Outgoing:MoveOldTransfers()
+    self.Shop:MoveOldQueueShare()
+    self.Shop:MoveToAccountList() -- after it: that one works on the list as it was
     self.Alts:Init()
+    self.Queue:OnLogin()
+    self.AltProfs:RecordRanks()
+    self.Known:Snapshot()
     self.Options:Init()
     self.Minimap:Init()
+    self.Launcher:Update()
     self:UpdateBindings()
     self:HookProfessionButtons()
     self.Shop:UpdateTracker()
@@ -166,10 +234,11 @@ FP:RegisterEvent("UPDATE_BINDINGS", function(self) self:UpdateBindings() end)
 
 -- Trade skill
 FP:RegisterEvent("TRADE_SKILL_SHOW", function(self)
-    if not self.db.replaceDefault or InCombatLockdown() then return end
-    if not self:IsOwnProfession() then self:RestoreBlizzard() return end
+    -- Disenchanting Mode lives in this window, so opening Enchanting into it shows this window even when it doesn't replace Blizzard's.
+    if not (self.db.replaceDefault or self.UI:DisenchantPending()) or InCombatLockdown() then return end
     self:SuppressBlizzard()
     C_Timer.After(0, function() self:SuppressBlizzard() end) -- frame may be created after this event
+    self.AltProfs:Stop() -- one of your own professions opened
     self.UI:Show("recipes")
 end)
 
@@ -179,45 +248,58 @@ FP:RegisterEvent("TRADE_SKILL_DATA_SOURCE_CHANGED", function(self)
     self.UI:ResetCraftQty()
     Reload(self)
 end)
-FP:RegisterEvent("NEW_RECIPE_LEARNED", Reload)
+FP:RegisterEvent("NEW_RECIPE_LEARNED", function(self)
+    self.Known:Snapshot()
+    Reload(self)
+end)
 FP:RegisterEvent("TRADE_SKILL_FAVORITES_CHANGED", Reload)
-FP:RegisterEvent("SKILL_LINES_CHANGED", Reload)
+-- The professions the character has, as one string, to tell a learned or dropped profession from a skill up.
+local function ProfessionSet(self)
+    local lines = {}
+    for i, p in ipairs(self:GetProfessions()) do lines[i] = p.skillLine end
+    return table.concat(lines, ",")
+end
+FP:RegisterEvent("SKILL_LINES_CHANGED", function(self) -- a profession learned, unlearned or skilled up
+    local before = ProfessionSet(self)
+    self:ForgetProfessions()
+    -- An unlearned profession takes its recipes with it; a skill up changes none (NEW_RECIPE_LEARNED covers learning).
+    if ProfessionSet(self) ~= before then self.Known:Snapshot() end
+    self.AltProfs:RecordRanks()
+    Reload(self)
+end)
 FP:RegisterEvent("TRACKED_RECIPE_UPDATE", Refresh)
 
 -- Bags and bank
 FP:RegisterEvent("BAG_UPDATE_DELAYED", function(self)
     if self.Inv.bankOpen then self.Inv:ScanBank() end -- also catches bank tab/slot changes
+    self.Inv:ScanBagGear()
     self.Alts:Flush()
     self.Planner:Invalidate()
-    RefreshWithTracker(self)
-    local queue = self.Queue.frame
-    if queue and queue:IsShown() then self.Queue:Update() end
-    self.Transfer:QueueUpdate()
+    self:Changed("inventory")
 end)
 FP:RegisterEvent("BANKFRAME_OPENED", function(self)
     self.Inv.bankOpen = true
     self.Inv:ScanBank()
     self.Planner:Invalidate()
-    self.UI:QueueRefresh()
+    self:Changed("inventory")
     self.Waypoint:RememberBanker()
     -- The slots may not be readable the instant the window opens, so the check waits a moment for the scan to settle.
     C_Timer.After(0.5, function()
         if not (self.Inv.bankOpen and self.db.bankPrompt) then return end
         self.Planner:Invalidate()
-        if #self.Transfer.BankNeeds(self.Queue:TransferNeeds()) > 0 then self.Transfer:Open() end
+        self:Changed("inventory")
+        if #self.Transfer.BankNeeds(self.Queue:TransferNeeds()) > 0 then self.UI:OpenSidePanelFor(self.Transfer, "bank") end
     end)
-    self.Transfer:QueueUpdate()
 end)
 FP:RegisterEvent("BANKFRAME_CLOSED", function(self)
     self.Inv.bankOpen = false
-    self.Transfer:QueueUpdate()
+    self.UI:CloseSidePanelsOpenedBy("bank") -- the Transfer Planner, if the bank opened it
+    self:Changed("inventory") -- the Transfer Planner's Withdraw button follows the bank
 end)
-for _, e in ipairs({ "PLAYERBANKSLOTS_CHANGED", "PLAYERBANKBAGSLOTS_CHANGED", "PLAYERREAGENTBANKSLOTS_CHANGED" }) do
-    FP:RegisterEvent(e, function(self)
-        if self.Inv.bankOpen then self.Inv:ScanBank() self.UI:QueueRefresh() end
-    end)
-end
-FP:RegisterEvent("GET_ITEM_INFO_RECEIVED", RefreshWithTracker)
+FP:RegisterEvent("PLAYERBANKSLOTS_CHANGED", function(self)
+    if self.Inv.bankOpen then self.Inv:ScanBank() self:Changed("inventory") end
+end)
+FP:RegisterEvent("GET_ITEM_INFO_RECEIVED", function(self) self:Changed("items") end)
 FP:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", Refresh) -- worn tools count toward a recipe's requirements
 
 -- Crafting and combat

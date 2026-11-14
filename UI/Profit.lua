@@ -1,62 +1,27 @@
 local _, FP = ...
 local L = FP.L
 local UI = FP.UI
-local STATUS_COLORS, ItemName = UI.STATUS_COLORS, UI.ItemName
+local STATUS_COLORS, ItemName = UI.STATUS_COLORS, FP.ItemName
 
--- A reagent's unit price in copper and where it came from: a vendor's price when known, else the auction price.
-local function ReagentUnit(itemID)
-    local vendor = FP.Prices:VendorUnit(itemID)
-    if vendor then return vendor, "vendor" end
-    local auction = FP.Prices:Unit(itemID)
-    if auction then return auction, "auction" end
-end
-
-local function EstimateCraftCost(reagents)
-    local total, priced, unpriced = 0, 0, 0
-    for _, reagent in ipairs(reagents) do
-        local unit = ReagentUnit(reagent.itemID)
-        if unit then
-            total = total + unit * reagent.need
-            priced = priced + 1
-        else
-            unpriced = unpriced + 1
-        end
-    end
-    return total, priced, unpriced
-end
+-- The cost and profit lines of the recipe panel and their tooltips; the sums are in Core/Prices.lua.
 
 local function FillCostTip(tip, info)
     tip:AddLine(info.priced > 0 and L["Cost to Craft x%d: %s"]:format(info.count, FP.Prices:Format(info.total))
         or L["Cost unavailable: no known prices."], 1, 1, 1)
     for _, reagent in ipairs(info.reagents) do
-        local unit, source = ReagentUnit(reagent.itemID)
+        local unit, source = FP.Prices:ReagentUnit(reagent.itemID)
         local right = unit and (FP.Prices:Format(unit * reagent.need) .. " |cff888888" .. L[source] .. "|r") or L["no price"]
         local r, g, b = 1, 1, 1
         if not unit then r, g, b = 0.9, 0.3, 0.3 end
         tip:AddDoubleLine(("%s x%d"):format(ItemName(reagent.itemID), reagent.need), right, 0.8, 0.8, 0.8, r, g, b)
     end
     tip:AddLine(" ")
-    tip:AddLine(L["Uses Auctionator vendor price when available, with auction price as fallback."], 0.6, 0.6, 0.6, true)
+    tip:AddLine(L["Vendor price where known, otherwise the auction price."], 0.6, 0.6, 0.6, true)
 end
 
 local function ProfitMoney(copper)
     local text = FP.Prices:Format(math.abs(copper))
     return copper < 0 and ("(" .. text .. ")") or text
-end
-
--- Items one craft makes; a range is averaged.
-local function OutputQuantity(recipeID)
-    local lo, hi = FP.Recipes:OutputQuantity(recipeID)
-    return (lo + hi) / 2
-end
-
--- One craft's profit in copper after the standard auction house cut; nil when any reagent or the product can't be priced.
-function UI.RecipeProfit(recipeID)
-    local ev = FP.Recipes:Evaluate(recipeID)
-    if #ev.reagents == 0 or FP.Recipes:IsEnchant(recipeID) then return end
-    local cost, _, unpriced = EstimateCraftCost(ev.reagents)
-    if unpriced > 0 then return end
-    return FP.Prices:Profit(FP.Recipes:OutputItemID(recipeID), OutputQuantity(recipeID), cost).profit
 end
 
 local PROFIT_GREY = { 0.65, 0.65, 0.65 }
@@ -71,7 +36,7 @@ local function UpdateProfit(d, e, ev, count, salvage, cost, priced, unpriced)
         return
     end
     local enchant = FP.Recipes:IsEnchant(e.id)
-    local r = FP.Prices:Profit(not enchant and FP.Recipes:OutputItemID(e.id) or nil, enchant and 1 or OutputQuantity(e.id) * count, cost)
+    local r = FP.Prices:Profit(not enchant and FP.Recipes:OutputItemID(e.id) or nil, enchant and 1 or FP.Prices:AverageMade(e.id) * count, cost)
     d.profitInfo = { r = r, unpriced = unpriced }
     local text, c = "", PROFIT_GREY
     if r.status == "ok" then
@@ -132,4 +97,4 @@ local function FillProfitTip(tip, info)
     end
 end
 
-UI.EstimateCraftCost, UI.UpdateProfit, UI.FillCostTip, UI.FillProfitTip = EstimateCraftCost, UpdateProfit, FillCostTip, FillProfitTip
+UI.UpdateProfit, UI.FillCostTip, UI.FillProfitTip = UpdateProfit, FillCostTip, FillProfitTip

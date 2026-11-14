@@ -3,7 +3,7 @@ local L = FP.L
 local UI = FP.UI
 local O = FP.Options
 
--- Fill in the URLs. A row with an empty URL still shows, so the place for it is visible.
+-- The About page's links. A row with an empty URL still shows, so the place for it is visible.
 local LINKS = {
     { label = "Discord", url = "https://discord.gg/Ay4E5GEhA2" },
     { label = "Issue Tracker", url = "https://github.com/ProfessionsForever/Professions_Forever/issues" },
@@ -21,6 +21,17 @@ local WORKS_WITH = {
 
 local function Meta(field) return C_AddOns.GetAddOnMetadata("ProfessionsForever", field) end
 local ICON_SIZE = 96
+
+local DATA_CREDITS = {
+    "Built-in trainer, banker and vendor locations: cmangos classic-db (GPL-3.0).",
+    "Recipe, skill and map data: wago.tools.",
+}
+
+local function DataCreditLines()
+    local out = {}
+    for i, text in ipairs(DATA_CREDITS) do out[i] = L[text] end
+    return out
+end
 
 local function WorksWithLines()
     local out = {}
@@ -64,6 +75,7 @@ function O.BuildAbout(page)
     notes:SetTextColor(0.8, 0.8, 0.8)
     local textH = 2 + math.ceil(title:GetStringHeight()) + 6 + math.ceil(version:GetStringHeight()) + 8 + math.ceil(notes:GetStringHeight())
     page.y = -math.max(ICON_SIZE, textH) - 4
+    O.ActionButton(page, L["What's New"], 160, function() UI:ShowWhatsNew() end)
 
     O.Section(page, L["Links"])
     for _, link in ipairs(LINKS) do
@@ -85,6 +97,8 @@ function O.BuildAbout(page)
     Line(L["Author"] .. ": " .. (Meta("Author") or "?"))
     Line(L["Works with these addons when they are installed:"], 0.7)
     for _, text in ipairs(WorksWithLines()) do Line(text) end
+    Line(L["Data"] .. ":", 0.7)
+    for _, text in ipairs(DATA_CREDITS) do Line(L[text]) end
 end
 
 -- Adds an entry to Blizzard's AddOns settings list: the same About content, plus a button that opens the options window.
@@ -142,7 +156,8 @@ function O:RegisterSettings()
     body:SetSpacing(4)
     body:SetText(L["Author"] .. ": " .. (Meta("Author") or "?") .. "\n\n"
         .. L["Works with these addons when they are installed:"] .. "\n"
-        .. table.concat(WorksWithLines(), "\n"))
+        .. table.concat(WorksWithLines(), "\n") .. "\n\n"
+        .. L["Data"] .. ":\n" .. table.concat(DataCreditLines(), "\n"))
 
     Settings.RegisterAddOnCategory(Settings.RegisterCanvasLayoutCategory(panel, panel.name))
 end

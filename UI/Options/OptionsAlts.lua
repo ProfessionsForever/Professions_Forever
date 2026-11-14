@@ -15,8 +15,7 @@ function O:RefreshCharacters()
     local Alts = FP.Alts
     local others = Alts:Others()
     FauxScrollFrame_Update(box.scroll, #others, CHAR_ROWS, CHAR_ROW_H)
-    box.rowEdge:SetBar(#others > CHAR_ROWS)
-    if box.scroll.fpEUISetRange then box.scroll:fpEUISetRange(math.max(0, #others - CHAR_ROWS) * CHAR_ROW_H) end
+    box.scroll.fpSetRange(math.max(0, #others - CHAR_ROWS) * CHAR_ROW_H)
     local offset = FauxScrollFrame_GetOffset(box.scroll)
     box.empty:SetShown(#others == 0)
     for i, row in ipairs(box.rows) do
@@ -49,31 +48,24 @@ local function BuildCharacterList(page)
     UI:Skin(box, "button")
     local scroll = CreateFrame("ScrollFrame", "ProfessionsForeverOptCharScroll", box, "FauxScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 2, -2)
-    scroll:SetPoint("BOTTOMRIGHT", -24, 2)
+    scroll:SetPoint("BOTTOMRIGHT", -UI.BAR_GUTTER, 2)
     scroll:SetScript("OnVerticalScroll", function(s, offset)
         FauxScrollFrame_OnVerticalScroll(s, offset, CHAR_ROW_H, function() O:RefreshCharacters() end)
     end)
     box.scroll = scroll
     local scrollBar = scroll.ScrollBar or _G["ProfessionsForeverOptCharScrollScrollBar"]
-    if not UI:AttachEUIThinScrollbar(scroll, scrollBar, box, { top = 2, bottom = 2 }) then
-        UI:EUIWidget(scrollBar, "scrollbar")
-    end
+    UI:AttachScrollbar(scroll, scrollBar, box, { top = 2, bottom = 2 })
     box:EnableMouseWheel(true)
     box:SetScript("OnMouseWheel", function(_, delta)
-        if scroll.fpEUIScrollTo then
-            scroll.fpEUIScrollTo(scroll:GetVerticalScroll() - delta * CHAR_ROW_H * 2)
-        elseif scrollBar then
-            scrollBar:SetValue(scrollBar:GetValue() - delta * CHAR_ROW_H * 2)
-        end
+        scroll.fpScrollTo(scroll:GetVerticalScroll() - delta * CHAR_ROW_H * 2)
     end)
 
-    box.rowEdge = UI:RowEdge(box, 24, 4)
     box.rows = {}
     for i = 1, CHAR_ROWS do
         local row = CreateFrame("Frame", nil, box)
         row:SetHeight(CHAR_ROW_H)
         row:SetPoint("TOPLEFT", box, "TOPLEFT", 4, -2 - (i - 1) * CHAR_ROW_H)
-        row:SetPoint("TOPRIGHT", box.rowEdge, "TOPRIGHT", 0, -2 - (i - 1) * CHAR_ROW_H)
+        row:SetPoint("TOPRIGHT", box, "TOPRIGHT", -UI.BAR_GUTTER, -2 - (i - 1) * CHAR_ROW_H)
         row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
         row.check:SetSize(22, 22)
         row.check:SetPoint("LEFT", 0, 0)
@@ -102,7 +94,7 @@ local function BuildCharacterList(page)
         UI:Tooltip(row.remove, "ANCHOR_RIGHT", function(tip)
             if not row.key then return false end
             if confirmingRemove == row.key then
-                tip:AddLine(L["Click again to remove the cached inventory of this character."], 1, 0.4, 0.4, true)
+                tip:AddLine(L["Click again to remove everything saved for this character: inventory, queue, cooldowns and professions."], 1, 0.4, 0.4, true)
             else
                 tip:AddLine(L["Remove Character"], 1, 1, 1)
             end
@@ -115,14 +107,28 @@ local function BuildCharacterList(page)
     end
     box.empty = UI:Text(box, 0, "CENTER")
     box.empty:SetPoint("CENTER")
-    box.empty:SetText(L["No other characters seen yet. Log in to them to cache their inventory."])
+    box.empty:SetText(L["No other characters seen yet. Log in on each one to record its inventory."])
     box.empty:SetTextColor(0.6, 0.6, 0.6)
     refreshers[#refreshers + 1] = function() O:RefreshCharacters() end
 end
 
-function O.BuildAlts(page)
-    O.Section(page, L["Planning"])
-    local altMode = O.DropList(page, L["Alt Inventory"], function() return L[ALT_MODE_LABELS[FP.Planner:Mode()]] end, function()
+-- The Alt Inventory section of the Integrations page: planning mode, then the characters list.
+function O.BuildAltSection(page)
+    O.Section(page, L["Alt Inventory"])
+    local note = UI:Text(page, -1)
+    note:SetPoint("TOPLEFT", page, "TOPLEFT", 8, page.y - 2)
+    note:SetPoint("RIGHT", page, "RIGHT", 0, 0)
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(0.7, 0.7, 0.7)
+    -- Follows the Syndicator switch above (which takes effect after a reload).
+    refreshers[#refreshers + 1] = function()
+        local synd = FP.db.useSyndicator and C_AddOns.IsAddOnLoaded("Syndicator")
+        note:SetText(L[synd and "Using Syndicator's data for your bank and other characters."
+            or "ProfessionsForever records each character's bags and bank when you log in on it. Log in on each character once so it appears here."])
+    end
+    refreshers[#refreshers]()
+    page.y = page.y - 34
+    local altMode = O.DropList(page, L["Planning"], function() return L[ALT_MODE_LABELS[FP.Planner:Mode()]] end, function()
         local items = {}
         for _, mode in ipairs(FP.Planner.MODES) do
             items[#items + 1] = { text = L[ALT_MODE_LABELS[mode]], checked = FP.Planner:Mode() == mode, onSelect = function()
@@ -148,6 +154,6 @@ function O.BuildAlts(page)
     page.y = page.y - 2
     BuildCharacterList(page)
 
-    page:SetScript("OnShow", function() O:RefreshCharacters() end)
-    page:SetScript("OnHide", function() confirmingRemove = nil end)
+    page:HookScript("OnShow", function() O:RefreshCharacters() end)
+    page:HookScript("OnHide", function() confirmingRemove = nil end)
 end

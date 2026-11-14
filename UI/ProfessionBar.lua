@@ -13,34 +13,7 @@ local PROFESSION_COLORS = {
     [356] = { 0.25, 0.65, 0.9 }, [129] = { 0.8, 0.15, 0.15 },
 }
 
--- The open profession's name, level, modifier, cap and skill line ID.
-local function RankInfo()
-    local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
-    if not base then return end
-    local name = base.professionName or ""
-    local level, max = base.skillLevel or 0, base.maxSkillLevel or 0
-    if max == 0 then
-        for _, p in ipairs(FP:GetProfessions()) do
-            if p.name == name then level, max = p.rank or 0, p.maxRank or 0 break end
-        end
-    end
-    return name, level, base.skillModifier or 0, max, base.professionID
-end
-
-local function ChatCall(utilName, legacyName)
-    return (ChatFrameUtil and ChatFrameUtil[utilName]) or _G[legacyName]
-end
-
--- Chat-link click (shift by default): puts the link in the active chat box. True when it did, so the click is spent.
-function UI.LinkToChat(link)
-    if not (link and IsModifiedClick("CHATLINK")) then return false end
-    local insert = ChatCall("InsertLink", "ChatEdit_InsertLink")
-    return insert and insert(link) and true or false
-end
-
-function UI.LinkItemToChat(itemID)
-    return itemID and UI.LinkToChat(select(2, C_Item.GetItemInfo(itemID))) or false
-end
+local RankInfo = FP.RankInfo
 
 -- Channels to post the profession link in, as Blizzard's link button offers.
 function UI.LinkItems()
@@ -48,26 +21,23 @@ function UI.LinkItems()
     local function Add(slash, text, enabled)
         items[#items + 1] = { text = text, dim = not enabled, onSelect = enabled and function()
             local link = C_TradeSkillUI.GetTradeSkillListLink()
-            local open = ChatCall("OpenChat", "ChatFrame_OpenChat")
-            if link and open then open(slash .. " " .. link, DEFAULT_CHAT_FRAME) end
+            if link then ChatFrameUtil.OpenChat(slash .. " " .. link, DEFAULT_CHAT_FRAME) end
         end or nil }
     end
     Add(SLASH_GUILD1 or "/g", GUILD, IsInGuild())
     Add(SLASH_PARTY1 or "/p", PARTY, GetNumSubgroupMembers() > 0)
     Add(SLASH_RAID1 or "/raid", RAID, IsInRaid())
     local channels = { GetChannelList() }
-    local resolve = ChatCall("ResolveChannelName", "ChatFrame_ResolveChannelName")
     for i = 1, #channels, 3 do
-        Add("/" .. channels[i], resolve and resolve(channels[i + 1]) or channels[i + 1], not channels[i + 2])
+        Add("/" .. channels[i], ChatFrameUtil.ResolveChannelName(channels[i + 1]), not channels[i + 2])
     end
     return items
 end
 
 local function OnLinkClick(button)
     local link = C_TradeSkillUI.GetTradeSkillListLink()
-    local activeWindow, insert = ChatCall("GetActiveWindow", "ChatEdit_GetActiveWindow"), ChatCall("InsertLink", "ChatEdit_InsertLink")
-    if link and insert and activeWindow and activeWindow() then
-        insert(link)
+    if link and ChatFrameUtil.GetActiveWindow() then
+        ChatFrameUtil.InsertLink(link)
     else
         UI:OpenMenu(button, UI.LinkItems(), 160)
     end
@@ -86,7 +56,10 @@ function UI:RefreshHeader()
     local rank = f.rank
     if self.page == "overview" then
         local level, max = 0, 0
-        for _, p in ipairs(FP:GetProfessions()) do level, max = level + (p.rank or 0), max + (p.maxRank or 0) end
+        local alt = self.overviewChar
+        for _, p in ipairs(alt and FP.AltProfs:Professions(alt) or FP:GetProfessions()) do
+            level, max = level + (p.rank or 0), max + (p.maxRank or 0)
+        end
         rank:SetShown(max > 0)
         SetRankBar(rank, self:GetAccent(), ("%s %d/%d"):format(L["All Professions"], level, max), level, max)
         f.link:Hide()
@@ -96,10 +69,12 @@ function UI:RefreshHeader()
     local name, level, modifier, max, skillLine = RankInfo()
     rank:SetShown(name ~= nil)
     if name then
-        SetRankBar(rank, PROFESSION_COLORS[skillLine] or self:GetAccent(),
-            modifier > 0 and ("%s %d (+%d)/%d"):format(name, level, modifier, max) or ("%s %d/%d"):format(name, level, max), level, max)
+        local label = modifier > 0 and ("%s %d (+%d)/%d"):format(name, level, modifier, max) or ("%s %d/%d"):format(name, level, max)
+        local linked, owner = FP:IsReadOnly()
+        if linked and owner then label = label .. "  -  " .. owner end
+        SetRankBar(rank, PROFESSION_COLORS[skillLine] or self:GetAccent(), label, level, max)
     end
-    f.link:SetShown(name ~= nil and T.CanTradeSkillListLink ~= nil and T.CanTradeSkillListLink() and FP:IsOwnProfession())
+    f.link:SetShown(name ~= nil and T.CanTradeSkillListLink() and FP:IsOwnProfession())
 end
 
 ---------------------------------------------------------------------------
@@ -109,7 +84,7 @@ function UI:RefreshProfessions()
     local f = self.frame
     self:RefreshHeader()
     local profs = FP:GetProfessions()
-    local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
+    local base = C_TradeSkillUI.GetBaseProfessionInfo()
     f.profButtons = f.profButtons or {}
     if not f.overviewTab then
         local t = self:Button(f.profBar, L["Overview"], 110, 24, function() UI.TabSound() UI:SetPage("overview") end)
@@ -134,12 +109,6 @@ function UI:RefreshProfessions()
     f.overviewTab.text:SetTextColor(onOverview and 1 or 0.8, onOverview and 0.82 or 0.8, onOverview and 0 or 0.8)
     UI.SetSelected(f.overviewTab, onOverview)
 
-    local barW = f.profBar:GetWidth()
-    if barW < 100 then barW = f:GetWidth() - 16 end
-    local gap = 4
-    local w = (barW - #profs * gap) / (#profs + 1)
-    f.overviewTab:SetWidth(w)
-    local x = w + gap
     for i, p in ipairs(profs) do
         local b = f.profButtons[i]
         if not b then
@@ -152,9 +121,7 @@ function UI:RefreshProfessions()
                     GameTooltip:SetOwner(s, "ANCHOR_BOTTOM")
                     GameTooltip:AddLine(s.profName, 1, 1, 1)
                     UI.AddSkillLine(GameTooltip, s.rank, s.maxRank)
-                    if FP.Waypoint:NavAvailable() then
-                        GameTooltip:AddLine(L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1)
-                    end
+                    UI.AddTrainerHint(GameTooltip, s.skillLine, s.rank, s.maxRank)
                     GameTooltip:Show()
                 end)
             end)
@@ -176,19 +143,37 @@ function UI:RefreshProfessions()
         b.rank, b.maxRank = p.rank, p.maxRank
         b.icon:SetTexture(p.icon)
         b.text:SetText(p.name)
-        if not UI.CombatBlocked(b) then
-            b:ClearAllPoints()
-            b:SetWidth(i == #profs and barW - x or w)
-            b:SetPoint("LEFT", x, 0)
-            b:Show()
-        end
-        x = x + w + gap
-        local active = self.page == "recipes" and base and (base.professionID == p.skillLine or base.professionName == p.name)
+        if not UI.CombatBlocked(b) then b:Show() end
+        local active = self.page == "recipes" and base and not FP:IsReadOnly() and (base.professionID == p.skillLine or base.professionName == p.name)
         b.text:SetTextColor(active and 1 or 0.8, active and 0.82 or 0.8, active and 0 or 0.8)
         UI.SetSelected(b, active)
     end
     for i = #profs + 1, #f.profButtons do
         if not UI.CombatBlocked(f.profButtons[i]) then f.profButtons[i]:Hide() end
+    end
+    self:LayoutProfessionBar()
+end
+
+-- The Overview tab and one tab per profession share the bar's width equally; the last tab takes what rounding leaves.
+-- Layout only, so it also runs on its own while the window is being resized.
+function UI:LayoutProfessionBar()
+    local f = self.frame
+    if not f.overviewTab then return end
+    local n = #FP:GetProfessions()
+    local barW = f.profBar:GetWidth()
+    if barW < 100 then barW = f:GetWidth() - 16 end
+    local gap = 4
+    local w = (barW - n * gap) / (n + 1)
+    f.overviewTab:SetWidth(w)
+    local x = w + gap
+    for i = 1, n do
+        local b = f.profButtons[i]
+        if not UI.CombatBlocked(b) then
+            b:ClearAllPoints()
+            b:SetWidth(i == n and barW - x or w)
+            b:SetPoint("LEFT", x, 0)
+        end
+        x = x + w + gap
     end
 end
 
@@ -218,7 +203,6 @@ function UI:CreateHeader(f)
     rank.label = self:Text(rank.bar, 0, "CENTER")
     rank.label:SetPoint("CENTER")
     rank.label:SetTextColor(1, 1, 1)
-    rank.label:SetShadowOffset(1, -1)
 
     f.link = self:Button(f.header, "", 22, 22, function(s) OnLinkClick(s) end)
     f.link:SetPoint("LEFT", rank, "RIGHT", 6, 0)
@@ -229,4 +213,3 @@ function UI:CreateHeader(f)
     f.link.icon:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-Chat-Up")
     self:Tooltip(f.link, "ANCHOR_RIGHT", L["Link This Profession in Chat"])
 end
-UI.RankInfo = RankInfo

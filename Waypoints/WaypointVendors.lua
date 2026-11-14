@@ -62,6 +62,14 @@ local function RememberVendor()
             end
         end
     end
+    -- Combined with what earlier visits saw: sold-out limited-supply items drop off the list, and are far more
+    -- common than items a patch removes.
+    for v in (entry.items or ""):gmatch("%d+") do
+        if not tContains(ids, tonumber(v)) then ids[#ids + 1] = tonumber(v) end
+    end
+    for _, name in ipairs(entry.recipes or {}) do
+        if not tContains(recipes, name) then recipes[#recipes + 1] = name end
+    end
     entry.items = "," .. table.concat(ids, ",") .. ","
     entry.recipes = #recipes > 0 and recipes or nil
     wipe(itemVendors)
@@ -122,9 +130,11 @@ function W:Summary(recipeID)
     return #parts > 0 and table.concat(parts, ", ") or nil, loading
 end
 
+-- spot is a vendor spot (area) or a trainer entry (zone).
 local function SetWaypoint(spot, who, recipeName)
-    Place(spot.uiMap, spot.x, spot.y, ("%s (%s)"):format(who or "?", recipeName))
-    FP:Print(L["Waypoint set: %s"]:format(who or "?"))
+    local where = W.Where(who or "?", spot.area or spot.zone)
+    Place(spot.uiMap, spot.x, spot.y, ("%s (%s)"):format(where, recipeName))
+    FP:Print(L["Waypoint set: %s"]:format(where))
 end
 
 local function GoToKnownVendor(e)
@@ -149,7 +159,7 @@ function W:ForRecipe(recipeID)
     end
 
     -- Blizzard's source text, when the client provides it, names the vendor directly.
-    local raw = C_TradeSkillUI.GetRecipeSourceText and C_TradeSkillUI.GetRecipeSourceText(recipeID)
+    local raw = C_TradeSkillUI.GetRecipeSourceText(recipeID)
     local vendorName = raw and raw ~= "" and CleanSource(raw):match("[Vv]endor:%s*([^\n]+)")
     if vendorName then
         vendorName = strtrim(vendorName)
@@ -178,11 +188,13 @@ end
 ---------------------------------------------------------------------------
 local function VendorSpots(itemID)
     if itemVendors[itemID] then return itemVendors[itemID] end
-    local spots = KnownItemVendors(itemID)
+    local spots, have = KnownItemVendors(itemID), {}
+    for _, s in ipairs(spots) do have[s.id] = true end
     local db, zoneDB = Questie()
     if db then
+        -- Recorded and shipped vendors win over Questie's spawn for the same NPC.
         for _, npcId in ipairs(db.QueryItemSingle(itemID, "vendors") or {}) do
-            if Friendly(db, npcId) then
+            if not have[npcId] and Friendly(db, npcId) then
                 local name = db.QueryNPCSingle(npcId, "name")
                 for _, spot in ipairs(Spawns(db, zoneDB, npcId)) do
                     spot.id, spot.name = npcId, name
@@ -216,6 +228,7 @@ function W:NearestVendor(itemID)
     local pick, dist = W.PickNearest(VendorSpots(itemID))
     if not pick then return end
     local item = C_Item.GetItemNameByID(itemID) or "?"
-    W.PlaceNearest(pick, dist, ("%s (%s)"):format(pick.name, item),
-        "Nearest vendor for %s: %s (about %d yards)", "Nearest vendor for %s: %s (on another continent)", item, pick.name)
+    local where = W.Where(pick.name, pick.area)
+    W.PlaceNearest(pick, dist, ("%s (%s)"):format(where, item),
+        "Nearest vendor for %s: %s (about %d yards)", "Nearest vendor for %s: %s (on another continent)", item, where)
 end

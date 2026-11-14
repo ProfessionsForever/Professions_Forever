@@ -7,17 +7,24 @@ local L = FP.L
 local COMMANDS = {
     [""] = function() FP:Toggle() end,
     shop = function() FP.Shop:Toggle() end,
+    queue = function() FP.Queue:Toggle() end,
     transfer = function() FP.Transfer:Toggle() end,
     cooldowns = function() FP.CooldownPanel:Toggle() end,
     cd = function() FP.CooldownPanel:Toggle() end,
+    route = function() if FP.SkillUpPanel:Available() then FP.SkillUpPanel:Toggle() else FP:Print(L["SkillUp Forever is not loaded."]) end end,
+    recipe = function() FP.ReagentSearch:ToggleMode("recipe") end,
+    recipes = function() FP.ReagentSearch:ToggleMode("recipe") end,
+    reagent = function() FP.ReagentSearch:ToggleMode("reagent") end,
+    reagents = function() FP.ReagentSearch:ToggleMode("reagent") end,
+    de = function() FP.UI:ToggleDisenchantMode() end,
+    disenchant = function() FP.UI:ToggleDisenchantMode() end,
     options = function() FP.Options:Open() end,
     config = function() FP.Options:Open() end,
     reset = function() FP.UI:ResetWindow() end,
     clearway = function() FP.Waypoint:Clear() end,
-    ["debug tools"] = function() FP.Tools:Debug() end,
-    ["debug cooldowns"] = function() FP.Cooldowns:Debug() end,
-    ["debug chain"] = function() FP.Chain:Debug() end,
+    whatsnew = function() if not FP.UI:ShowWhatsNew() then FP:Print(L["Nothing new to show for this version."]) end end,
 }
+FP.commands = COMMANDS -- Core/Debug.lua adds its commands here
 
 SLASH_PROFESSIONSFOREVER1 = "/pf"
 SLASH_PROFESSIONSFOREVER2 = "/professionsforever"
@@ -27,7 +34,7 @@ SlashCmdList.PROFESSIONSFOREVER = function(msg)
     local cmd = strlower(strtrim(msg))
     local run = COMMANDS[cmd]
     if run then return run() end
-    FP:Print(L["Slash commands: /pf, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf options, /pf reset, /pf clearway"])
+    FP:Print(L["Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf route, /pf recipe, /pf reagent, /pf de, /pf options, /pf reset, /pf clearway"])
 end
 
 ---------------------------------------------------------------------------
