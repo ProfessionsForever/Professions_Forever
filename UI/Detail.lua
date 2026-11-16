@@ -187,7 +187,7 @@ local function ToolsText(recipeID)
 end
 
 -- Why the craft buttons are off, or nil when crafting is possible.
-local function CraftBlockReason(e, crafts, targeted, target, salvage)
+local function CraftBlockReason(e, crafts, target, salvage)
     if FP:IsReadOnly() then
         local viewing = FP.AltProfs.viewing
         return viewing and L["Log in on %s to craft this."]:format(viewing.owner) or L["You can't craft from another player's profession."]
@@ -195,7 +195,9 @@ local function CraftBlockReason(e, crafts, targeted, target, salvage)
     if not e.learned then return L["You haven't learned this recipe."] end
     if InCombatLockdown() then return L["Cannot do that in combat."] end
     if FP.Cooldowns:IsOnCooldown(e.id) then return L["This recipe is on cooldown."] end
-    if targeted and not target then return L["Choose an item first."] end
+    -- An enchant needs no target, as in Blizzard's window: without one the cast gives a targeting cursor, which is how
+    -- an item in the trade window's "Will not be traded" slot gets enchanted.
+    if salvage and not target then return L["Choose an item first."] end
     if crafts < 1 then return salvage and L["Not enough of the chosen item."] or L["Not enough materials in your bags."] end
     local missing = FP.Tools:Missing(e.id)
     if #missing > 0 then return L["Missing requirement: %s"]:format(table.concat(missing, ", ")) end
@@ -301,7 +303,7 @@ function UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
         crafts = target and math.floor((target:GetStackCount() or 0) / FP.Recipes:SalvageQuantity(e.id)) or 0
     end
 
-    d.craftBlock = CraftBlockReason(e, crafts, targeted, target, salvage)
+    d.craftBlock = CraftBlockReason(e, crafts, target, salvage)
     local canCraft = d.craftBlock == nil
     d.craft:SetActive(canCraft)
     d.craftAll:SetActive(canCraft)

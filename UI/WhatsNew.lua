@@ -2,9 +2,11 @@ local _, FP = ...
 local L = FP.L
 local UI = FP.UI
 
--- What's New: once per version, at the first login after an update, a short list of the main changes (the full list is
--- the changelog). A fresh install only notes the version (FP.freshInstall, Core/Core.lua). /pf whatsnew and the About
--- page's button show it again. FP.db.whatsNewSeen is the last version shown.
+-- What's New: at the first login after an update, a short list of the main changes (the full list is the changelog).
+-- It shows the newest notes the player hasn't seen yet, so updating past a version (0.9.4 straight to 0.10.1) still
+-- shows that version's notes, and a small update without notes of its own shows nothing. A fresh install only notes the
+-- version (FP.freshInstall, Core/Core.lua). /pf whatsnew and the About page's button show the newest notes again.
+-- FP.db.whatsNewSeen is the version last logged in with.
 
 -- [version] = { { icon (in Interface\\Icons), heading, text }, ... }. A version without an entry shows nothing.
 local NOTES = {
@@ -22,6 +24,27 @@ local NOTES = {
 }
 
 local VERSION = C_AddOns.GetAddOnMetadata("ProfessionsForever", "Version")
+
+-- Whether version a comes before version b ("0.9.4" before "0.10.0": compared number by number, not as text).
+local function Before(a, b)
+    local x, y = {}, {}
+    for n in tostring(a):gmatch("%d+") do x[#x + 1] = tonumber(n) end
+    for n in tostring(b):gmatch("%d+") do y[#y + 1] = tonumber(n) end
+    for i = 1, math.max(#x, #y) do
+        local p, q = x[i] or 0, y[i] or 0
+        if p ~= q then return p < q end
+    end
+    return false
+end
+
+-- The newest version with notes that is no newer than this one and newer than `after` (nil: any); nil when none.
+local function NewestNotes(after)
+    local best
+    for v in pairs(NOTES) do
+        if not Before(VERSION, v) and (not after or Before(after, v)) and (not best or Before(best, v)) then best = v end
+    end
+    return best
+end
 local W, PAD, GAP = 500, 18, 12
 local ICON, ICON_GAP = 34, 12 -- each highlight's icon, and the room between it and the text
 local LOGO = 40
@@ -61,9 +84,9 @@ local function Create()
     return f
 end
 
--- Shows the notes for `version` (this version without it); false when there are none.
+-- Shows the notes for `version` (the newest ones without it); false when there are none.
 function UI:ShowWhatsNew(version)
-    version = version or VERSION
+    version = version or NewestNotes()
     local notes = NOTES[version]
     if not notes then return false end
     frame = frame or Create()
@@ -106,14 +129,17 @@ function UI:ShowWhatsNew(version)
     return true
 end
 
--- First login after an update: show this version's notes once. Waits for the loading screen to settle and for combat
--- to end, so it never comes up mid-fight.
+-- First login after an update: the newest notes since the version last logged in with, once. A player from before What's
+-- New existed has no version noted, so gets the newest notes. Waits for the loading screen to settle and for combat to
+-- end, so it never comes up mid-fight.
 local function Check()
     local db = FP.db
-    if db.whatsNewSeen == VERSION then return end
+    local seen = db.whatsNewSeen
+    if seen == VERSION then return end
     db.whatsNewSeen = VERSION
     if FP.freshInstall then return end -- a new install has nothing to compare with
-    UI:ShowWhatsNew()
+    local notes = NewestNotes(seen)
+    if notes then UI:ShowWhatsNew(notes) end
 end
 
 local waiting

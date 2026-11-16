@@ -129,7 +129,12 @@ function UI.DoCraft(count)
     if count < 1 then return end
     if FP.Recipes:IsEnchant(id) then
         local target = CurrentTarget(id)
-        if not target then return FP:Print(L["Choose an item to enchant first."]) end
+        -- No target: cast for a targeting cursor, as Blizzard's window does, to enchant an item in the trade window.
+        if not target then
+            local ok, err = pcall(C_TradeSkillUI.CraftRecipe, id, 1)
+            if not ok then FP:Print(err) else StartBatch(id, 1) end
+            return
+        end
         local location = target:GetItemLocation()
         if not location then return FP:Print(L["The enchant target is no longer available."]) end
         -- Only a stack of vellum can take several enchants; a worn or bagged item takes one.

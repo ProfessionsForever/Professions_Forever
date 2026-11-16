@@ -1,4 +1,10 @@
 # Changelog
+## 0.10.1
+
+### Fixed
+- Enchanting gear in the trade window, for another player, wasn't possible: the Enchant button stayed grey until you chose an item, and the item in the trade window's "Will not be traded" slot can't be chosen. As in Blizzard's window, Enchant now works with no item chosen: click it, then click the item in the trade window (or any item) with the glowing cursor.
+- Updating past a version (say from 0.9.4 straight to 0.10.1) skipped the What's New window, since only the newest version's notes were looked for. It now shows the newest notes you haven't seen, so 0.10.0's notes still show after updating to 0.10.1, and `/pf whatsnew` still opens them.
+
 ## 0.10.0
 
 ### Added

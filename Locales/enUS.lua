@@ -23,7 +23,7 @@ for _, k in ipairs({
     "Favorites", "Remove from Favorites", "Track Recipe", "Untrack Recipe",
     "Track on Screen", "Drag to move. Right-click to open the shopping list.", "+%d more",
     "Enchant Target", "Click to choose", "No Target", "No Eligible Items",
-    "Click to choose the item to enchant.", "Enchant", "Choose an item to enchant first.", "The enchant target is no longer available.",
+    "Click to choose the item to enchant.", "Enchant", "The enchant target is no longer available.",
     "Salvage Item", "Click to choose the item to salvage.", "Choose an item to salvage first.", "The item to salvage is no longer available.",
     "Learned", "Not Learned", "Requires skill %d", "Skill Up: Optimal", "Skill Up: Medium", "Skill Up: Easy", "Skill Up: Trivial",
     "Trained by: %s", "Sold by: %s", "Looking up vendors...", "Source not discovered yet",
