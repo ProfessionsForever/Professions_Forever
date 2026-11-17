@@ -36,7 +36,7 @@ for ADDONS in "${TARGETS[@]}"; do
 	DEST="$ADDONS/$NAME"
 	rm -rf -- "$DEST"
 	mkdir -p -- "$DEST"
-	cp -- "$SRC"/*.toc "$SRC/LICENSE" "$DEST/"
+	cp -- "$SRC"/*.toc "$SRC/Bindings.xml" "$SRC/LICENSE" "$DEST/"
 	# A _retail_ target gets the Retail Interface number added to its deployed .toc only, so that client loads it for testing.
 	if [[ "$ADDONS" == */_retail_/* ]]; then sed -i 's/^## Interface: .*/&, 120105/' "$DEST/$NAME.toc"; fi
 	cp -r -- "$SRC/Media" "$DEST/"

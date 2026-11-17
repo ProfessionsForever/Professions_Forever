@@ -43,9 +43,10 @@ end
 Queue.CharacterName = CharacterName
 
 -- The picker in a window's title bar: the current character first, then the others with saved professions or a queue.
+-- Wide enough for a first name, surname and " (you)", so the label isn't cut off (a cut-off label gets a tooltip).
 function Queue:AddViewPicker(f)
     local UI = FP.UI
-    f.pick = UI:Dropdown(f, 150, 20, function() return CharacterName(self:ViewKey() or FP.Alts:GetCharacterKey()) end, function()
+    f.pick = UI:Dropdown(f, 220, 20, function() return CharacterName(self:ViewKey() or FP.Alts:GetCharacterKey()) end, function()
         local me, keys, items = FP.Alts:GetCharacterKey(), {}, {}
         for key, rec in pairs(FP.db.characters) do
             if key ~= me and ((rec.professions and next(rec.professions)) or (rec.queue and #rec.queue > 0)) then

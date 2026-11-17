@@ -1,0 +1,17 @@
+<Bindings>
+	<Binding name="CLICK ProfessionsForeverFishButton:LeftButton" header="PROFESSIONSFOREVER" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverSwapBackButton:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_settings:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_queue:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_shop:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_transfer:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_cooldowns:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_skillup:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_camp:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_disenchant:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_profession1:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_profession2:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_profession3:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_profession4:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_profession5:LeftButton" category="ADDONS"/>
+</Bindings>

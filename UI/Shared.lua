@@ -60,40 +60,75 @@ UI.MAIL_COLOR = { 1, 0.55, 0.75 } -- materials waiting in the mailbox
 UI.CHAIN_COLOR = { 1, 0.6, 0.25 } -- craftable after crafting its reagents
 
 -- Tooltip section for one planned item (a plan item from FP.Planner): who holds it, what the plan takes from each,
--- and what is still missing. Returns false when no other character is known to hold any.
-function UI:AddAltLines(tip, it)
-    local L, Alts, Planner = FP.L, FP.Alts, FP.Planner
-    local b = Alts:GetAltBreakdown(it.itemID)
+-- and what is still missing, each part as Options, Tooltips, Alts and Transfers says. Returns false when it adds
+-- nothing. `missingShown`: the tooltip already says what is still missing, so Still to Buy is left off. `b`: the alt
+-- breakdown to show instead of the real one (the options' previewer).
+function UI:AddAltLines(tip, it, missingShown, b)
+    local L, Alts, db, Tips = FP.L, FP.Alts, FP.db, FP.Tooltips
+    b = b or Alts:GetAltBreakdown(it.itemID)
     if #b.enabled == 0 and #b.ignored == 0 then return false end
     local send = {}
     for _, s in ipairs(it.sources) do send[s.key] = s.transfer end
+    -- While alts don't count toward planning, a transfer is only a suggestion.
+    local sendText = (Tips.preview or FP.Planner:Applies()) and L["Send %d"] or L["Could Send %d"]
     local alt = self.ALT_COLOR
-    tip:AddLine(" ")
+    -- Gathered first, so a block with nothing to show adds no blank line either.
+    local lines = {}
+    local function Line(...)
+        local args = { ... }
+        lines[#lines + 1] = function() tip:AddDoubleLine(unpack(args)) end
+    end
     if #b.enabled > 0 then
-        tip:AddLine(L["Other Characters:"], 1, 0.82, 0)
-        for _, e in ipairs(b.enabled) do
-            local r, g, bl = Alts:ClassColor(e.class)
-            local text = e.bank > 0 and L["%d (%d in bank)"]:format(e.count, e.bank) or tostring(e.count)
-            if send[e.key] then text = text .. "  " .. L["send %d"]:format(send[e.key]) end
-            tip:AddDoubleLine(Alts:Label(e), text, r, g, bl, 1, 1, 1)
+        -- One line per character: "Has 66 (26 bank), Send 42".
+        if db.altTipChars then
+            for _, e in ipairs(b.enabled) do
+                local r, g, bl = Alts:ClassColor(e.class)
+                local text = (db.altTipBank and e.bank > 0) and L["Has %d (%d bank)"]:format(e.count, e.bank)
+                    or L["Has %d"]:format(e.count)
+                if db.altTipSend and send[e.key] and send[e.key] > 0 then text = text .. ", " .. sendText:format(send[e.key]) end
+                Line(Alts:Label(e), text, r, g, bl, 1, 1, 1)
+            end
         end
-        tip:AddLine(" ")
-        tip:AddDoubleLine(L["Available on Enabled Characters"], b.enabledTotal, 0.8, 0.8, 0.8, alt[1], alt[2], alt[3])
-        if it.transfer > 0 then
-            tip:AddDoubleLine(Planner:Applies() and L["Transfer Needed"] or L["Suggested Transfer"], it.transfer, 0.8, 0.8, 0.8, 1, 1, 1)
+        local total = db.altTipTotal
+        if total == "always" or (total == "multi" and #b.enabled > 1) then
+            Line(L["Available on Enabled Characters"], b.enabledTotal, 0.8, 0.8, 0.8, alt[1], alt[2], alt[3])
         end
-        if it.localShort > 0 then
-            local c = it.stillMissing > 0 and STATUS_COLORS.missing or STATUS_COLORS.full
-            tip:AddDoubleLine(L["Still Missing After Transfers"], it.stillMissing, 0.8, 0.8, 0.8, c[1], c[2], c[3])
+        -- The shopping list's Buy column: after transfers while alts count toward planning, before them otherwise.
+        if db.altTipToBuy and it.localShort > 0 and not missingShown then
+            local c = it.shortage > 0 and STATUS_COLORS.missing or STATUS_COLORS.full
+            Line(L["Still to Buy"], it.shortage, 0.8, 0.8, 0.8, c[1], c[2], c[3])
         end
     end
-    if #b.ignored > 0 then
-        tip:AddLine(" ")
-        tip:AddLine(L["Ignored Characters:"], 0.6, 0.6, 0.6)
+    if db.altTipIgnored and #b.ignored > 0 then
+        if #lines > 0 and db.tipSpacing then lines[#lines + 1] = function() tip:AddLine(" ") end end
+        lines[#lines + 1] = function() tip:AddLine(L["Ignored Characters:"], 0.6, 0.6, 0.6) end
         for _, e in ipairs(b.ignored) do
-            tip:AddDoubleLine("  " .. Alts:Label(e), e.count, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
+            Line(Tips:Indent(1) .. Alts:Label(e), e.count, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6)
         end
     end
+    if #lines == 0 then return false end
+    Tips:Space(tip)
+    for _, add in ipairs(lines) do add() end
+    return true
+end
+
+-- Click hints at the bottom of an item tooltip in the addon's windows, as Options, Tooltips, Prices and Hints says:
+-- one line ("Click: Quantity, Ctrl: Auction House"), a line per action, or none. hints: { { short, full }, ... }.
+-- `keyHidden`: the tooltip holds back detail for the detail key, so the key goes in too.
+function UI:AddHints(tip, hints, keyHidden, color)
+    local L, db, Tips = FP.L, FP.db, FP.Tooltips
+    local keyHint = keyHidden and db.tipKeyHint
+    if db.tipHints == "line" then
+        local parts = {}
+        for _, h in ipairs(hints) do parts[#parts + 1] = h[1] end
+        if keyHint then parts[#parts + 1] = L["%s: Details"]:format(Tips:KeyName()) end
+        if #parts > 0 then tip:AddLine(table.concat(parts, ", "), 0.6, 0.6, 0.6, true) end
+        return
+    end
+    if db.tipHints == "full" then
+        for _, h in ipairs(hints) do tip:AddLine(h[2], color[1], color[2], color[3]) end
+    end
+    if keyHint then Tips:AddKeyHint(tip) end
 end
 
 -- The "Skill: 120 / 150" tooltip line of a profession; nothing when it has no cap to show.

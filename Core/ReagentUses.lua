@@ -28,6 +28,22 @@ function Uses:ReagentsOf(recipeID)
     return byRecipe[recipeID] or {}
 end
 
+local byOutput -- [item ID] = { recipe spell ID, ... }, FP.RecipeOutputs read the other way, built on first use
+
+-- The recipes that make the item, from the game data, whether or not anyone knows them. Treat as read-only.
+function Uses:MakersOf(itemID)
+    if not byOutput then
+        byOutput = {}
+        for recipe, made in pairs(FP.RecipeOutputs) do
+            local list = byOutput[made]
+            if not list then list = {} byOutput[made] = list end
+            list[#list + 1] = recipe
+        end
+        for _, list in pairs(byOutput) do table.sort(list) end
+    end
+    return byOutput[itemID] or {}
+end
+
 -- One recipe is learned when the open profession says so, else when the character knows its spell.
 local function Learned(recipeID)
     local e = FP.Recipes.byID[recipeID]

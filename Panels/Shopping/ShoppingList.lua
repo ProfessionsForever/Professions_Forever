@@ -4,6 +4,7 @@ local Shop = FP.Shop -- created in Core/Shopping.lua
 
 local ROWS, ROW_H = 11, 24
 local ACTION_BUTTON_H = 20
+local ICON_SLOT = 20 -- the icon of the item typed in the add box, as tall as the box
 Shop.ACTION_BUTTON_H = ACTION_BUTTON_H
 
 -- Columns run right to left; "Alts" only shows while alts count toward planning.
@@ -105,26 +106,51 @@ end
 ---------------------------------------------------------------------------
 -- Window
 ---------------------------------------------------------------------------
+local GREY = { 0.6, 0.6, 0.6 }
+
+-- A row's tooltip, on GameTooltip or on `tip` (the options' previewer: row.preview holds its made-up price, alts and
+-- vendor). The queue and alts blocks come in Options, Tooltips, General's order; each part as its options say.
+-- The owner says it writes its own queue lines and hint line, so Tooltips/ leaves those off (ownQueueLines, ownHints).
+function Shop:FillRowTooltip(row, tip)
+    tip = tip or GameTooltip
+    local db, Tips, pv, id = FP.db, FP.Tooltips, row.preview, row.itemID
+    tip:SetItemByID(id)
+    local hidden = Tips.hidden -- detail a provider held back (every disenchant result)
+    FP.Prices:AddUnitLine(tip, id, pv and pv.unit)
+    local blocks = {
+        queue = function()
+            if row.queue <= 0 then return end
+            Tips:Space(tip)
+            tip:AddDoubleLine(L["Needed by Crafting Queues"], row.queue, 0.8, 0.8, 0.8, 1, 1, 1)
+            if db.queueTooltipShopRows and Tips:AddQueueRecipes(tip, id) then hidden = true end
+            if row.mine ~= 0 then
+                tip:AddDoubleLine(L["Your Change"], ("%+d"):format(row.mine), 0.8, 0.8, 0.8, 1, 1, 1)
+            end
+        end,
+        alts = function()
+            if row.plan then FP.UI:AddAltLines(tip, row.plan, nil, pv and pv.alts) end
+        end,
+    }
+    for _, key in ipairs(Tips:Order()) do
+        if blocks[key] then blocks[key]() end
+    end
+    local vendor
+    if db.tipVendor then
+        if pv then vendor = pv.vendor
+        elseif FP.Waypoint:VendorNavAvailable(id) then vendor = FP.Waypoint:VendorSummary(id) end
+    end
+    if vendor then tip:AddLine(L["Sold by: %s"]:format(vendor), 1, 0.82, 0, true) end
+    local hints = { { L["Click: Quantity"], L["Click: change the quantity"] } }
+    if vendor then hints[#hints + 1] = { L["Right: Vendor Waypoint"], L["Right-click: waypoint to the nearest vendor"] } end
+    hints[#hints + 1] = { L["Ctrl: Auction House"], L["Ctrl-click: search the auction house"] }
+    hints[#hints + 1] = { L["Alt: Recipes"], L["Alt-click: find the recipes that use this reagent"] }
+    FP.UI:AddHints(tip, hints, hidden, GREY)
+end
+
 local function RowTooltip(row)
     if not row.itemID then return false end
-    GameTooltip:SetItemByID(row.itemID)
-    local unit = FP.Prices:Unit(row.itemID)
-    if unit then GameTooltip:AddLine(L["Auction Price: %s each"]:format(FP.Prices:Format(unit)), 1, 0.82, 0) end
-    if row.queue > 0 then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddDoubleLine(L["Needed by Crafting Queues"], row.queue, 0.8, 0.8, 0.8, 1, 1, 1)
-        if row.mine ~= 0 then
-            GameTooltip:AddDoubleLine(L["Your Change"], ("%+d"):format(row.mine), 0.8, 0.8, 0.8, 1, 1, 1)
-        end
-    end
-    if row.plan then FP.UI:AddAltLines(GameTooltip, row.plan) end
-    if FP.Waypoint:VendorNavAvailable(row.itemID) then
-        GameTooltip:AddLine(L["Sold by: %s"]:format(FP.Waypoint:VendorSummary(row.itemID)), 1, 0.82, 0, true)
-        GameTooltip:AddLine(L["Right-click: waypoint to the nearest vendor"], 0.5, 0.8, 1)
-    end
-    GameTooltip:AddLine(L["Click: change the quantity"], 0.6, 0.6, 0.6)
-    GameTooltip:AddLine(L["Ctrl-click: search the auction house"], 0.6, 0.6, 0.6)
-    GameTooltip:AddLine(L["Alt-click: find the recipes that use this reagent"], 0.6, 0.6, 0.6)
+    row.ownQueueLines, row.ownHints = true, true
+    Shop:FillRowTooltip(row)
 end
 
 local function RowClick(row, button)
@@ -208,8 +234,11 @@ end
 local function BuildManualAdd(f)
     local UI = FP.UI
     local item = CreateFrame("EditBox", "ProfessionsForeverShopItem", f, "InputBoxTemplate")
-    item:SetSize(200, 20)
-    item:SetPoint("BOTTOMLEFT", 18, 112) -- above the window buttons
+    item:SetSize(200 - ICON_SLOT - 4, 20)
+    -- Above the window buttons, after the icon. InputBoxTemplate draws its left cap about 5px outside the box;
+    -- EllesmereUI's square box has no cap.
+    item.fpEUILayout = function() item:SetPoint("BOTTOMLEFT", 13 + ICON_SLOT + 4 + (UI.EUI() and 0 or 5), 112) end
+    item.fpEUILayout()
     item:SetAutoFocus(false)
     UI:EUIWidget(item, "editbox")
     local qty = CreateFrame("EditBox", "ProfessionsForeverShopQty", f, "InputBoxTemplate")
@@ -257,6 +286,7 @@ local function BuildManualAdd(f)
     qty:SetScript("OnEnterPressed", AddManual)
     qty:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
     UI:AddClearButton(item, L["Clear Search"])
+    suggest:IconSlot(ICON_SLOT):SetPoint("BOTTOMLEFT", 13, 112) -- where the box's left cap started
     UI:Stepper(qty, 1, 9999)
     add = UI:Button(f, L["Add"], 60, ACTION_BUTTON_H, AddManual)
     add:SetPoint("LEFT", qty.plus, "RIGHT", 8, 0)

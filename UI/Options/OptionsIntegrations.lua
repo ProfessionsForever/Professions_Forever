@@ -4,10 +4,9 @@ local UI = FP.UI
 local O = FP.Options
 local refreshers = O.refreshers
 
--- Settings that depend on other addons: an overview page (every supported addon, whether it is installed and what it
--- adds, plus Alt Inventory), then a page of its own for each addon, shown indented under Integrations in the options
--- list (UI/Options/Options.lua). A switch is greyed out while its addon isn't loaded. New features that use another
--- addon put their options on that addon's page.
+-- Settings that depend on other addons: a page for each addon under the Integrations category of the options list,
+-- whose own page links to them with what each adds and whether it is installed (UI/Options/Options.lua). A switch is
+-- greyed out while its addon isn't loaded. New features that use another addon put their options on that addon's page.
 
 local function Loaded(...)
     for i = 1, select("#", ...) do
@@ -37,11 +36,14 @@ local function ByKey(key)
         if a.key == key then return a end
     end
 end
+-- The supported addon whose page has this key ({ name, loaded, adds }), for its link on the Integrations page.
+O.Integration = ByKey
 
 -- "Installed" in green or "Not installed" in grey.
 local function StatusText(loaded)
     return loaded and ("|cff33e633" .. L["Installed"] .. "|r") or ("|cff808080" .. L["Not installed"] .. "|r")
 end
+O.StatusText = StatusText
 
 -- A sub-page's top: the addon's name, whether it is installed, and what it adds.
 local function Header(page, a)
@@ -75,45 +77,12 @@ local function AddonCheck(page, label, loaded, get, set, tip)
     return cb
 end
 
--- Prices feed the recipe list, the recipe panel, the shopping list and the footer.
+-- Prices feed the recipe list, the recipe panel, the shopping list and the footer. "prices" redraws the main window
+-- in full, which re-sorts the list (the Profit sort) and keeps its scroll position.
 local function PricesChanged()
     FP.Prices:WatchScans() -- the Use Auctionator switch may just have been turned on
     FP:Changed("plan")
     FP:Changed("prices")
-    if UI.frame and UI.frame:IsShown() then UI:Relist() end
-end
-
----------------------------------------------------------------------------
--- Overview
----------------------------------------------------------------------------
-function O.BuildIntegrations(page)
-    O.Section(page, L["Supported Addons"])
-    for _, a in ipairs(ADDONS) do
-        local name = UI:Text(page, 0)
-        name:SetPoint("TOPLEFT", page, "TOPLEFT", 8, page.y - 2)
-        name:SetWidth(130)
-        name:SetJustifyH("LEFT")
-        name:SetText(a.name)
-        local status = UI:Text(page, -1)
-        status:SetPoint("LEFT", name, "RIGHT", 4, 0)
-        status:SetWidth(90)
-        status:SetJustifyH("LEFT")
-        refreshers[#refreshers + 1] = function() status:SetText(StatusText(a.loaded())) end
-        refreshers[#refreshers]()
-        local adds = UI:Text(page, -1)
-        adds:SetPoint("TOPLEFT", status, "TOPRIGHT", 4, 0)
-        adds:SetPoint("RIGHT", page, "RIGHT", 0, 0)
-        adds:SetJustifyH("LEFT")
-        adds:SetTextColor(0.7, 0.7, 0.7)
-        adds:SetText(L[a.adds])
-        page.y = page.y - math.max(O.ROW_H - 6, math.ceil(adds:GetStringHeight()) + 8)
-    end
-    O.BuildAltSection(page)
-    page.y = page.y - 32 -- room for the Reset This Page button under the characters list
-end
-
-function O.ResetIntegrations()
-    FP.Planner:SetMode(FP.defaults.altMode)
 end
 
 ---------------------------------------------------------------------------
@@ -125,13 +94,26 @@ function O.BuildIntAuctionator(page)
     AddonCheck(page, L["Use Auctionator's Prices"], a.loaded(),
         function() return db.useAuctionator end, function(v) db.useAuctionator = v PricesChanged() end,
         L["Auction and vendor prices for recipe profit, crafting costs and the shopping list total. Off: no prices are shown."])
+    AddonCheck(page, L["Price Crafted Reagents by Crafting Cost"], a.loaded(),
+        function() return db.priceCrafted end, function(v) db.priceCrafted = v PricesChanged() O:Refresh() end,
+        L["A reagent one of your recipes makes, like Bolt of Silk Cloth, is priced at what its own reagents cost when that is cheaper than buying it. Off: vendor and auction prices only."])
+    -- Does nothing while crafting costs are off, so it is shown unticked and greyed then; its own setting is kept.
+    local alts = AddonCheck(page, L["Include Recipes Your Other Characters Know"], a.loaded(),
+        function() return db.priceCrafted and db.priceCraftedAlts end, function(v) db.priceCraftedAlts = v PricesChanged() end,
+        L["A reagent is also priced at its crafting cost when one of your other characters knows the recipe, not just this character, for example a Bolt of Silk Cloth your tailor alt could make from cloth you buy. A character counts once you've logged in on them with ProfessionsForever, unless it is switched off under Alt Inventory or is of the other faction. Needs Price Crafted Reagents by Crafting Cost."])
+    refreshers[#refreshers + 1] = function()
+        local active = a.loaded() and db.priceCrafted and true or false
+        alts:SetEnabled(active)
+        alts.label:SetAlpha(active and 1 or 0.4)
+    end
+    refreshers[#refreshers]()
     AddonCheck(page, L["Skip Disenchant Tooltips When Auctionator Shows Its Own"], a.loaded(),
         function() return db.deTooltipAuctionator end, function(v) db.deTooltipAuctionator = v end,
         L["While Auctionator's \"Disenchant prices\" tooltip setting is on, ProfessionsForever leaves its disenchant lines off item tooltips, so they aren't shown twice. Off: both are shown."])
 end
 
 function O.ResetIntAuctionator()
-    O.ResetKeys("useAuctionator", "deTooltipAuctionator")
+    O.ResetKeys("useAuctionator", "priceCrafted", "priceCraftedAlts", "deTooltipAuctionator")
     PricesChanged()
 end
 

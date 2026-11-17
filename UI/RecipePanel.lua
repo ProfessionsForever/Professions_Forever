@@ -7,6 +7,7 @@ local RecipeRowHeight = UI.RecipeRowHeight
 local SORTS = {
     { "name", "Name", "Name" }, { "difficulty", "Skill Up Difficulty", "Skill Up" }, { "chance", "Skill Up Chance", "Chance" },
     { "craftable", "Craftable Amount", "Craftable" }, { "profit", "Profit", "Profit" },
+    { "ilevel", "Item Level", "Item Level" },
 }
 local FILTERS = {
     { "showUnlearned", "Show Unlearned" }, { "unlearnedOnly", "Unlearned Only" }, { "hasMatsOnly", "Has Materials" },
@@ -24,7 +25,7 @@ end
 function UI:CreateRecipePanel(f)
     local left = CreateFrame("Frame", "ProfessionsForeverRecipePanel", f, "BackdropTemplate")
     left:SetPoint("TOPLEFT", 8, -93)
-    left:SetPoint("BOTTOMLEFT", 8, 8 + UI.FOOTER_RESERVE)
+    left:SetPoint("BOTTOMLEFT", 8, 8 + UI:FooterReserve())
     left:SetWidth(325)
     f.left = left
     self:Skin(left, "panel")

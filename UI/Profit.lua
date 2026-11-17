@@ -5,18 +5,39 @@ local STATUS_COLORS, ItemName = UI.STATUS_COLORS, FP.ItemName
 
 -- The cost and profit lines of the recipe panel and their tooltips; the sums are in Core/Prices.lua.
 
+local INDENT = "    "
+
+-- A reagent count: whole, or to one decimal when a recipe that makes several leaves a share of a craft.
+local function Count(n)
+    return ("%g"):format(math.floor(n * 10 + 0.5) / 10)
+end
+
+-- What `need` of a crafted reagent (Prices:ReagentCost) are made from, one indented line per reagent of its recipe
+-- with that reagent's share of the cost, and the same again under any of them that is crafted too.
+local function AddCraftedParts(tip, cost, need, depth)
+    local crafts = need / cost.made
+    for _, part in ipairs(cost.parts) do
+        local qty = part.qty * crafts
+        tip:AddDoubleLine(("%s%s x%s"):format(INDENT:rep(depth), ItemName(part.itemID), Count(qty)),
+            FP.Prices:Format(part.cost.unit * qty) .. " |cff888888" .. L[part.cost.source] .. "|r",
+            0.6, 0.6, 0.6, 0.8, 0.8, 0.8)
+        if part.cost.parts then AddCraftedParts(tip, part.cost, qty, depth + 1) end
+    end
+end
+
 local function FillCostTip(tip, info)
     tip:AddLine(info.priced > 0 and L["Cost to Craft x%d: %s"]:format(info.count, FP.Prices:Format(info.total))
         or L["Cost unavailable: no known prices."], 1, 1, 1)
     for _, reagent in ipairs(info.reagents) do
-        local unit, source = FP.Prices:ReagentUnit(reagent.itemID)
-        local right = unit and (FP.Prices:Format(unit * reagent.need) .. " |cff888888" .. L[source] .. "|r") or L["no price"]
+        local cost = FP.Prices:ReagentCost(reagent.itemID)
+        local right = cost and (FP.Prices:Format(cost.unit * reagent.need) .. " |cff888888" .. L[cost.source] .. "|r") or L["no price"]
         local r, g, b = 1, 1, 1
-        if not unit then r, g, b = 0.9, 0.3, 0.3 end
+        if not cost then r, g, b = 0.9, 0.3, 0.3 end
         tip:AddDoubleLine(("%s x%d"):format(ItemName(reagent.itemID), reagent.need), right, 0.8, 0.8, 0.8, r, g, b)
+        if cost and cost.parts then AddCraftedParts(tip, cost, reagent.need, 1) end
     end
     tip:AddLine(" ")
-    tip:AddLine(L["Vendor price where known, otherwise the auction price."], 0.6, 0.6, 0.6, true)
+    tip:AddLine(L["The cheapest of the vendor price, the auction price and the cost of crafting it."], 0.6, 0.6, 0.6, true)
 end
 
 local function ProfitMoney(copper)

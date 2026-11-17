@@ -60,6 +60,21 @@ local function FreeSlot(used)
     end
 end
 
+-- A free slot in a general-purpose carried bag (bag, slot), or nil when the bags are full. A caller filling several
+-- slots in one go passes the same `used` table each time, since a slot only fills a moment after an item is put there.
+function Inv:FreeSlot(used) return FreeSlot(used or {}) end
+
+-- The carried stack of itemID picked up on the cursor: the game locks a stack's slot while it is held. Its
+-- GetContainerItemInfo (stackCount, isBound, ...), or nil when it isn't from the bags.
+function Inv:CursorStack(itemID)
+    for _, bag in ipairs(self:CarriedBags()) do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID == itemID and info.isLocked then return info end
+        end
+    end
+end
+
 -- Moves items from the open bank into the bags; `needs` is { { itemID, qty } }. Whole stacks go as they are, smallest
 -- first, and the last one is split. Returns how many of the items were at least partly moved. Call it from a click.
 function Inv:Withdraw(needs)

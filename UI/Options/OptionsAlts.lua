@@ -112,7 +112,7 @@ local function BuildCharacterList(page)
     refreshers[#refreshers + 1] = function() O:RefreshCharacters() end
 end
 
--- The Alt Inventory section of the Integrations page: planning mode, then the characters list.
+-- The Alt Inventory page (General): planning mode, then the characters list.
 function O.BuildAltSection(page)
     O.Section(page, L["Alt Inventory"])
     local note = UI:Text(page, -1)

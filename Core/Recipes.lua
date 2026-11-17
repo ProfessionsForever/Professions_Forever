@@ -318,13 +318,16 @@ function R:OutputQuantity(recipeID)
     return 1, 1
 end
 
--- What the recipe makes: { itemID, hyperlink... } as the game gives it.
+-- What the recipe makes: { itemID, hyperlink... } as the game gives it. The game gives nothing for a recipe this
+-- character hasn't learned, so then it comes from the recipe data.
 function R:OutputInfo(recipeID)
     local T = C_TradeSkillUI
     local ok, output = pcall(T.GetRecipeOutputItemData, recipeID)
     if ok and output then return output end
     local s = Schematic(recipeID)
     if s and s.outputItemID then return { itemID = s.outputItemID } end
+    local made = FP.RecipeOutputs[recipeID]
+    if made then return { itemID = made } end
 end
 
 function R:OutputItemID(recipeID)
@@ -430,7 +433,17 @@ end
 -- Sort keys: lower sorts first, compared in order; ties fall back on the name.
 -- craftable: crafts from bags, then with the bank, then with enabled alts, then reagents already held in full.
 -- chance: highest skill up chance first at the open profession's skill, then recipes with no data, then unlearned ones.
+-- ilevel: gear (weapons and armor) by highest item level first, then everything else; unlearned ones after. Gear the
+-- game hasn't loaded yet sorts with everything else until it arrives (FP.ItemName asks for it and redraws).
 local function SortValue(self, e, key, skill)
+    if key == "ilevel" then
+        local itemID = self:OutputItemID(e.id)
+        local classID = itemID and select(6, C_Item.GetItemInfoInstant(itemID))
+        if classID ~= Enum.ItemClass.Weapon and classID ~= Enum.ItemClass.Armor then return e.learned and 0 or 1, 1, 0 end
+        local level = select(4, C_Item.GetItemInfo(itemID))
+        if not level then FP.ItemName(itemID) return e.learned and 0 or 1, 1, 0 end
+        return e.learned and 0 or 1, 0, -level
+    end
     if key == "difficulty" then return e.learned and (e.difficulty or 9) or 10 end
     if key == "craftable" then
         local ev = self:Evaluate(e.id)
@@ -448,7 +461,7 @@ local function SortValue(self, e, key, skill)
     return e.learned and 0 or 1
 end
 
--- o: search, categoryName, showUnlearned, unlearnedOnly, matsOnly, skillUps, hideTrivial, sortKey (name|difficulty|chance|craftable|profit),
+-- o: search, categoryName, showUnlearned, unlearnedOnly, matsOnly, skillUps, hideTrivial, sortKey (name|difficulty|chance|craftable|profit|ilevel),
 -- sortDesc, skill (the open profession's skill, for the chance sort).
 function R:GetFiltered(o)
     local out = {}

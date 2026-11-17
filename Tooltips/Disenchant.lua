@@ -141,15 +141,12 @@ local function Results(tip, results, indent, tableID)
     if also then tip:AddLine(indent .. also, 0.55, 0.55, 0.55, true) end
 end
 
-local function Add(tip, data)
-    if (tip ~= GameTooltip and tip ~= ItemRefTooltip) or tip:IsForbidden() then return end
+local function Add(tip, data, itemID)
     local db = FP.db
     if not db.deTooltip then return end
-    local itemID = data and data.id
-    -- Checked before anything tests the id: even its truth test errors while it is secret.
-    if issecretvalue(itemID) then return end
-    if not itemID then return end
-    local shift = IsShiftKeyDown()
+    local Tips = FP.Tooltips
+    -- "shift" in these settings means the detail key (Options, Tooltips, General), Shift unless changed there.
+    local shift = Tips:DetailDown()
     if db.deTooltipShow == "shift" and not shift then return end
     if db.deTooltipAuctionator and AuctionatorShowsDE() then return end
 
@@ -168,49 +165,41 @@ local function Add(tip, data)
     local priced = v.unpriced ~= nil and v.unpriced < #results
     local verdict = priced and db.deTooltipVerdict
     local full = db.deTooltipDetail == "full" or (db.deTooltipDetail == "shift" and shift)
+    local one, two = Tips:Indent(1), Tips:Indent(2)
 
     if verdict then
         -- The decision first: "Disenchant / Vendor / Auction   12s", the winner lit, its value in its colour.
         local c = CHOICES[v.best].color
         tip:AddDoubleLine(VerdictText(v.best), Money(v.bestValue), 1, 1, 1, c[1], c[2], c[3])
         if full then
-            Choice(tip, "disenchant", v.disenchant, v.best, nil, "   ", SeenValue(tableID, 1 - P.CUT))
-            Results(tip, results, "      ", tableID)
-            if v.unpriced > 0 then tip:AddLine("      " .. L["%d results without a price"]:format(v.unpriced), unpack(DETAIL)) end
-            Choice(tip, "vendor", v.vendor > 0 and v.vendor or nil, v.best, L["No vendor price"], "   ")
+            Choice(tip, "disenchant", v.disenchant, v.best, nil, one, SeenValue(tableID, 1 - P.CUT))
+            Results(tip, results, two, tableID)
+            if v.unpriced > 0 then tip:AddLine(two .. L["%d results without a price"]:format(v.unpriced), unpack(DETAIL)) end
+            Choice(tip, "vendor", v.vendor > 0 and v.vendor or nil, v.best, L["No vendor price"], one)
             Choice(tip, "auction", v.auction, v.best, bound and L["Soulbound, can't be sold"]
-                or L["No auction price"], "   ")
+                or L["No auction price"], one)
         end
     elseif priced then
         tip:AddDoubleLine(L["Disenchant"] .. (full and SeenValue(tableID, 1) or ""), Money(v.deGross), LABEL[1], LABEL[2], LABEL[3], 1, 1, 1)
         if full then
-            Results(tip, results, "   ", tableID)
-            if v.unpriced > 0 then tip:AddLine("   " .. L["%d results without a price"]:format(v.unpriced), unpack(DETAIL)) end
+            Results(tip, results, one, tableID)
+            if v.unpriced > 0 then tip:AddLine(one .. L["%d results without a price"]:format(v.unpriced), unpack(DETAIL)) end
         end
     elseif full then
         tip:AddLine(L["Disenchant"], unpack(LABEL))
-        Results(tip, results, "   ", tableID)
+        Results(tip, results, one, tableID)
     else
         tip:AddDoubleLine(L["Disenchant"], ResultText(Likeliest(results)), LABEL[1], LABEL[2], LABEL[3], 1, 1, 1)
     end
-    tip:Show()
+    -- Every result waits for the detail key.
+    return true, db.deTooltipDetail == "shift" and not full
 end
 
-TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, Add)
+FP.Tooltips:Register("disenchant", Add)
 
 -- Load every result's name and quality at login, so the first tooltip doesn't show "Retrieving item information".
 FP:RegisterEvent("PLAYER_LOGIN", function()
     for tableID in pairs(FP.DisenchantTables) do
         for _, r in ipairs(DE:Results(tableID)) do C_Item.RequestLoadItemDataByID(r.itemID) end
-    end
-end)
--- Shift can show, hide or expand the lines: redraw the tooltip under the mouse.
-FP:RegisterEvent("MODIFIER_STATE_CHANGED", function(_, key)
-    local db = FP.db
-    if (key == "LSHIFT" or key == "RSHIFT") and db.deTooltip and (db.deTooltipShow == "shift" or db.deTooltipDetail == "shift")
-        and GameTooltip:IsShown() then
-        local itemID = select(3, GameTooltip:GetItem())
-        if issecretvalue(itemID) then return end
-        if itemID then GameTooltip:RefreshData() end
     end
 end)

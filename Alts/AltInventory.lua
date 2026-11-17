@@ -141,10 +141,12 @@ local function MigrateKey(new)
     local transfers = FP.db.transfers
     if transfers[old] then transfers[new], transfers[old] = transfers[old], nil end
     for _, entry in pairs(transfers) do
-        local manual = entry.manual
-        if manual and manual[old] then
-            manual[new] = manual[new] or manual[old]
-            manual[old] = nil
+        for _, field in ipairs({ "manual", "gear", "gold" }) do
+            local t = entry[field]
+            if t and t[old] then
+                t[new] = t[new] or t[old]
+                t[old] = nil
+            end
         end
     end
     FP.db.skipImport[new] = nil -- a removed duplicate of this character is now its own record
@@ -325,6 +327,7 @@ function Alts:SetGear(where, gear)
     if not rec then return end
     rec.deGear = rec.deGear or {}
     rec.deGear[where] = gear
+    FP.Outgoing:PruneGear() -- gear asked for that is gone now
 end
 
 -- The unbound gear another character holds: bags, bank, each a list of { guid, link }. A part it hasn't saved yet (not

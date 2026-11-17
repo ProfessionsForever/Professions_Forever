@@ -18,11 +18,11 @@ local function SavePin(f)
     f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
 end
 
+-- The pin button shows the game's grey map pin while the panel docks, the gold one while it is pinned.
 local function RefreshPin(f)
     local b = f.pinBtn
     if not b then return end
-    local c = FP.db.sidePanels[f.fpPanelKey] and UI:GetAccent() or { 1, 1, 1 }
-    b.text:SetTextColor(c[1], c[2], c[3])
+    b.icon:SetAtlas(FP.db.sidePanels[f.fpPanelKey] and "waypoint-mappin-minimap-tracked" or "waypoint-mappin-minimap-untracked")
 end
 
 -- Docked panels sit beside the main window in two rows. A panel takes the leftmost free position, top row first: the
@@ -150,6 +150,19 @@ local function FirstFreeSlot(main, p, h, rows, blocked)
     return -step, 0
 end
 
+-- Where the main window would be, before it is first built (a quick button or key binding opened a panel first): an
+-- empty frame at its saved position, size and scale.
+local standIn
+local function MainStandIn()
+    local db = FP.db
+    standIn = standIn or CreateFrame("Frame", nil, UIParent)
+    standIn:ClearAllPoints()
+    standIn:SetPoint(db.point, UIParent, db.relPoint or db.point, db.x, db.y)
+    standIn:SetSize(db.width, db.height + UI:FooterExtra())
+    standIn:SetScale(db.scale)
+    return standIn
+end
+
 -- What docked panels sit beside: the main window while it is shown, else the game's open mailbox or bank (the Transfer
 -- Planner opens at either by itself), else where the main window would be. Opening or closing any of them re-docks the
 -- panels (see the events below); the main window closing closes them anyway (UI:CloseSidePanels).
@@ -163,7 +176,7 @@ local function DockHost()
         local bank = _G[name]
         if bank and bank:IsShown() then return bank end
     end
-    return main
+    return main or MainStandIn()
 end
 
 -- The main window and the side panels share a strata and are all toplevel, so whichever was clicked last is on top.
@@ -198,7 +211,6 @@ function UI:PlaceSidePanel(f)
     end
     RefreshPin(f)
     local host = DockHost()
-    if not host then return f:SetPoint("CENTER") end
     openCount = openCount + 1
     f.dockSeq = openCount
     local h, rows = DockLayout(host)
@@ -212,7 +224,6 @@ end
 -- can change what the panels dock to), and when the screen or UI scale changes.
 function UI:ReflowSidePanels()
     local main = DockHost()
-    if not main then return end
     local docked = {}
     for _, p in pairs(panels) do
         if p:IsShown() and IsDocked(p) then
@@ -283,7 +294,7 @@ function UI:MakeSidePanelDraggable(f, key)
 end
 
 function UI:AddPinButton(f, closeButton)
-    local b = self:Button(f, L["Pin"], 40, 20, function()
+    local b = self:Button(f, "", 20, 20, function()
         local pins = FP.db.sidePanels
         if pins[f.fpPanelKey] then
             pins[f.fpPanelKey] = nil
@@ -295,6 +306,9 @@ function UI:AddPinButton(f, closeButton)
         RefreshPin(f)
     end)
     b:SetPoint("RIGHT", closeButton, "LEFT", -4, 0)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetPoint("TOPLEFT", 0, 0)
+    b.icon:SetPoint("BOTTOMRIGHT", 0, 0)
     self:Tooltip(b, "ANCHOR_BOTTOM", function(tip)
         tip:AddLine(FP.db.sidePanels[f.fpPanelKey] and L["Unpin (Dock to Main Window)"] or L["Pin Position"], 1, 1, 1)
     end)
@@ -339,6 +353,7 @@ function UI:CreateSidePanel(o)
     title:SetPoint("LEFT", f, "TOPLEFT", 12, -UI.TITLE_H / 2)
     title:SetText(o.title)
     title:SetTextColor(1, 0.82, 0)
+    f.titleText = title -- for a window that changes its title (the Transfer Planner's Manual Transfers view)
     local close = self:Button(f, "X", 22, 20, function() f:Hide() end)
     close:SetPoint("RIGHT", f, "TOPRIGHT", -6, -UI.TITLE_H / 2)
     self:AddPinButton(f, close)
@@ -394,8 +409,9 @@ function UI:AddPanelList(f, o)
     f:SetScript("OnMouseWheel", function(_, delta)
         scroll.fpScrollTo(scroll:GetVerticalScroll() - delta * rowH * 3)
     end)
+    f.fpListBottom = o.bottom
     f.fpListFit = function()
-        f.fpVisibleRows = math.max(1, math.min(o.rows, math.floor((f:GetHeight() - top - o.bottom) / rowH)))
+        f.fpVisibleRows = math.max(1, math.min(o.rows, math.floor((f:GetHeight() - top - f.fpListBottom) / rowH)))
     end
     f.fpListFit()
     f:HookScript("OnSizeChanged", function(s)
@@ -403,6 +419,15 @@ function UI:AddPanelList(f, o)
         s.fpListFit()
         if s.fpVisibleRows ~= before and s:IsShown() then o.update() end
     end)
+end
+
+-- Moves the bottom edge of side panel `f`'s list (UI:AddPanelList) to `bottom` above the window's bottom, for a window
+-- whose controls under the list change. The caller redraws the list.
+function UI.SetPanelListBottom(f, bottom)
+    f.fpListBottom = bottom
+    f.scroll:SetPoint("BOTTOMRIGHT", -UI.BAR_GUTTER, bottom)
+    f.scroll.fpSetBottom(bottom)
+    f.fpListFit()
 end
 
 -- How many list rows fit in side panel `f` at its current height (see UI:AddPanelList). Rows past it stay hidden.

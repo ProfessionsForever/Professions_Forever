@@ -42,27 +42,40 @@ function UI.LinkOrTrack(link, e)
     return false
 end
 
--- Adds where an unlearned recipe comes from (source text, trainer, vendors) to the shared GameTooltip.
-function UI.AddSourceLines(recipeID)
-    local src = C_TradeSkillUI.GetRecipeSourceText(recipeID)
-    local hasSrc = src and src ~= ""
-    if src and hasSrc then GameTooltip:AddLine(src, 1, 0.82, 0, true) end
-    local trainer = FP.Waypoint:TrainerFor(recipeID)
-    if trainer then GameTooltip:AddLine(TrainerText(trainer), 1, 0.82, 0, true) end
-    local sold, loading = FP.Waypoint:Summary(recipeID)
-    if sold then GameTooltip:AddLine(L["Sold by: %s"]:format(sold), 1, 0.82, 0, true) end
-    if loading then GameTooltip:AddLine(L["Looking up vendors..."], 0.6, 0.6, 0.6) end
-    if not (hasSrc or trainer or sold or loading) then
-        GameTooltip:AddLine(L["Source not discovered yet"], 1, 0.82, 0)
-        GameTooltip:AddLine(L["Visit a trainer for this profession and ProfessionsForever will remember what they teach."], 0.75, 0.75, 0.75, true)
-        GameTooltip:AddLine(L["Recipes a trainer doesn't offer are usually sold by a vendor, dropped, or earned from a quest."], 0.6, 0.6, 0.6, true)
+-- Whether to show where a recipe comes from: always while unlearned, and once learned with the Tooltips option on.
+function UI.ShowsSource(e)
+    return not e.learned or FP.db.tipLearnedSource
+end
+
+-- Adds where a recipe comes from (source text, trainer, vendors) to `tip`, GameTooltip unless given. A learned one gets
+-- no waypoint hint: Ctrl-click doesn't set one for it. `pv`: the options' previewer's made-up source ({ trainer }), as
+-- the game's source text needs the profession open.
+function UI.AddSourceLines(recipeID, learned, tip, pv)
+    tip = tip or GameTooltip
+    local src, trainer, sold, loading
+    if pv then
+        trainer = pv.trainer
+    else
+        src = C_TradeSkillUI.GetRecipeSourceText(recipeID)
+        trainer = FP.Waypoint:TrainerFor(recipeID)
+        sold, loading = FP.Waypoint:Summary(recipeID)
     end
-    if FP.Waypoint:Available(recipeID) and (trainer or sold) and not UI.PreviewLink(recipeID) then
-        GameTooltip:AddLine(L["Ctrl-click: set a waypoint"], 0.5, 0.8, 1)
+    local hasSrc = src and src ~= ""
+    if src and hasSrc then tip:AddLine(src, 1, 0.82, 0, true) end
+    if trainer then tip:AddLine(TrainerText(trainer), 1, 0.82, 0, true) end
+    if sold then tip:AddLine(L["Sold by: %s"]:format(sold), 1, 0.82, 0, true) end
+    if loading then tip:AddLine(L["Looking up vendors..."], 0.6, 0.6, 0.6) end
+    if not (hasSrc or trainer or sold or loading) then
+        tip:AddLine(L["Source not discovered yet"], 1, 0.82, 0)
+        tip:AddLine(L["Visit a trainer for this profession and ProfessionsForever will remember what they teach."], 0.75, 0.75, 0.75, true)
+        tip:AddLine(L["Recipes a trainer doesn't offer are usually sold by a vendor, dropped, or earned from a quest."], 0.6, 0.6, 0.6, true)
+    end
+    if not learned and FP.Waypoint:Available(recipeID) and (trainer or sold) and not UI.PreviewLink(recipeID) then
+        tip:AddLine(L["Ctrl-click: set a waypoint"], 0.5, 0.8, 1)
     end
 end
 
--- One line on where an unlearned recipe is learned from, and whether a location is known to set a waypoint to.
+-- One line on where a recipe is learned from, and whether a location is known to set a waypoint to.
 function UI.SourceSummary(recipeID)
     local trainer = FP.Waypoint:TrainerFor(recipeID)
     if trainer then return TrainerText(trainer), true end

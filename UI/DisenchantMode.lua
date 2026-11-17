@@ -59,6 +59,17 @@ local function Recipient()
     return viewing and viewing.skillLine == ENCHANTING and viewing or nil
 end
 
+-- Where the window was before OpenDisenchantFor showed an enchanter's gear, for the toggle to go back to:
+-- { shown, page, viewing = { key, skillLine } of another character's profession shown then }. Kept while the mode
+-- shows an enchanter's gear, so picking another enchanter still goes back to the same place; dropped once it is off.
+local returnTo
+
+-- Another character's piece of gear the current character asked it for in the transfer plan (Alts/Outgoing.lua).
+-- Only pieces with a GUID can be asked for: Syndicator's rows have none until that character logs in once.
+local function InPlan(it)
+    return it.owner and it.guid and FP.Outgoing:GearAsked(FP.Alts:GetCharacterKey(), it.owner, it.guid) or false
+end
+
 -- True when the recipient is of the other faction, so nothing can be mailed to them.
 local function OtherFaction(recipient)
     return FP.Alts:IsOtherFaction(FP.db.characters[recipient.key])
@@ -276,7 +287,8 @@ local function UpdateList()
             row.icon:Show()
             row.warn:SetShown(#Warnings(entry) > 0)
             row.name:SetText(QualityHex(entry.quality) .. entry.name .. "|r")
-            local where = entry.owner and ("|cff808080" .. (entry.inBank and L["Bank"] or L["Bags"]) .. "|r  ")
+            local where = entry.owner and ((InPlan(entry) and ("|cff33ccff" .. L["Asked"] .. "|r  ") or "")
+                    .. "|cff808080" .. (entry.inBank and L["Bank"] or L["Bags"]) .. "|r  ")
                 or entry.inBank and (BANK_COLOR .. L["Bank"] .. "|r  ") or ""
             row.right:SetText(where .. entry.level)
             if Key(entry) == selectedKey then row.sel:SetColorTexture(a[1], a[2], a[3], 0.25)
@@ -351,6 +363,7 @@ local function CreateRow(p)
         local to = Recipient()
         if it.owner then
             tip:AddLine(L["Send from %s to %s to disenchant."]:format(OwnerName(it), MyName()), 0.3, 0.8, 1, true)
+            if InPlan(it) then tip:AddLine(L["In the transfer plan."], 0.3, 0.8, 1, true) end
         elseif to then
             tip:AddLine(L["Send it to %s to disenchant it."]:format(to.owner), 0.3, 0.8, 1, true)
             if it.inBank then tip:AddLine(L["Withdraw from bank to mail it."], 0.3, 0.8, 1, true) end
@@ -515,6 +528,14 @@ local function MailSelected()
     FP.Outgoing.AttachSlot(it.bag, it.slot)
 end
 
+-- Adds another character's selected piece to the transfer plan, so that character is asked to send it to you, or
+-- takes it out again.
+local function TogglePlan()
+    local it = Selected()
+    if not (it and it.owner and it.guid) then return end
+    FP.Outgoing:SetGearAsked(FP.Alts:GetCharacterKey(), it.owner, it.guid, not InPlan(it) and it.link or nil)
+end
+
 -- Fixed-width, right-aligned columns along a row's right edge, so the cards and their header line up. Returns the
 -- leftmost column, for the name to stop at.
 local function Columns(row, cols, delta)
@@ -630,8 +651,15 @@ local function SetNote(card, text)
     card.name:SetPoint("RIGHT", card.left, "LEFT", -COL_GAP, 0)
 end
 
--- The macro that casts Disenchant on an item in your bags.
-local function CastMacro(d, it) return ("/cast %s\n/use %d %d"):format(d.spellName, it.bag, it.slot) end
+-- Sets a secure button to cast Disenchant on an item in your bags (nil: to do nothing). Not a "/cast" then "/use"
+-- macro: when the cast can't start (another cast running, the global cooldown), the "/use" would run alone and put the
+-- gear on. A spell button with a target item only uses the item while the spell is waiting for one.
+local function SetCast(b, d, it)
+    b:SetAttribute("type", it and "spell" or nil)
+    b:SetAttribute("spell", it and d.spellName or nil)
+    b:SetAttribute("target-bag", it and it.bag or nil)
+    b:SetAttribute("target-slot", it and it.slot or nil)
+end
 
 -- The box the Disenchant button opens for an item with warnings: the item, its warnings in red, and a Disenchant
 -- button of its own that casts. Only a secure button can cast, so the box has its own and the main one doesn't cast
@@ -679,7 +707,7 @@ local function ShowConfirm(it, warnings)
     box.key = Key(it)
     box.title:SetText(L["Disenchant %s?"]:format(QualityHex(it.quality) .. it.name .. "|r"))
     box.warn:SetText(table.concat(warnings, "\n"))
-    box.accept:SetAttribute("macrotext", CastMacro(d, it))
+    SetCast(box.accept, d, it)
     box:SetHeight(CONFIRM_PAD + box.title:GetStringHeight() + 10 + box.warn:GetStringHeight() + 16 + 24 + CONFIRM_PAD)
     box:Show()
 end
@@ -693,7 +721,7 @@ local function UpdateDetail()
     d.hint:SetShown(it == nil)
     if not it then
         d.hint:SetText(#items == 0 and "" or L["Select an item to disenchant."])
-        if not InCombatLockdown() then d.cast:SetAttribute("macrotext", nil) end
+        if not InCombatLockdown() then SetCast(d.cast) end
         if d.confirm then d.confirm:Hide() end
         return
     end
@@ -804,8 +832,14 @@ local function UpdateDetail()
     -- another character gets a Mail button instead, which attaches it to a mail to them while a mailbox is open.
     local to = Recipient()
     local usable = not it.inBank and not to and not it.owner
+    -- Another character's piece can't be disenchanted from here: it can be added to the transfer plan instead.
     if it.owner then
-        d.castNote:SetText(L["Send from %s to %s to disenchant."]:format(OwnerName(it), MyName()))
+        local asked = InPlan(it)
+        d.plan.text:SetText(asked and L["Remove from Transfer Plan"] or L["Add to Transfer Plan"])
+        d.plan:SetActive(it.guid ~= nil)
+        d.castNote:SetText(not it.guid and L["Log in on %s once to add it to the transfer plan."]:format(OwnerName(it))
+            or asked and L["%s will be asked to send it to %s."]:format(OwnerName(it), MyName())
+            or L["Send from %s to %s to disenchant."]:format(OwnerName(it), MyName()))
     elseif to then
         d.mail.text:SetText(L["Mail to %s"]:format(to.owner:match("^%S+")))
         d.mail:SetActive(not it.inBank and MailboxOpen())
@@ -816,19 +850,20 @@ local function UpdateDetail()
         d.castNote:SetText(usable and "" or L["Withdraw from bank to disenchant it."])
     end
     d.mail:SetShown(to ~= nil)
+    d.plan:SetShown(it.owner ~= nil)
     d.castNote:ClearAllPoints()
-    d.castNote:SetPoint("LEFT", to and d.mail or d.cast, "RIGHT", 10, 0)
+    d.castNote:SetPoint("LEFT", to and d.mail or it.owner and d.plan or d.cast, "RIGHT", 10, 0)
     d.castNote:SetPoint("RIGHT", d.content, "RIGHT", -12, 0)
     -- With warnings the button opens the confirmation box instead of casting.
     d.cast.confirm = usable and #warnings > 0
     local box = d.confirm
     if box and box:IsShown() and (box.key ~= Key(it) or not d.cast.confirm) then box:Hide() end
     if not InCombatLockdown() then
-        d.cast:SetShown(not to)
+        d.cast:SetShown(not to and not it.owner)
         d.cast:SetActive(usable)
-        d.cast:SetAttribute("macrotext", usable and #warnings == 0 and CastMacro(d, it) or nil)
+        SetCast(d.cast, d, usable and #warnings == 0 and it or nil)
         -- The item may have moved to another slot while the box is open.
-        if box and box:IsShown() then box.accept:SetAttribute("macrotext", CastMacro(d, it)) end
+        if box and box:IsShown() then SetCast(box.accept, d, it) end
     end
 end
 
@@ -942,6 +977,20 @@ local function CreateRight(f)
         tip:AddLine(L["Mail to %s"]:format(to.owner), 1, 1, 1)
         tip:AddLine(L["Attaches the item to a new mail and fills in their name. Review it and press Send."], 0.8, 0.8, 0.8, true)
     end)
+    p.plan = UI:Button(c, "", 180, 24, TogglePlan)
+    p.plan:SetPoint("BOTTOMLEFT", 12, 18)
+    p.plan:Hide()
+    UI:Tooltip(p.plan, "ANCHOR_TOP", function(tip)
+        local it = Selected()
+        if not (it and it.owner) then return false end
+        tip:AddLine(InPlan(it) and L["Remove from Transfer Plan"] or L["Add to Transfer Plan"], 1, 1, 1)
+        if not it.guid then
+            tip:AddLine(L["Log in on %s once to add it to the transfer plan."]:format(OwnerName(it)), 1, 0.6, 0.2, true)
+        else
+            tip:AddLine(L["%s is asked to send you this exact piece: it shows in their Transfer Planner, login reminder and mailbox prompt, and their Mail button attaches it. It drops from the plan once they no longer hold it."]
+                :format(OwnerName(it)), 0.8, 0.8, 0.8, true)
+        end
+    end)
     p.castNote = UI:Text(c, -1)
     p.castNote:SetPoint("LEFT", p.cast, "RIGHT", 10, 0)
     p.castNote:SetPoint("RIGHT", c, "RIGHT", -12, 0)
@@ -991,6 +1040,7 @@ function UI:ApplyDisenchantMode()
         f.deRight:SetShown(on)
     end
     if f.deModeBtn then UI.SetSelected(f.deModeBtn, on) end
+    if f.footer then UI.SetSelected(f.footer.disenchant, on) end
     FP.Launcher:RefreshSelection()
 end
 
@@ -999,6 +1049,7 @@ function UI:SetDisenchantMode(on)
     local f = self.frame
     if self.deMode == on or not f then return end
     self.deMode = on
+    if not on then returnTo = nil end
     if on then
         if not f.deLeft then
             CreateLeft(f)
@@ -1024,8 +1075,7 @@ function UI:SyncDisenchantCardButton(card, p, last)
         b = self:Button(card, "", 24, 24, function(s, btn)
             if btn == "RightButton" then return end
             if s.altKey then
-                FP.AltProfs:View(s.altKey, ENCHANTING)
-                UI:SetDisenchantMode(true)
+                UI:OpenDisenchantFor(s.altKey)
             else
                 pendingAt = GetTime()
                 UI.OnProfessionOpenerClick(s, btn)
@@ -1110,7 +1160,27 @@ function UI:OpenDisenchantFor(key)
     if InCombatLockdown() then return FP:Print(L["Cannot do that in combat."]) end
     key = key or (self:DisenchantRecipients()[1] or {}).key
     if not key then return FP:Print(L["None of your characters has Enchanting."]) end
-    if FP.AltProfs:View(key, ENCHANTING) then self:SetDisenchantMode(true) end
+    local back = returnTo
+    if not (self.deMode and Recipient()) then
+        local f, v = self.frame, FP.AltProfs.viewing
+        back = { shown = f ~= nil and f:IsShown(), page = self.page,
+            viewing = v and { key = v.key, skillLine = v.skillLine } }
+    end
+    if FP.AltProfs:View(key, ENCHANTING) then -- turns the mode off first, which drops returnTo
+        self:SetDisenchantMode(true)
+        returnTo = back
+    end
+end
+
+-- The toggle, leaving an enchanter's gear: back to where OpenDisenchantFor came from (closed, the Overview, your own
+-- profession or another character's). Entered from that enchanter's recipes (their header button), back to those.
+local function LeaveDisenchantFor()
+    local back = returnTo
+    if not back then return UI:SetDisenchantMode(false) end
+    if not back.shown then return UI.frame:Hide() end -- OnHide leaves the mode and the alt
+    if back.viewing then return FP.AltProfs:View(back.viewing.key, back.viewing.skillLine) end
+    FP.AltProfs:Stop() -- turns the mode off
+    UI:Show(back.page)
 end
 
 -- A menu of your enchanters under `anchor`, each opening Disenchanting Mode for them, then the main enchanter choice.
@@ -1142,36 +1212,16 @@ function UI:OpenDisenchantRecipientMenu(anchor)
     self:OpenMenu(anchor, items, 220)
 end
 
--- On your own Overview, for a character without Enchanting: an icon left of the character picker that opens the gear
--- to send your best enchanter (right-click: pick another). An enchanter has the icon on its Enchanting card instead.
-function UI:SyncOverviewDisenchantButton(o)
-    local best = not self.overviewChar and not IsPlayerSpell(FP.Disenchant.SPELL) and self:DisenchantRecipients()[1]
-    local b = o.deBtn
-    if not b then
-        if not best then return end
-        b = self:Button(o, "", 22, 22, function(s, btn)
-            if btn == "RightButton" then UI:OpenDisenchantRecipientMenu(s) else UI:OpenDisenchantFor() end
-        end)
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        local icon = b:CreateTexture(nil, "ARTWORK")
-        icon:SetPoint("TOPLEFT", 3, -3)
-        icon:SetPoint("BOTTOMRIGHT", -3, 3)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        icon:SetTexture(MODE_ICON)
-        b:SetPoint("RIGHT", o.charPick, "LEFT", -6, 0)
-        self:Tooltip(b, "ANCHOR_BOTTOM", function(tip)
-            local r = UI:DisenchantRecipients()
-            if not r[1] then return false end
-            tip:AddLine(L["Disenchanting Mode"], 1, 1, 1)
-            tip:AddLine(L["Lists the gear in your bags you could send %s to disenchant, what each may give and what that is worth."]:format(FP.Alts:Label(r[1].rec)), 0.8, 0.8, 0.8, true)
-            if #r > 1 then tip:AddLine(L["Right-click to choose another enchanter."], 0.5, 0.8, 1, true) end
-        end)
-        o.deBtn = b
+-- Your Enchanting from the profession list, once you know Disenchant; nil otherwise. The footer cell and the quick
+-- button cast it to open Enchanting in Disenchanting Mode.
+function UI:OwnEnchanting()
+    if not IsPlayerSpell(FP.Disenchant.SPELL) then return end
+    for _, p in ipairs(FP:GetProfessions()) do
+        if p.skillLine == ENCHANTING then return p end
     end
-    b:SetShown(best and true or false)
 end
 
--- The quick button and /pf de. Without Enchanting: the gear to send your best enchanter, or back to the recipes. With
+-- The quick button and /pf de. Without Enchanting: the gear to send your best enchanter, or back from it. With
 -- it: switches the mode while your Enchanting is shown in the window, and otherwise turns it on once Enchanting is
 -- shown. `casting`: the quick button's secure cast is opening Enchanting (TRADE_SKILL_SHOW then shows the window).
 -- Addon code can't open a profession, so when Enchanting isn't open and nothing casts it, the mode waits a few seconds
@@ -1181,7 +1231,7 @@ function UI:ToggleDisenchantMode(casting)
     local f = self.frame
     local shown = f and f:IsShown() and self.page == "recipes"
     if not IsPlayerSpell(FP.Disenchant.SPELL) then
-        if self.deMode and Recipient() and shown then return self:SetDisenchantMode(false) end
+        if self.deMode and Recipient() and shown then return LeaveDisenchantFor() end
         return self:OpenDisenchantFor()
     end
     local base = C_TradeSkillUI.GetBaseProfessionInfo()

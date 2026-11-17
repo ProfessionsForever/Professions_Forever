@@ -26,6 +26,8 @@ function UI:AttachScrollbar(scroll, nativeBar, trackParent, insets, child)
     track:SetWidth(TRACK_W)
     track:SetPoint("TOPRIGHT", trackParent, "TOPRIGHT", -RIGHT_INSET, -top)
     track:SetPoint("BOTTOMRIGHT", trackParent, "BOTTOMRIGHT", -RIGHT_INSET, bottom)
+    -- Moves the track's bottom end, for a list whose bottom edge moves (UI.SetPanelListBottom).
+    scroll.fpSetBottom = function(b) track:SetPoint("BOTTOMRIGHT", trackParent, "BOTTOMRIGHT", -RIGHT_INSET, b) end
     track:SetFrameLevel(trackParent:GetFrameLevel() + 2)
     track:Hide()
     local bg = track:CreateTexture(nil, "BACKGROUND")

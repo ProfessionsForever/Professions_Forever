@@ -4,9 +4,9 @@ local UI = FP.UI
 local O = FP.Options
 local refreshers = O.refreshers
 
-local WIDTH, MIN_HEIGHT = 624, 260
-local NAV_W, NAV_ROW_H = 140, 32
-local PAGE_LEFT, PAGE_TOP = 168, -44
+local WIDTH, MIN_HEIGHT = 640, 260
+local NAV_W, NAV_ROW_H = 156, 32 -- wide enough for Disenchant Results, indented under Tooltips
+local PAGE_LEFT, PAGE_TOP = 184, -44
 O.PAGE_W = WIDTH - PAGE_LEFT - 16
 
 local FONTS = {
@@ -100,7 +100,10 @@ local function PickAccent()
     ColorPickerFrame:Raise()
 end
 
-local function BuildAppearance(page)
+---------------------------------------------------------------------------
+-- Appearance
+---------------------------------------------------------------------------
+local function BuildTheme(page)
     local db = FP.db
     O.Section(page, L["Theme"])
     O.DropList(page, L["Skin"], function() return L[UI.ActiveSkin().name] end, SkinItems)
@@ -136,6 +139,17 @@ local function BuildAppearance(page)
         end)
     end
 
+end
+
+local function ResetTheme()
+    local was = FP.db.skin
+    O.ResetKeys("skin", "font", "accent")
+    UI:ApplySkin()
+    if was == "ellesmere" and UI.euiApplied then OfferSkinReload() end
+end
+
+local function BuildSize(page)
+    local db = FP.db
     O.Section(page, L["Size and Opacity"])
     local scale = O.Slider(page, "ProfessionsForeverOptScale", L["Scale"], UI.SCALE_MIN, UI.SCALE_MAX, 0.05,
         function() return db.scale end, function(v) UI:SetScale(v) end, "%.2f")
@@ -153,9 +167,19 @@ local function BuildAppearance(page)
     O.ActionButton(page, L["Reset Window Size and Position"], 240, function() UI:ResetWindow() end)
 end
 
-local function BuildGeneral(page)
+local function ResetSize()
+    O.ResetKeys("fontSize", "opacity", "locked")
+    UI:ResetWindow()
+    UI:ApplyLock()
+    UI:ApplySkin()
+end
+
+---------------------------------------------------------------------------
+-- General
+---------------------------------------------------------------------------
+local function BuildMainWindow(page)
     local db = FP.db
-    O.Section(page, L["Professions Window"])
+    O.Section(page, L["Main Window"])
     O.Check(page, L["Replace Default Professions Window"], function() return db.replaceDefault end, function(v)
         db.replaceDefault = v
         if not v then FP:RestoreBlizzard() end
@@ -167,14 +191,75 @@ local function BuildGeneral(page)
     local reload = UI:Button(page, L["Reload UI"], 100, 22, function() ReloadUI() end)
     reload:SetPoint("RIGHT", page, "TOPRIGHT", 0, page.y - O.ROW_H / 2)
     page.y = page.y - O.ROW_H
+    O.Check(page, L["Show Skill Up Chance in the Recipe List"], function() return db.showSkillChance end, function(v)
+        db.showSkillChance = v
+        UI:UpdateList()
+    end)
+    O.Check(page, L["Hide Minimap Button"], function() return db.minimap.hide end, function(v)
+        db.minimap.hide = v
+        FP.Minimap:Update()
+    end)
+end
 
+local function ResetMainWindow()
+    local db = FP.db
+    local replaced = db.replaceDefault
+    O.ResetKeys("replaceDefault", "showSkillChance")
+    db.minimap.hide = FP.defaults.minimap.hide
+    FP.Minimap:Update()
+    UI:UpdateList()
+    if replaced ~= db.replaceDefault then FP:Print(L["Changing this needs a UI reload to take full effect."]) end
+end
+
+local function BuildShopping(page)
+    local db = FP.db
     O.Section(page, L["Shopping List"])
     local scope = O.Check(page, L["Shopping List Scope"] .. ": " .. L["Account-Wide"], function() return db.shoppingScope == "account" end, function(v)
         db.shoppingScope = v and "account" or "char"
         FP:Changed("shop")
     end)
     UI:Tooltip(scope, "ANCHOR_RIGHT", L["Share one list between all your characters of the same faction, so a different character can do the buying. The other faction has its own, since items can't be mailed across."])
+end
 
+local function ResetShopping()
+    O.ResetKeys("shoppingScope")
+    FP:Changed("shop")
+end
+
+local function BuildAlts(page)
+    O.BuildAltSection(page)
+    page.y = page.y - 32 -- room for the Reset This Page button under the characters list
+end
+
+local function ResetAlts() FP.Planner:SetMode(FP.defaults.altMode) end
+
+local function BuildNotifications(page)
+    local db = FP.db
+    O.Section(page, L["Notifications"])
+    O.Check(page, L["Show the Version at Login"], function() return db.versionNotice end, function(v)
+        db.versionNotice = v
+    end)
+    O.Check(page, L["Tell Me When a Newer Version Is Out"], function() return db.updateNotice end, function(v)
+        db.updateNotice = v
+    end)
+    O.Check(page, L["Show Ready Cooldowns at Login"], function() return db.cooldownNotice end, function(v)
+        db.cooldownNotice = v
+    end)
+    O.Check(page, L["Open the Transfer Planner at Your Bank"], function() return db.bankPrompt end, function(v)
+        db.bankPrompt = v
+    end)
+    O.Check(page, L["Open the Transfer Planner at a Mailbox"], function() return db.mailPrompt end, function(v)
+        db.mailPrompt = v
+    end)
+end
+
+local function ResetNotifications() O.ResetKeys("versionNotice", "updateNotice", "cooldownNotice", "bankPrompt", "mailPrompt") end
+
+---------------------------------------------------------------------------
+-- Disenchanting
+---------------------------------------------------------------------------
+local function BuildDisenchanting(page)
+    local db = FP.db
     O.Section(page, L["Disenchanting"])
     local record = O.Check(page, L["Record Your Disenchant Results"], function() return db.deRecord end, function(v)
         db.deRecord = v
@@ -195,63 +280,205 @@ local function BuildGeneral(page)
         return items
     end)
     UI:Tooltip(main, "ANCHOR_RIGHT", L["The character your other characters send gear to for disenchanting: the quick button, /pf de and the Overview's icon open Disenchanting Mode for them first. Automatic picks the one with the highest Enchanting skill. Characters of the other faction can't be mailed, so they come last whatever is picked here."])
-
-    O.Section(page, L["Interface"])
-    O.Check(page, L["Hide Minimap Button"], function() return db.minimap.hide end, function(v)
-        db.minimap.hide = v
-        FP.Minimap:Update()
-    end)
-    O.Check(page, L["Show Ready Cooldowns at Login"], function() return db.cooldownNotice end, function(v)
-        db.cooldownNotice = v
-    end)
-    O.Check(page, L["Open the Transfer Planner at Your Bank"], function() return db.bankPrompt end, function(v)
-        db.bankPrompt = v
-    end)
-    O.Check(page, L["Open the Transfer Planner at a Mailbox"], function() return db.mailPrompt end, function(v)
-        db.mailPrompt = v
-    end)
-    O.Check(page, L["Show Skill Up Chance in the Recipe List"], function() return db.showSkillChance end, function(v)
-        db.showSkillChance = v
-        UI:UpdateList()
-    end)
 end
 
-local function ResetGeneral()
-    local db = FP.db
-    local replaced = db.replaceDefault
-    O.ResetKeys("replaceDefault", "shoppingScope", "cooldownNotice", "bankPrompt", "mailPrompt", "showSkillChance", "deRecord", "deShowObserved", "mainEnchanter")
-    db.minimap.hide = FP.defaults.minimap.hide
-    FP.Minimap:Update()
-    FP:Changed("shop")
+local function ResetDisenchanting()
+    O.ResetKeys("deRecord", "deShowObserved", "mainEnchanter")
+    UI:UpdateDisenchantMode()
     FP.Launcher:Update() -- the main enchanter is back to Automatic
-    if replaced ~= db.replaceDefault then FP:Print(L["Changing this needs a UI reload to take full effect."]) end
 end
 
-local function ResetAppearance()
-    local was = FP.db.skin
-    O.ResetKeys("skin", "font", "fontSize", "opacity", "accent", "locked")
-    UI:ResetWindow()
-    UI:ApplyLock()
-    UI:ApplySkin()
-    if was == "ellesmere" and UI.euiApplied then OfferSkinReload() end
-end
-
+---------------------------------------------------------------------------
+-- The page list
+---------------------------------------------------------------------------
+-- Top-level entries are plain pages, or categories (cat) whose own page links to the pages under them (parent).
+-- A category opens in the list when clicked, one at a time. desc is the line under a page's link; an integration's
+-- link takes its description and installed status from UI/Options/OptionsIntegrations.lua instead.
 local PAGES = {
-    { key = "general", label = "General", build = BuildGeneral, reset = ResetGeneral },
-    { key = "appearance", label = "Appearance", build = BuildAppearance, reset = ResetAppearance },
-    { key = "quick", label = "Quick Buttons", build = O.BuildQuick, reset = O.ResetQuick },
-    { key = "tooltips", label = "Tooltips", build = O.BuildTooltips, reset = O.ResetTooltips },
-    { key = "integrations", label = "Integrations", build = O.BuildIntegrations, reset = O.ResetIntegrations },
-    -- One page per addon, indented under Integrations (UI/Options/OptionsIntegrations.lua).
-    { key = "int_auctionator", label = "Auctionator", sub = true, build = O.BuildIntAuctionator, reset = O.ResetIntAuctionator },
-    { key = "int_waypoints", label = "Polestar & TomTom", sub = true, build = O.BuildIntWaypoints, reset = O.ResetIntWaypoints },
-    { key = "int_questie", label = "Questie", sub = true, build = O.BuildIntQuestie, reset = O.ResetIntQuestie },
-    { key = "int_syndicator", label = "Syndicator", sub = true, build = O.BuildIntSyndicator, reset = O.ResetIntSyndicator },
-    { key = "int_skillup", label = "SkillUp Forever", sub = true, build = O.BuildIntSkillUp, reset = O.ResetIntSkillUp },
-    { key = "int_ellesmere", label = "EllesmereUI", sub = true, build = O.BuildIntEllesmere },
+    { key = "general", label = "General", cat = true, banner = true },
+    { key = "main", parent = "general", label = "Main Window", build = BuildMainWindow, reset = ResetMainWindow,
+        desc = "Replace Blizzard's professions window, the skill up chance in the recipe list and the minimap button." },
+    { key = "shopping", parent = "general", label = "Shopping List", build = BuildShopping, reset = ResetShopping,
+        desc = "One shopping list for all your characters of a faction, or one each." },
+    { key = "alts", parent = "general", label = "Alt Inventory", build = BuildAlts, reset = ResetAlts,
+        desc = "Whether your other characters' bags and banks count toward what you need, and which characters." },
+    { key = "notifications", parent = "general", label = "Notifications", build = BuildNotifications, reset = ResetNotifications,
+        desc = "Ready cooldowns at login, and opening the Transfer Planner at your bank or a mailbox." },
+    { key = "appearance", label = "Appearance", cat = true },
+    { key = "theme", parent = "appearance", label = "Theme", build = BuildTheme, reset = ResetTheme,
+        desc = "Skin, font and accent color." },
+    { key = "size", parent = "appearance", label = "Size and Window", build = BuildSize, reset = ResetSize,
+        desc = "Scale, font size, background opacity, and locking or resetting the window." },
+    { key = "quickbuttons", label = "Quick Buttons", cat = true },
+    { key = "quick", parent = "quickbuttons", label = "Buttons", build = O.BuildQuick, reset = O.ResetQuick,
+        desc = "The movable bar of buttons for the queue, shopping list, transfer planner, cooldowns and professions." },
+    { key = "quickkeys", parent = "quickbuttons", label = "Key Bindings", build = O.BuildQuickKeys,
+        desc = "Key bindings for each quick button and profession, set here or with Mouseover Keybinding." },
+    { key = "de", label = "Disenchanting", build = BuildDisenchanting, reset = ResetDisenchanting },
+    { key = "tooltips", label = "Tooltips", cat = true },
+    { key = "tt_general", parent = "tooltips", label = "General", build = O.BuildTipGeneral, reset = O.ResetTipGeneral,
+        desc = "The detail key, spacing, indent and the order of the blocks." },
+    { key = "tt_queue", parent = "tooltips", label = "Crafting Queues", build = O.BuildQueueTooltips, reset = O.ResetQueueTooltips,
+        desc = "How many of an item your queues need, how many are still to buy, and which recipes use it." },
+    { key = "tt_alts", parent = "tooltips", label = "Alts and Transfers", build = O.BuildTipAlts, reset = O.ResetTipAlts,
+        desc = "Who else holds an item, what they should send, and what is still to buy." },
+    { key = "tt_hints", parent = "tooltips", label = "Prices and Hints", build = O.BuildTipHints, reset = O.ResetTipHints,
+        desc = "The auction price line, click hints and where a vendor sells it." },
+    { key = "tt_recipes", parent = "tooltips", label = "Recipes", build = O.BuildTipRecipes, reset = O.ResetTipRecipes,
+        desc = "Where a recipe is learned from, even once you know it." },
+    { key = "tt_disenchant", parent = "tooltips", label = "Disenchant Results", build = O.BuildDisenchantTooltips,
+        reset = O.ResetDisenchantTooltips,
+        desc = "What disenchanting gear gives: when it shows, how much, and for which characters." },
+    { key = "fishing", label = "One-Click Fishing", build = O.BuildFishing, reset = O.ResetFishing },
+    { key = "integrations", label = "Integrations", cat = true },
+    { key = "int_auctionator", parent = "integrations", label = "Auctionator", build = O.BuildIntAuctionator, reset = O.ResetIntAuctionator },
+    { key = "int_waypoints", parent = "integrations", label = "Polestar & TomTom", build = O.BuildIntWaypoints, reset = O.ResetIntWaypoints },
+    { key = "int_questie", parent = "integrations", label = "Questie", build = O.BuildIntQuestie, reset = O.ResetIntQuestie },
+    { key = "int_syndicator", parent = "integrations", label = "Syndicator", build = O.BuildIntSyndicator, reset = O.ResetIntSyndicator },
+    { key = "int_skillup", parent = "integrations", label = "SkillUp Forever", build = O.BuildIntSkillUp, reset = O.ResetIntSkillUp },
+    { key = "int_ellesmere", parent = "integrations", label = "EllesmereUI", build = O.BuildIntEllesmere },
     { key = "about", label = "About", build = O.BuildAbout },
 }
-local SUB_INDENT, SUB_ROW_H = 14, 26 -- sub-pages in the list: indented and a little shorter
+local BY_KEY = {}
+for _, page in ipairs(PAGES) do
+    BY_KEY[page.key] = page
+    if page.cat then page.children = {} end
+    if page.parent then table.insert(BY_KEY[page.parent].children, page) end
+end
+local SUB_INDENT, SUB_ROW_H = 14, 26 -- pages under a category in the list: indented and a little shorter
+
+-- The General page's banner: an accent-colored glow that fades to the right between two accent lines (Media/fade.tga,
+-- white fading to clear, tinted; flat strips showed as steps), the addon icon,
+-- its name, a welcome in the character's class color, the version, and a strip of the character's professions with
+-- their skill. The accent and professions follow changes each time the window opens.
+local BANNER_H, BANNER_ICON, CHIP_GAP, MAX_CHIPS = 84, 60, 12, 5
+local FADE = "Interface\\AddOns\\ProfessionsForever\\Media\\fade"
+local function Banner(page)
+    local w = O.PAGE_W
+    local lines = {}
+    local glow = page:CreateTexture(nil, "BACKGROUND")
+    glow:SetPoint("TOPLEFT")
+    glow:SetSize(w, BANNER_H)
+    glow:SetTexture(FADE)
+    for i, y in ipairs({ 0, 1 - BANNER_H }) do
+        local line = page:CreateTexture(nil, "ARTWORK")
+        line:SetHeight(1)
+        line:SetPoint("TOPLEFT", page, "TOPLEFT", 0, y)
+        line:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, y)
+        lines[i] = line
+    end
+
+    local icon = page:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(BANNER_ICON, BANNER_ICON)
+    icon:SetPoint("LEFT", page, "TOPLEFT", 12, -BANNER_H / 2)
+    icon:SetTexture(FP.ICON)
+    local title = UI:Text(page, 4)
+    title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 12, 2)
+    title:SetText("ProfessionsForever")
+    title:SetTextColor(1, 0.82, 0)
+    local version = UI:Text(page, -1, "RIGHT")
+    version:SetPoint("TOPRIGHT", page, "TOPRIGHT", -10, -8)
+    version:SetText("v" .. (C_AddOns.GetAddOnMetadata("ProfessionsForever", "Version") or "?"))
+    version:SetTextColor(0.6, 0.6, 0.6)
+    local welcome = UI:Text(page, 0)
+    welcome:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
+    local name = UnitName("player")
+    local r, g, b = FP.Alts:ClassColor(select(2, UnitClass("player")))
+    welcome:SetText(L["Welcome back, %s"]:format(RGBToColorCode(r, g, b) .. name .. "|r"))
+
+    local chips = {}
+    for i = 1, MAX_CHIPS do
+        local chip = CreateFrame("Frame", nil, page)
+        chip:SetHeight(18)
+        chip:EnableMouse(true) -- for its tooltip
+        chip.icon = chip:CreateTexture(nil, "ARTWORK")
+        chip.icon:SetSize(16, 16)
+        chip.icon:SetPoint("LEFT")
+        chip.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        chip.text = UI:Text(chip, -1)
+        chip.text:SetPoint("LEFT", chip.icon, "RIGHT", 4, 0)
+        chip.text:SetTextColor(0.85, 0.85, 0.85)
+        UI:Tooltip(chip, "ANCHOR_BOTTOM", function(tip)
+            if not chip.prof then return false end
+            tip:AddLine(chip.prof.name)
+            tip:AddLine(("%d / %d"):format(chip.prof.rank or 0, chip.prof.maxRank or 0), 0.8, 0.8, 0.8)
+        end)
+        chips[i] = chip
+    end
+
+    refreshers[#refreshers + 1] = function()
+        local a = UI:GetAccent()
+        glow:SetVertexColor(a[1], a[2], a[3], 0.32)
+        for _, line in ipairs(lines) do line:SetColorTexture(a[1], a[2], a[3], 0.8) end
+        -- Each chip is as wide as its icon and text; when they don't all fit beside the icon, the skill shows alone.
+        local profs = FP:GetProfessions()
+        local room = w - (12 + BANNER_ICON + 12) - 10
+        local function Place(short)
+            local x = 0
+            for i, chip in ipairs(chips) do
+                local p = profs[i]
+                chip.prof = p
+                chip:SetShown(p ~= nil)
+                if p then
+                    chip.icon:SetTexture(p.icon)
+                    chip.text:SetText(short and tostring(p.rank or 0) or ("%d/%d"):format(p.rank or 0, p.maxRank or 0))
+                    local cw = 20 + math.ceil(chip.text:GetStringWidth())
+                    chip:SetWidth(cw)
+                    chip:ClearAllPoints()
+                    chip:SetPoint("TOPLEFT", welcome, "BOTTOMLEFT", x, -5)
+                    x = x + cw + CHIP_GAP
+                end
+            end
+            return x - CHIP_GAP <= room
+        end
+        if not Place(false) then Place(true) end
+    end
+    refreshers[#refreshers]()
+    page.y = -BANNER_H - 8
+end
+
+-- A category's own page: a link to each page under it, with a line on what it holds.
+local function BuildLinks(page, cat)
+    if cat.banner then Banner(page) end
+    O.Section(page, L[cat.label])
+    for _, child in ipairs(cat.children) do
+        local row = CreateFrame("Button", nil, page)
+        row:SetPoint("TOPLEFT", 0, page.y)
+        row:SetPoint("RIGHT", page, "RIGHT", 0, 0)
+        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        row:SetScript("OnClick", function()
+            UI.TabSound()
+            O:Select(child.key)
+        end)
+        local name = UI:Text(row, 1)
+        name:SetPoint("TOPLEFT", 8, -6)
+        name:SetText(L[child.label])
+        name:SetTextColor(0.4, 0.75, 1)
+        local integration = O.Integration(child.key)
+        if integration then
+            local status = UI:Text(row, -1)
+            status:SetPoint("LEFT", name, "RIGHT", 10, 0)
+            refreshers[#refreshers + 1] = function() status:SetText(O.StatusText(integration.loaded())) end
+            refreshers[#refreshers]()
+        end
+        local desc = UI:Text(row, -1)
+        desc:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
+        desc:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        desc:SetJustifyH("LEFT")
+        desc:SetTextColor(0.7, 0.7, 0.7)
+        desc:SetText(L[integration and integration.adds or child.desc])
+        local h = 6 + math.ceil(name:GetStringHeight()) + 3 + math.ceil(desc:GetStringHeight()) + 6
+        row:SetHeight(h)
+        page.y = page.y - h - 4
+    end
+end
+
+-- Resets every page under a category.
+local function ResetCategory(cat)
+    for _, child in ipairs(cat.children) do
+        if child.reset then child.reset() end
+    end
+end
 
 -- Two clicks, because a reset can't be undone; the second must follow within a few seconds.
 local function ResetButton(parent, label, w, onConfirm)
@@ -272,40 +499,72 @@ local function ResetButton(parent, label, w, onConfirm)
     end)
 end
 
-function O:Select(key)
-    self.tab = key
-    for _, page in ipairs(PAGES) do page.frame:SetShown(page.key == key) end
-    self:RefreshNav()
+-- Places the list's rows: every top-level entry, and the pages of the open category under it.
+local function LayoutNav()
+    local y = 0
+    for _, page in ipairs(PAGES) do
+        local shown = not page.parent or page.parent == O.open
+        page.nav:SetShown(shown)
+        if shown then
+            page.nav:ClearAllPoints()
+            page.nav:SetPoint("TOPLEFT", 12 + (page.parent and SUB_INDENT or 0), PAGE_TOP - y)
+            y = y + (page.parent and SUB_ROW_H or NAV_ROW_H)
+        end
+        if page.cat then page.nav.sign:SetText(O.open == page.key and "-" or "+") end
+    end
 end
 
+-- Shows a page, opening the category it is in (or that it is); a plain top-level page closes the open one.
+function O:Select(key)
+    local page = BY_KEY[key]
+    self.tab = key
+    self.open = page.parent or (page.cat and key) or nil
+    for _, p in ipairs(PAGES) do p.frame:SetShown(p.key == key) end
+    LayoutNav()
+    self:RefreshNav()
+    FP.Tooltips.Preview:Sync(page) -- the tooltip previewer docks beside the Tooltips pages
+end
+
+-- The selected page's row is marked, and so is its category's while that is closed.
 function O:RefreshNav()
     local accent = UI:GetAccent()
+    local tab = BY_KEY[self.tab]
     for _, page in ipairs(PAGES) do
-        local sel = page.key == self.tab
+        local sel = page == tab or (tab and tab.parent == page.key and self.open ~= page.key)
         page.nav.bar:SetShown(sel)
         page.nav.bar:SetColorTexture(accent[1], accent[2], accent[3])
         if sel then page.nav.text:SetTextColor(1, 0.82, 0) else page.nav.text:SetTextColor(1, 1, 1) end
     end
 end
 
--- `y`: the row's offset below the top of the list. Returns the offset of the next row.
-local function BuildNav(p, page, y)
-    local sub = page.sub
-    local b = UI:Button(p, L[page.label], NAV_W - (sub and SUB_INDENT or 0), sub and 22 or 28, function()
-        UI.TabSound()
-        O:Select(page.key)
-    end)
-    b:SetPoint("TOPLEFT", 12 + (sub and SUB_INDENT or 0), PAGE_TOP - y)
+-- A category's row opens it on its links page; when it is open already, it closes and its links page shows.
+local function NavClick(page)
+    UI.TabSound()
+    local closing = page.cat and O.open == page.key
+    O:Select(page.key)
+    if closing then
+        O.open = nil
+        LayoutNav()
+        O:RefreshNav()
+    end
+end
+
+local function BuildNav(p, page)
+    local sub = page.parent ~= nil
+    local b = UI:Button(p, L[page.label], NAV_W - (sub and SUB_INDENT or 0), sub and 22 or 28, function() NavClick(page) end)
     b.text:ClearAllPoints()
     b.text:SetPoint("LEFT", 12, 0)
-    b.text:SetPoint("RIGHT", -4, 0)
+    b.text:SetPoint("RIGHT", -18, 0)
     b.text:SetJustifyH("LEFT")
+    if page.cat then
+        b.sign = UI:Text(b, 0, "RIGHT")
+        b.sign:SetPoint("RIGHT", -8, 0)
+    end
     b.bar = b:CreateTexture(nil, "OVERLAY")
     b.bar:SetWidth(3)
     b.bar:SetPoint("TOPLEFT", 1, -1)
     b.bar:SetPoint("BOTTOMLEFT", 1, 1)
     page.nav = b
-    return y + (sub and SUB_ROW_H or NAV_ROW_H)
 end
 
 function O:Init()
@@ -345,22 +604,27 @@ function O:Init()
     divider:SetPoint("TOPLEFT", NAV_W + 18, PAGE_TOP)
     divider:SetPoint("BOTTOMLEFT", NAV_W + 18, 12)
 
-    local tallest, navY = MIN_HEIGHT, 0
+    local tallest, topRows, mostChildren = MIN_HEIGHT, 0, 0
     for _, page in ipairs(PAGES) do
-        navY = BuildNav(p, page, navY)
+        BuildNav(p, page)
+        if not page.parent then topRows = topRows + 1 end
+        if page.cat then mostChildren = math.max(mostChildren, #page.children) end
         local f = CreateFrame("Frame", nil, p)
         f:SetPoint("TOPLEFT", PAGE_LEFT, PAGE_TOP)
         f:SetPoint("BOTTOMRIGHT", -16, 12)
         f.y = 0
         page.frame = f
-        page.build(f)
-        if page.reset then
-            ResetButton(f, L["Reset This Page"], 150, page.reset):SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        if page.cat then BuildLinks(f, page) else page.build(f) end
+        local reset = page.cat and function() ResetCategory(page) end or page.reset
+        if reset then
+            ResetButton(f, L[page.cat and "Reset This Category" or "Reset This Page"], 150, reset)
+                :SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
         end
         tallest = math.max(tallest, 56 - f.y) -- top gap, content, bottom gap
     end
-    -- Tall enough for the list on the left too, with the Reset All Options button under it.
-    p:SetHeight(math.max(tallest, -PAGE_TOP + navY + 12 + 24 + 12))
+    -- Tall enough for the list on the left with its longest category open, and the Reset All Options button under it.
+    local navH = topRows * NAV_ROW_H + mostChildren * SUB_ROW_H
+    p:SetHeight(math.max(tallest, -PAGE_TOP + navH + 12 + 24 + 12))
 
     ResetButton(p, L["Reset All Options"], NAV_W, function() FP:ResetOptions() end):SetPoint("BOTTOMLEFT", 12, 12)
 
@@ -372,6 +636,7 @@ function O:Init()
         PlaySound(SOUNDKIT.IG_MAINMENU_OPEN)
         O:Refresh()
         O:RefreshNav()
+        FP.Tooltips.Preview:Sync(BY_KEY[O.tab])
     end)
     p:SetScript("OnHide", function()
         UI.CloseMenu()

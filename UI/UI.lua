@@ -2,7 +2,6 @@ local _, FP = ...
 local L = FP.L
 local UI = FP.UI
 local RecipeRowHeight = UI.RecipeRowHeight
-local FOOTER = UI.FOOTER_RESERVE
 
 ---------------------------------------------------------------------------
 -- State
@@ -16,7 +15,7 @@ UI.numRows = 10
 
 -- Rows that fit in the recipe list for a window `height` tall; the rest is the header, filter bar and margins.
 function UI:SetNumRows(height)
-    self.numRows = math.max(1, math.floor((height - 192 - FOOTER) / RecipeRowHeight()))
+    self.numRows = math.max(1, math.floor((height - 192 - self:FooterReserve()) / RecipeRowHeight()))
 end
 
 function UI:QueueRefresh()
@@ -51,7 +50,8 @@ function UI:Show(page)
     end
     -- New frames start shown, so IsShown() can't detect the first open.
     local new = not self.frame
-    if new then self:Create() end
+    -- A new frame starts shown, so its OnShow never runs: move panels opened before it over from its stand-in.
+    if new then self:Create() self.ScheduleSidePanelReflow() end
     local opening = new or not self.frame:IsShown()
     if opening then
         FP.Recipes:Reload()
@@ -81,7 +81,7 @@ function UI:ResetWindow()
     if self.frame then
         self.frame:ClearAllPoints()
         self.frame:SetPoint(db.point, UIParent, db.relPoint, db.x, db.y)
-        self.frame:SetSize(db.width, db.height)
+        self.frame:SetSize(db.width, db.height + self:FooterExtra())
     end
     self:SetScale(1)
 end
@@ -99,11 +99,18 @@ end
 ---------------------------------------------------------------------------
 -- Frame construction
 ---------------------------------------------------------------------------
+-- The saved height leaves out a second footer row, which the window adds while the footer has one.
 local function SavePosition(f)
     local db = FP.db
     local point, _, relPoint, x, y = f:GetPoint()
     db.point, db.relPoint, db.x, db.y = point, relPoint, x, y
-    db.width, db.height = math.floor(f:GetWidth() + 0.5), math.floor(f:GetHeight() + 0.5)
+    db.width, db.height = math.floor(f:GetWidth() + 0.5), math.floor(f:GetHeight() - UI:FooterExtra() + 0.5)
+end
+
+-- How far the window can be resized; a second footer row raises both heights by its own.
+function UI:SetWindowBounds()
+    local extra = self:FooterExtra()
+    self.frame:SetResizeBounds(920, 640 + extra, 1500, 1000 + extra)
 end
 
 function UI:Create()
@@ -119,7 +126,7 @@ function UI:Create()
     f:SetResizable(true)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
-    f:SetResizeBounds(920, 640, 1500, 1000)
+    self:SetWindowBounds()
     self:Skin(f, "window")
     tinsert(UISpecialFrames, "ProfessionsForeverFrame")
     UI.CloseInCombat(f)

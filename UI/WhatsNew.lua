@@ -10,6 +10,16 @@ local UI = FP.UI
 
 -- [version] = { { icon (in Interface\\Icons), heading, text }, ... }. A version without an entry shows nothing.
 local NOTES = {
+    ["0.10.2"] = {
+        { "Spell_Fire_Fire", "Set Up Camp", "A new Camp window (footer, quick button or /pf camp) lists every camp feature you hold, can craft, have on an alt or haven't learned yet. Place them with one click, and the shared cooldowns sit right at the top." },
+        { "Trade_Fishing", "One-Click Fishing", "Bind one key: it puts on your fishing gear, best pole and lure, casts, and catches when the fish bites. Your normal gear goes back on when you mount or stop fishing, and bites are louder so you don't miss the splash." },
+        { "INV_Misc_Coin_02", "Send Stuff by Hand", "The Transfer Planner's letter button opens Manual Transfers: send an alt an item or some gold, or ask one to send you something. Drop a stack from your bags straight on the window. At the mailbox, Mail attaches exactly the right amount, splitting stacks for you. You can ask for gear from Disenchanting Mode too." },
+        { "INV_Misc_Key_03", "Keys for Your Quick Buttons", "Bind a key to any window, to Disenchanting Mode or to each of your professions. Hover a button and press a key to bind it (/pf bind). New Overview and Settings buttons, plus rows or columns, growing from any corner." },
+        { "INV_Misc_Note_01", "Your Queue on Item Tooltips", "Hover an item and see how many your crafting queues need and how many you still have to buy. Hold Shift for who needs it and for which recipes." },
+        { "INV_Fabric_Silk_02", "Smarter Reagent Prices", "A crafted reagent costs whichever is cheaper, buying it or making it. A Bolt of Silk Cloth is priced at four Silk Cloth when that's less, and Cost to Craft shows what it's made from." },
+        { "INV_Misc_Wrench_01", "Options, Sorted", "The options are now in categories, and a new Tooltips section lets you switch every line on or off and drag the blocks into any order, with a live preview beside it." },
+        { "INV_Misc_Gift_02", "And More", "A two-row footer when it fills up, a Disenchanting footer cell, a note when a newer version is out, and a pile of fixes. The changelog has every detail." },
+    },
     ["0.10.0"] = {
         { "INV_Enchant_DustStrange", "Disenchanting Mode", "Hit the dust icon on the Enchanting tab and your recipes turn into a list of everything you could disenchant. See what each piece might give, whether it's worth more vendored, disenchanted or on the auction house, and zap it right there. Your alts' gear shows up too." },
         { "INV_Enchant_EssenceMagicLarge", "Disenchant advice on tooltips", "Hover a weapon or armour piece and it'll tell you whether to disenchant, vendor or auction it. Every disenchant you do gets recorded, so over time you'll see how the real drops stack up against the odds." },

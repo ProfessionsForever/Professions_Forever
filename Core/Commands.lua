@@ -7,10 +7,12 @@ local L = FP.L
 local COMMANDS = {
     [""] = function() FP:Toggle() end,
     shop = function() FP.Shop:Toggle() end,
+    ["track shop"] = function() FP.Shop:ToggleTracker() end,
     queue = function() FP.Queue:Toggle() end,
     transfer = function() FP.Transfer:Toggle() end,
     cooldowns = function() FP.CooldownPanel:Toggle() end,
     cd = function() FP.CooldownPanel:Toggle() end,
+    camp = function() FP.CampPanel:Toggle() end,
     route = function() if FP.SkillUpPanel:Available() then FP.SkillUpPanel:Toggle() else FP:Print(L["SkillUp Forever is not loaded."]) end end,
     recipe = function() FP.ReagentSearch:ToggleMode("recipe") end,
     recipes = function() FP.ReagentSearch:ToggleMode("recipe") end,
@@ -22,6 +24,9 @@ local COMMANDS = {
     config = function() FP.Options:Open() end,
     reset = function() FP.UI:ResetWindow() end,
     clearway = function() FP.Waypoint:Clear() end,
+    swapback = function() FP.Fishing:SwapBack() end,
+    putaway = function() FP.Fishing:SwapBack() end,
+    bind = function() FP.Launcher:ToggleBindMode() end,
     whatsnew = function() if not FP.UI:ShowWhatsNew() then FP:Print(L["Nothing new to show for this version."]) end end,
 }
 FP.commands = COMMANDS -- Core/Debug.lua adds its commands here
@@ -34,7 +39,7 @@ SlashCmdList.PROFESSIONSFOREVER = function(msg)
     local cmd = strlower(strtrim(msg))
     local run = COMMANDS[cmd]
     if run then return run() end
-    FP:Print(L["Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf route, /pf recipe, /pf reagent, /pf de, /pf options, /pf reset, /pf clearway"])
+    FP:Print(L["Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf route, /pf recipe, /pf reagent, /pf de, /pf track shop, /pf bind, /pf options, /pf reset, /pf clearway, /pf swapback"])
 end
 
 ---------------------------------------------------------------------------

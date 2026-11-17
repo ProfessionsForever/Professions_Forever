@@ -19,7 +19,7 @@ function UI:CreateDetailPanel(f)
     local left = f.left
     local right = CreateFrame("Frame", "ProfessionsForeverDetailPanel", f, "BackdropTemplate")
     right:SetPoint("TOPLEFT", left, "TOPRIGHT", 8, 0)
-    right:SetPoint("BOTTOMRIGHT", -8, 8 + UI.FOOTER_RESERVE)
+    right:SetPoint("BOTTOMRIGHT", -8, 8 + UI:FooterReserve())
     self:Skin(right, "panel")
     f.right = right
     local d = {}
@@ -130,7 +130,7 @@ function UI:CreateDetailHeader(d, c)
     d.sub:SetPoint("RIGHT", d.statBags, "LEFT", -8, 0)
     d.sub:SetWordWrap(false)
 
-    -- Where an unlearned recipe is learned from; hover for the details.
+    -- Where the recipe is learned from (a learned one too with the Tooltips option on); hover for the details.
     d.source = self:Text(c, -1)
     d.source:SetPoint("TOPLEFT", d.sub, "BOTTOMLEFT", 0, -2)
     d.source:SetPoint("RIGHT", d.sub, "RIGHT", 0, 0)
@@ -142,8 +142,8 @@ function UI:CreateDetailHeader(d, c)
     d.sourceHit:EnableMouse(true)
     self:Tooltip(d.sourceHit, "ANCHOR_RIGHT", function()
         local recipe = SelectedRecipe()
-        if not (recipe and not recipe.learned) then return false end
-        UI.AddSourceLines(recipe.id)
+        if not (recipe and UI.ShowsSource(recipe)) then return false end
+        UI.AddSourceLines(recipe.id, recipe.learned)
     end)
 
     -- Tools the recipe needs, colored by where they are.

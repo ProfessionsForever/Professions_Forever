@@ -137,7 +137,7 @@ local function FitName(d)
 end
 
 -- Icon, name, favorite star, difficulty, where it is learned from, and the description.
--- Returns whether a location is known for an unlearned recipe.
+-- Returns whether a location is known for the recipe (only used for unlearned ones, for the waypoint button).
 function UpdateDetailHeader(d, e)
     d.icon:SetTexture(e.icon)
     d.name:SetText(e.name)
@@ -156,7 +156,7 @@ function UpdateDetailHeader(d, e)
     end
     d.sub:SetText(status)
     local sourceKnown = false
-    if e.learned then
+    if not UI.ShowsSource(e) then
         d.source:SetText("")
         d.sourceHit:Hide()
     else

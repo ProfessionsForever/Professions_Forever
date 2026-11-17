@@ -70,6 +70,18 @@ function Shop:CreateTracker()
     t.more:SetTextColor(0.65, 0.65, 0.65)
 end
 
+-- Track on Screen on or off, from /pf track shop.
+function Shop:ToggleTracker()
+    local on = not FP.db.trackShopping
+    FP.db.trackShopping = on
+    self:UpdateTracker()
+    local f = self.frame
+    if f and f.track then f.track:SetChecked(on) end
+    if not on then return FP:Print(L["Shopping list tracker off."]) end
+    FP:Print(self.tracker and self.tracker:IsShown() and L["Shopping list tracker on."]
+        or L["Shopping list tracker on. It shows once there is something to buy."])
+end
+
 -- Shows what is still to buy, each with owned/needed; hidden while tracking is off or nothing is left to buy.
 -- data: an Aggregate result, when the caller already has one.
 function Shop:UpdateTracker(data)

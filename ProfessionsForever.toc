@@ -4,7 +4,7 @@
 ## Author: Thorgrim Lightfist - PvE
 ## X-Email: professionsforever@gmail.com
 ## X-License: GPL-3.0-only
-## Version: 0.10.1
+## Version: 0.10.2
 ## Category: Professions
 ## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
 ## SavedVariables: ProfessionsForeverDB
@@ -18,6 +18,7 @@ Locales\enUS.lua
 Core\Core.lua
 Core\Professions.lua
 Core\Commands.lua
+Core\VersionCheck.lua
 Core\Inventory.lua
 Alts\AltInventory.lua
 Alts\TransferPlanner.lua
@@ -30,6 +31,8 @@ Core\Chain.lua
 Data\Cooldowns.lua
 Data\Items.lua
 Data\Recipes.lua
+Data\Camp.lua
+Core\Camp.lua
 Core\ReagentUses.lua
 Core\KnownRecipes.lua
 Data\Disenchant.lua
@@ -42,12 +45,14 @@ Core\Shopping.lua
 UI\Common\Skin.lua
 UI\Common\Scrollbar.lua
 UI\Common\Widgets.lua
+UI\Common\KeyBinding.lua
 UI\Common\Completion.lua
 UI\Common\ListHeader.lua
 UI\Common\ItemAutocomplete.lua
 UI\Common\CombatClose.lua
 UI\ExtraSpell.lua
 UI\ProfessionOpener.lua
+UI\Fishing.lua
 UI\Common\SidePanel.lua
 UI\Craft.lua
 UI\Shared.lua
@@ -62,7 +67,10 @@ UI\Profit.lua
 UI\ReagentCards.lua
 UI\Detail.lua
 UI\DisenchantMode.lua
-UI\DisenchantTooltip.lua
+Tooltips\Tooltips.lua
+Tooltips\QueueNeeds.lua
+Tooltips\Disenchant.lua
+Tooltips\Preview.lua
 UI\DetailPanel.lua
 UI\Overview.lua
 Panels\Shopping\ShoppingList.lua
@@ -74,6 +82,7 @@ Panels\QueueDrag.lua
 Panels\TransferRows.lua
 Panels\TransferPanel.lua
 Panels\Cooldowns.lua
+Panels\Camp.lua
 Panels\SkillUp.lua
 Panels\ReagentSearch.lua
 Data\ClassicNpcs.lua
@@ -88,6 +97,7 @@ UI\Options\OptionsAlts.lua
 UI\Options\OptionsIntegrations.lua
 UI\Options\OptionsQuick.lua
 UI\Options\OptionsTooltips.lua
+UI\Options\OptionsFishing.lua
 UI\Options\OptionsAbout.lua
 UI\Options\Options.lua
 UI\Minimap.lua

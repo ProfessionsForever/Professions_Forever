@@ -33,6 +33,18 @@ function P:Unit(itemID, link)
     if ok and type(price) == "number" and price > 0 then return price end
 end
 
+-- "Auction Price: 25c each" on the addon's own item tooltips. Options, Tooltips, Prices and Hints: by default not while
+-- Auctionator already shows its auction price there, or always, or never. `unit` stands in for the real price (the
+-- options' previewer).
+function P:AddUnitLine(tip, itemID, unit)
+    local mode = FP.db.tipAuctionPrice
+    if mode == "never" then return end
+    local A = _G.Auctionator
+    if mode == "auto" and A and A.Config and A.Config.Get(A.Config.Options.AUCTION_TOOLTIPS) then return end
+    unit = unit or self:Unit(itemID)
+    if unit then tip:AddLine(FP.L["Auction Price: %s each"]:format(self:Format(unit)), 1, 0.82, 0) end
+end
+
 function P:VendorUnit(itemID)
     local api = API()
     if not (api and api.GetVendorPriceByItemID) then return nil end
@@ -40,12 +52,97 @@ function P:VendorUnit(itemID)
     if ok and type(price) == "number" and price > 0 then return price end
 end
 
--- A reagent's unit price in copper and where it came from: a vendor's price when known, else the auction price.
+-- Crafted reagents inside crafted reagents are followed at most this deep (Bolt of Silk Cloth in a robe is depth 1).
+local MAX_DEPTH = 4
+
+-- Reagent prices last until the next frame: the profit sort prices every recipe at once, and new auction or vendor
+-- prices and newly learned recipes are read fresh after.
+local cache, clearing = {}, false
+local function ClearCache()
+    wipe(cache)
+    clearing = false
+end
+local function Remember(itemID, cost)
+    cache[itemID] = cost
+    if not clearing then
+        clearing = true
+        C_Timer.After(0, ClearCache)
+    end
+end
+
+-- Whether a recipe counts toward a reagent's price: this character knows it, or, with priceCraftedAlts, another of
+-- your characters does who could get the materials by mail (Alts:IsEligible: switched on, same faction).
+local function Usable(recipeID)
+    if IsPlayerSpell(recipeID) then return true end
+    if not FP.db.priceCraftedAlts then return false end
+    for _, key in ipairs(FP.Known:Who(recipeID)) do
+        if FP.Alts:IsEligible(key, FP.db.characters[key]) then return true end
+    end
+    return false
+end
+
+local Resolve
+
+-- One craft's cost per item made: { unit, source = "crafted", recipe, made, parts = { { itemID, qty, cost } } }, each
+-- part's cost being what Resolve gave it; nil when one of its reagents has no price. The second result is true when a
+-- reagent somewhere below was priced without crafting to break a loop (see Resolve).
+local function CraftCostOf(recipeID, depth, visiting)
+    local reagents = FP.Uses:ReagentsOf(recipeID)
+    if #reagents == 0 then return end
+    local total, parts, cut = 0, {}, false
+    for i, r in ipairs(reagents) do
+        local cost, c = Resolve(r.itemID, depth + 1, visiting)
+        cut = cut or c
+        if not cost then return nil, cut end
+        total = total + cost.unit * r.qty
+        parts[i] = { itemID = r.itemID, qty = r.qty, cost = cost }
+    end
+    local made = P:AverageMade(recipeID)
+    return { unit = total / made, source = "crafted", recipe = recipeID, made = made, parts = parts }, cut
+end
+
+-- The cheapest way to get one of the item: { unit, source = "vendor" | "auction" } or CraftCostOf's result; nil when
+-- nothing prices it. Ties go to the vendor, then the auction house. Some recipes make each other's reagents
+-- (transmutes go in circles), so an item already being priced further up, or past MAX_DEPTH, is priced without
+-- crafting; such a result is "cut" and not remembered, since higher up it may be priced differently.
+function Resolve(itemID, depth, visiting)
+    local hit = cache[itemID]
+    if hit ~= nil then return hit or nil, false end
+    local best
+    local vendor, auction = P:VendorUnit(itemID), P:Unit(itemID)
+    if vendor then best = { unit = vendor, source = "vendor" } end
+    if auction and not (best and best.unit <= auction) then best = { unit = auction, source = "auction" } end
+    local cut = false
+    local makers = FP.db.priceCrafted and FP.Uses:MakersOf(itemID) or {}
+    if #makers > 0 then
+        if visiting[itemID] or depth > MAX_DEPTH then
+            cut = true
+        else
+            visiting[itemID] = true
+            for _, recipe in ipairs(makers) do
+                if Usable(recipe) then
+                    local craft, c = CraftCostOf(recipe, depth, visiting)
+                    cut = cut or c
+                    if craft and not (best and best.unit <= craft.unit) then best = craft end
+                end
+            end
+            visiting[itemID] = nil
+        end
+    end
+    if not cut then Remember(itemID, best or false) end
+    return best, cut
+end
+
+-- A reagent's cheapest price per item, with where it comes from (see Resolve); nil when it has no price. Treat the
+-- result as read-only: it is shared until the next frame.
+function P:ReagentCost(itemID)
+    return (Resolve(itemID, 1, {}))
+end
+
+-- A reagent's unit price in copper and where it came from: "vendor", "auction" or "crafted", whichever is cheapest.
 function P:ReagentUnit(itemID)
-    local vendor = self:VendorUnit(itemID)
-    if vendor then return vendor, "vendor" end
-    local auction = self:Unit(itemID)
-    if auction then return auction, "auction" end
+    local cost = self:ReagentCost(itemID)
+    if cost then return cost.unit, cost.source end
 end
 
 -- What reagents ({ itemID, need }) cost: the total in copper of those with a price, how many have one, how many don't.

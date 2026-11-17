@@ -1,5 +1,6 @@
 local _, FP = ...
 local L = FP.L
+local HINT_COLOR = { 0.5, 0.8, 1 }
 local UI = FP.UI
 local Skin = UI.ActiveSkin
 local CARD_H, STATUS_COLORS, ItemName = UI.CARD_H, UI.STATUS_COLORS, FP.ItemName
@@ -122,21 +123,19 @@ function UI:CreateReagentCards(d, c)
         row:HookScript("OnEnter", function(s)
             if not s.itemID then return end
             GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+            s.ownHints = true -- the key hint goes in this tooltip's own hint line (Tooltips/Tooltips.lua)
             GameTooltip:SetItemByID(s.itemID)
-            local unit = FP.Prices:Unit(s.itemID)
-            if unit then GameTooltip:AddLine(L["Auction Price: %s each"]:format(FP.Prices:Format(unit)), 1, 0.82, 0) end
-            GameTooltip:AddLine(" ")
-            if (s.queueQty or 0) > 0 then GameTooltip:AddLine(L["In Crafting Queue: %d"]:format(s.queueQty), 0.4, 0.8, 1) end
-            if (s.shopQty or 0) > 0 then GameTooltip:AddLine(L["On Shopping List: %d"]:format(s.shopQty), 1, 0.82, 0) end
-            if (s.altQty or 0) > 0 then
-                GameTooltip:AddLine(L["On Other Characters: %d"]:format(s.altQty), unpack(UI.ALT_COLOR))
-            end
-            if s.hasVendor then
+            local hidden = FP.Tooltips.hidden
+            -- The normal item tooltip (with its queue block), then the window's own lines; the badges carry the counts.
+            FP.Prices:AddUnitLine(GameTooltip, s.itemID)
+            local vendor = s.hasVendor and FP.db.tipVendor
+            if vendor then
                 GameTooltip:AddLine(L["Sold by: %s"]:format(FP.Waypoint:VendorSummary(s.itemID)), 1, 0.82, 0, true)
-                GameTooltip:AddLine(L["Right-click: waypoint to the nearest vendor"], 0.5, 0.8, 1)
             end
-            GameTooltip:AddLine(L["Click to add this reagent to the shopping list."], 0.5, 0.8, 1)
-            GameTooltip:AddLine(L["Alt-click: find the recipes that use this reagent"], 0.5, 0.8, 1)
+            local hints = { { L["Click: Add to Shopping List"], L["Click to add this reagent to the shopping list."] } }
+            if vendor then hints[#hints + 1] = { L["Right: Vendor Waypoint"], L["Right-click: waypoint to the nearest vendor"] } end
+            hints[#hints + 1] = { L["Alt: Recipes"], L["Alt-click: find the recipes that use this reagent"] }
+            UI:AddHints(GameTooltip, hints, hidden, HINT_COLOR)
             GameTooltip:Show()
         end)
         row:HookScript("OnLeave", function() GameTooltip:Hide() end)

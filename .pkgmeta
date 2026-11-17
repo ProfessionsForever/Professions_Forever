@@ -10,6 +10,7 @@ ignore:
   - Media/icon.png
   - TODO.md
   - TODO-TESTS.md
+  - TODO-TESTS-DONE.md
   - Core/Debug.lua
 
 manual-changelog:

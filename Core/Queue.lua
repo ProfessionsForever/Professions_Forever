@@ -142,9 +142,21 @@ local function MoveOldQueues(self)
     FP.db.pendingQueue = nil
 end
 
+-- Before 0.10.2 a recipe queued by a character that hadn't learned it was saved without what it makes, so the
+-- shopping list asked for both the item and its materials. Fills it in from the recipe data on every character's queue.
+local function AddMissingOutputs()
+    for _, rec in pairs(FP.db.characters) do
+        for _, q in ipairs(rec.queue or {}) do
+            local made = not q.output and FP.RecipeOutputs[q.id]
+            if made then q.output = { itemID = made, qty = (FP.Recipes:OutputQuantity(q.id)) } end
+        end
+    end
+end
+
 -- At login: says what other characters queued for this one since it last played.
 function Queue:OnLogin()
     MoveOldQueues(self)
+    AddMissingOutputs()
     local told
     for _, q in ipairs(self:Data()) do
         if q.from then

@@ -2,9 +2,34 @@ local _, FP = ...
 local L = FP.L
 local UI = FP.UI
 
--- Summary cells along the bottom of the window on every page; each one toggles its window.
+-- Summary cells along the bottom of the window on every page; each one toggles its window. From TWO_ROWS cells on
+-- they take two rows, and the window grows by one row so the panels above keep their size.
 local CELL_H, GAP = 56, 6
-UI.FOOTER_RESERVE = CELL_H + GAP -- height the panels above leave free
+local TWO_ROWS = 6
+UI.FOOTER_ROW = CELL_H + GAP -- height one row of cells takes
+UI.footerRows = 1
+local ICON = 16 -- as tall as the title
+
+-- Each window's icon, on its footer cell and its quick button (UI/Launcher.lua).
+UI.WINDOW_ICONS = {
+    cooldowns = "Interface\\Icons\\INV_Misc_PocketWatch_01",
+    skillup = "Interface\\Icons\\INV_Misc_Map_01",
+    transfer = "Interface\\Icons\\INV_Letter_15",
+    shop = "Interface\\Icons\\INV_Misc_Coin_01",
+    queue = "Interface\\Icons\\INV_Misc_Gear_01",
+    disenchant = "Interface\\Icons\\INV_Enchant_DustStrange",
+    camp = "Interface\\Icons\\Spell_Fire_Fire",
+}
+
+-- Height the panels above leave free.
+function UI:FooterReserve()
+    return self.footerRows * self.FOOTER_ROW
+end
+
+-- Height the window adds for the rows past the first.
+function UI:FooterExtra()
+    return (self.footerRows - 1) * self.FOOTER_ROW
+end
 
 ---------------------------------------------------------------------------
 -- Window tooltips: everything a footer window holds at a glance. The footer cells and the quick buttons both use them.
@@ -119,7 +144,11 @@ function TIPS.transfer(tip)
     for _, p in ipairs(FP.Outgoing:Pending()) do
         any = true
         Section(tip, L["Send to %s"]:format(FP.Queue.CharacterName(p.key)) .. ":")
-        AddRows(tip, ItemRows(p.items, "qty"))
+        local rows = ItemRows(FP.Outgoing.AllItems(p), "qty")
+        if p.gold > 0 then
+            table.insert(rows, 1, { WithIcon("Interface\\Icons\\INV_Misc_Coin_01", L["Money"]), FP.Prices:Format(p.gold), GREY })
+        end
+        AddRows(tip, rows)
     end
     local waiting = FP.Transfer.MailNeeds(plan)
     if #waiting > 0 then
@@ -179,19 +208,67 @@ function TIPS.skillup(tip)
     end
 end
 
--- Adds the lines for the window under `key` (queue, cooldowns, transfer, shop, skillup) to `tip`.
+local campTick -- a camp cooldown redraw is waiting (UI:RefreshFooter)
+
+function TIPS.camp(tip)
+    local Camp = FP.Camp
+    -- The cooldowns: the two shared ones in white, then each extra you hold (sleeping bag, toy), which has its own,
+    -- with its icon in grey like the item rows below. Only the list's heading is gold.
+    local cooldowns = { { L["Camp Features"], Camp:Remaining(Camp.OBJECTS), WHITE },
+        { L["Campfires"], Camp:Remaining(Camp.CAMPFIRES), WHITE } }
+    local rows = {}
+    for _, e in ipairs(Camp:List()) do
+        local left = Camp:EntryRemaining(e)
+        if e.extra and e.bags > 0 then
+            cooldowns[#cooldowns + 1] = { WithIcon(C_Item.GetItemIconByID(e.id), e.name), left, GREY }
+        end
+        -- Listed below only when you could use it right now: in the bags, its profession known, its cooldown not running.
+        if e.bags > 0 and e.canPlace and left == 0 then
+            -- The extras are only ever one, so no count.
+            rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(e.id), e.name), not e.extra and (e.bags .. "x") or "", GREY }
+        end
+    end
+    for _, c in ipairs(cooldowns) do
+        local left, color = c[2], c[3]
+        tip:AddDoubleLine(c[1], left == 0 and L["Ready"] or FP.Cooldowns.Format(left), color[1], color[2], color[3],
+            left == 0 and 0.2 or 0.9, left == 0 and 0.9 or 0.2, 0.2)
+    end
+    Section(tip, L["Camp Features Ready to Place"])
+    if #rows == 0 then tip:AddLine(L["Nothing to place"], GREY[1], GREY[2], GREY[3]) else AddRows(tip, rows) end
+end
+
+-- Disenchanting Mode isn't a window: the cell and quick button open Enchanting in the mode, or, without Enchanting, the
+-- gear you could send your best enchanter (UI:QuickDisenchantClick).
+function TIPS.disenchant(tip)
+    local r = not UI:OwnEnchanting() and UI:DisenchantRecipients()
+    if not r then
+        tip:AddLine(L["Lists the gear in your bags that can be disenchanted, what each may give and what that is worth."],
+            GREY[1], GREY[2], GREY[3], true)
+        return
+    end
+    tip:AddLine(L["Lists the gear in your bags you could send %s to disenchant, what each may give and what that is worth."]
+        :format(FP.Alts:Label(r[1].rec)), GREY[1], GREY[2], GREY[3], true)
+    if #r > 1 then tip:AddLine(L["Right-click to choose another enchanter."], 0.5, 0.8, 1, true) end
+end
+
+-- Adds the lines for the window under `key` (queue, cooldowns, transfer, shop, skillup, camp, disenchant) to `tip`.
 function UI.FillWindowTip(tip, key)
     TIPS[key](tip)
 end
 
-local function MakeCell(f, key, title, onClick)
-    local c = UI:Button(f, "", 100, CELL_H, onClick)
+-- `secure`: the cell casts (UI:Button's secure argument).
+local function MakeCell(f, key, title, onClick, secure)
+    local c = UI:Button(f, "", 100, CELL_H, onClick, secure)
+    c.icon = c:CreateTexture(nil, "ARTWORK")
+    c.icon:SetSize(ICON, ICON)
+    c.icon:SetPoint("TOPLEFT", 12, -7)
+    c.icon:SetTexture(UI.WINDOW_ICONS[key]) -- uncropped, keeping the icon's own edge, like the profession tabs
     c.title = UI:Text(c, 1)
-    c.title:SetPoint("TOPLEFT", 12, -8)
+    c.title:SetPoint("LEFT", c.icon, "RIGHT", 5, 0)
     c.title:SetText(title)
     c.title:SetTextColor(1, 0.82, 0)
     c.line = UI:Text(c, 0)
-    c.line:SetPoint("TOPLEFT", c.title, "BOTTOMLEFT", 0, -4)
+    c.line:SetPoint("TOPLEFT", c.icon, "BOTTOMLEFT", 0, -3)
     c.sub = UI:Text(c, -1)
     c.sub:SetPoint("TOPLEFT", c.line, "BOTTOMLEFT", 0, -2)
     c.sub:SetTextColor(0.65, 0.65, 0.65)
@@ -207,6 +284,7 @@ local function MakeCell(f, key, title, onClick)
     end)
     return c
 end
+UI.MakeFooterCell = MakeCell -- for Core/Debug.lua's test cells
 
 function UI:CreateFooter(f)
     local footer = {}
@@ -217,7 +295,11 @@ function UI:CreateFooter(f)
     if FP.SkillUpPanel:Available() then
         footer.skillup = MakeCell(f, "skillup", L["Skill Up Route"], function() FP.SkillUpPanel:Toggle() end)
     end
+    footer.camp = MakeCell(f, "camp", L["Camp"], function() FP.CampPanel:Toggle() end)
+    footer.disenchant = MakeCell(f, "disenchant", L["Disenchanting Mode"],
+        function(s, btn) UI:QuickDisenchantClick(s, btn) end, "up")
     f.footer = footer
+    self:SyncDisenchantCell()
     self:LayoutFooter()
     self:RefreshFooterSelection()
 end
@@ -226,7 +308,7 @@ end
 local windows
 function UI.FooterWindows()
     windows = windows or { cooldowns = FP.CooldownPanel, transfer = FP.Transfer, shop = FP.Shop, queue = FP.Queue,
-        skillup = FP.SkillUpPanel:Available() and FP.SkillUpPanel or nil }
+        skillup = FP.SkillUpPanel:Available() and FP.SkillUpPanel or nil, camp = FP.CampPanel }
     return windows
 end
 
@@ -239,26 +321,77 @@ function UI:RefreshFooterSelection()
     for key, window in pairs(UI.FooterWindows()) do
         UI.SetSelected(footer[key], window.frame and window.frame:IsShown())
     end
+    UI.SetSelected(footer.disenchant, self.deMode and self.page == "recipes")
 end
 
--- Sized from the window, as its own size can lag behind while it is being resized.
--- The Skill Up Route cell is left out while its option is off.
+-- The Disenchanting Mode cell shows for an enchanter (it casts Enchanting, unless Enchanting is already open) and for a
+-- character with an enchanter to send gear to. Its cast is set out of combat only. True when it was shown or hidden.
+function UI:SyncDisenchantCell()
+    local footer = self.frame.footer
+    local c = footer.disenchant
+    local enchanting = self:OwnEnchanting()
+    footer.deRecipient = not enchanting and self:DisenchantRecipients()[1] or nil
+    if enchanting then self:SetProfessionOpener(c, enchanting) else c:SetAttribute("macrotext1", "") end
+    local show = (enchanting or footer.deRecipient) and true or false
+    if c:IsShown() == show then return false end
+    c:SetShown(show)
+    return true
+end
+
+-- The window grows or shrinks by the rows the footer gained or lost, and the panels above end where the footer starts,
+-- so they keep their size.
+local function FitPanels(f)
+    local extra = UI:FooterExtra()
+    UI:SetWindowBounds()
+    f:SetHeight(f:GetHeight() + extra - (f.fpFooterExtra or 0))
+    f.fpFooterExtra = extra
+    local bottom = 8 + UI:FooterReserve()
+    f.left:SetPoint("BOTTOMLEFT", 8, bottom)
+    f.right:SetPoint("BOTTOMRIGHT", -8, bottom)
+    f.overview:SetPoint("BOTTOMRIGHT", -8, bottom)
+    UI:SetNumRows(f:GetHeight())
+    UI:UpdateList()
+    UI:LayoutOverview()
+end
+
+FP:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    if UI.footerLayoutPending then UI:LayoutFooter() end
+end)
+
+-- Sized from the window, as its own size can lag behind while it is being resized. The Skill Up Route cell is left
+-- out while its option is off, the Disenchanting Mode cell while it has nothing to do. With two rows the top one takes
+-- the extra cell. The window and the Disenchanting Mode cell are protected, so in combat this waits for it to end.
 function UI:LayoutFooter()
     local f = self.frame
     local footer = f and f.footer
     if not footer then return end
-    local cells = { footer.cooldowns, footer.transfer, footer.shop, footer.queue }
+    if UI.CombatBlocked(f) then
+        self.footerLayoutPending = true
+        return
+    end
+    self.footerLayoutPending = nil
+    -- Planning first (the queue decides what to buy and what to mail), then the activities; the quick buttons match.
+    local cells = { footer.queue, footer.shop, footer.transfer, footer.cooldowns, footer.camp }
     if footer.skillup then
         footer.skillup:SetShown(FP.db.footerSkillUp)
-        if FP.db.footerSkillUp then table.insert(cells, 2, footer.skillup) end
+        if FP.db.footerSkillUp then table.insert(cells, 5, footer.skillup) end -- after Cooldowns
     end
+    if footer.disenchant:IsShown() then cells[#cells + 1] = footer.disenchant end
+    for _, c in ipairs(footer.extra or {}) do cells[#cells + 1] = c end
     local n = #cells
-    local w = (f:GetWidth() - 16 - GAP * (n - 1)) / n
+    local rows = n >= TWO_ROWS and 2 or 1
+    local top = math.ceil(n / rows) -- cells in the top row
     for i, c in ipairs(cells) do
+        local row, col, count = 1, i, top -- row 1 is the top one
+        if rows == 2 and i > top then row, col, count = 2, i - top, n - top end
+        local w = (f:GetWidth() - 16 - GAP * (count - 1)) / count
         c:SetWidth(w)
         c:ClearAllPoints()
-        if i == 1 then c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 8, 8)
-        else c:SetPoint("BOTTOMLEFT", cells[i - 1], "BOTTOMRIGHT", GAP, 0) end
+        c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 8 + (col - 1) * (w + GAP), 8 + (rows - row) * self.FOOTER_ROW)
+    end
+    if rows ~= self.footerRows then
+        self.footerRows = rows
+        FitPanels(f)
     end
 end
 
@@ -328,5 +461,42 @@ function UI:RefreshFooter()
         local profession, step, detail = FP.SkillUpPanel:Summary()
         footer.skillup.line:SetText(step or L["No route steps"])
         footer.skillup.sub:SetText(profession and (detail and (profession .. " - " .. detail) or profession) or "")
+    end
+
+    -- Camp: the two shared cooldowns, camp features then campfires.
+    local Camp = FP.Camp
+    local objects, fires = Camp:Remaining(Camp.OBJECTS), Camp:Remaining(Camp.CAMPFIRES)
+    -- Green when ready, red while running, as in the Camp window and on the quick button.
+    footer.camp.line:SetText(objects > 0 and ("|cffe63333" .. L["Camp Features in %s"]:format(FP.Cooldowns.Format(objects)) .. "|r")
+        or ("|cff33e633" .. L["Camp Features Ready"] .. "|r"))
+    footer.camp.sub:SetText(fires > 0 and ("|cffe63333" .. L["Campfires in %s"]:format(FP.Cooldowns.Format(fires)) .. "|r")
+        or ("|cff33e633" .. L["Campfires Ready"] .. "|r"))
+    -- No event fires as a cooldown counts down, so redraw now and then while one runs.
+    if (objects > 0 or fires > 0) and not campTick then
+        campTick = true
+        C_Timer.After(30, function()
+            campTick = false
+            FP:Changed("camp")
+        end)
+    end
+
+    -- Disenchanting Mode: the gear you could disenchant, or without Enchanting the unbound gear you could mail.
+    if not self.CombatBlocked(f) and self:SyncDisenchantCell() then self:LayoutFooter() end
+    if footer.disenchant:IsShown() then
+        local to = footer.deRecipient
+        local bags, bank = 0, 0
+        for _, it in ipairs(FP.Disenchant:Scan()) do
+            if not (to and it.bound) then
+                if it.inBank then bank = bank + 1 else bags = bags + 1 end
+            end
+        end
+        if to then
+            local name = FP.Alts:Label(to.rec)
+            footer.disenchant.line:SetText(bags == 0 and L["Nothing to send %s"]:format(name)
+                or L["%d to send %s"]:format(bags, name))
+        else
+            footer.disenchant.line:SetText(bags == 0 and L["Nothing to disenchant"] or L["%d to disenchant"]:format(bags))
+        end
+        footer.disenchant.sub:SetText(bank > 0 and L["%d more in the bank"]:format(bank) or "")
     end
 end

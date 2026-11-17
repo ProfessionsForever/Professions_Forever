@@ -18,13 +18,21 @@ function FP:Print(msg)
 end
 
 -- An item's name, or "item:<id>" until the game has loaded it (GET_ITEM_INFO_RECEIVED then triggers a refresh).
+-- GET_ITEM_INFO_RECEIVED can come before GetItemNameByID has the name, and asking again for an item the client thinks
+-- it already has sends no second event, so a window could keep "item:<id>" until reopened. So the item's own load
+-- callback redraws as well, once per item while it is waited for.
+local waiting = {}
 function FP.ItemName(itemID)
-    local name = C_Item.GetItemNameByID(itemID)
-    if not name then
-        C_Item.RequestLoadItemDataByID(itemID)
-        name = "item:" .. itemID
+    local name = C_Item.GetItemNameByID(itemID) or C_Item.GetItemInfo(itemID)
+    if name then return name end
+    if not waiting[itemID] then
+        waiting[itemID] = true
+        Item:CreateFromItemID(itemID):ContinueOnItemLoad(function()
+            waiting[itemID] = nil
+            FP:Changed("items")
+        end)
     end
-    return name
+    return "item:" .. itemID
 end
 
 ---------------------------------------------------------------------------
@@ -89,25 +97,70 @@ local defaults = {
     quickButtons = false, -- show the movable bar of buttons that open the queue, shopping list, transfer planner and cooldowns
     quickButtonsLocked = false,
     quickProfessions = true, -- a quick button for each profession with a crafting window
+    quickOverview = true, -- a quick button opening the main window on its Overview
+    quickSettings = false, -- a quick button opening the options
+    quickCamp = true, -- the Camp quick button
+    quickDisenchant = true, -- the Disenchanting Mode quick button (where it applies: an enchanter, or one to send to)
     quickHeader = true, -- the addon name above the quick buttons
-    quickColumns = 6, -- quick buttons per row; more rows are added as needed
+    quickLayout = "columns", -- columns | rows: which the quick buttons keep fixed while they grow the other way
+    quickColumns = 6, -- fixed columns: quick buttons per row; more rows are added as needed
+    quickRows = 1, -- fixed rows: quick buttons per column; more columns are added as needed
     quickGrowX = "right", -- right | left: the side the quick buttons grow toward from the handle
-    quickGrowY = "down", -- down | up: the way new rows of quick buttons are added
+    quickGrowY = "down", -- down | up: the way the quick buttons grow from the handle (Grow From sets both)
+    quickShowKeys = true, -- each quick button's key binding in its top left corner
     cooldownNotice = true, -- at login, name the characters with a recipe cooldown ready
+    versionNotice = true, -- at login, print the addon version (Core/VersionCheck.lua)
+    updateNotice = true, -- say so when another player has a newer version
     bankPrompt = true, -- open the transfer planner at the bank when the queue needs something from it
     mailPrompt = true, -- open the transfer planner at a mailbox when this character has something to send or collect
     showIgnoredCooldowns = false, -- list the cooldowns turned off in the Cooldowns window
     showSkillChance = true, -- the skill up chance beside each learned recipe in the list
+    fishEquipPole = true, -- One-Click Fishing equips the best fishing pole in the bags first (UI/Fishing.lua)
+    fishApplyLure = true, -- One-Click Fishing puts the best lure in the bags on the pole first
+    fishLoud = true, -- sound effects louder while the line is out
+    fishVolume = 100, -- the sound effects volume then, in percent
+    fishMuteMusic = false, -- music and ambience off while the line is out
+    fishBackground = false, -- sound on while the game is in the background, while the line is out
+    fishCVars = {}, -- [CVar] = the player's own value, while fishing has it changed (UI/Fishing.lua)
+    fishSwapMount = true, -- swap the gear One-Click Fishing replaced back on when you mount
+    fishSwapIdle = true, -- ... when you haven't fished for fishSwapSeconds
+    fishSwapSeconds = 120,
+    fishSwapCombat = true, -- ... when combat ends
     -- Integrations: each is used only when its addon is loaded and its switch here is on.
     printRoutes = true, -- print Polestar's route to a ProfessionsForever waypoint when it has more than one step
     useAuctionator = true, -- prices for profit, costs and the shopping list
+    priceCrafted = true, -- a reagent you can craft is priced at its crafting cost when that is cheapest (Core/Prices.lua)
+    priceCraftedAlts = false, -- ... counting recipes your other characters know too
     useQuestie = true, -- Questie's NPC database for vendor, trainer and banker waypoints
     useSyndicator = true, -- Syndicator's bank and other characters' inventory (read at login)
     footerSkillUp = true, -- SkillUp Forever's Skill Up Route cell in the footer
     quickSkillUp = true, -- SkillUp Forever's Skill Up Route button on the quick buttons
     deSort = "name", -- Disenchanting Mode's list order: name | level | quality | value
     deSortDesc = false, -- Disenchanting Mode's list order reversed
+    campCollapsed = { unknown = true }, -- [group] = true for Camp window groups collapsed: "ready", "craft", "alts", "unknown"
     deCollapsed = {}, -- [group] = true for Disenchanting Mode groups the user collapsed: "bags", "bank" or a character key
+    -- Tooltips (Tooltips/): the lines the addon adds to item tooltips and to its own windows' item tooltips.
+    tipDetailKey = "shift", -- the key that shows the detail (queued recipes, every disenchant result): shift | ctrl | alt
+    tipKeyHint = true, -- "Hold Shift for details" while there is detail to show
+    tipSpacing = true, -- a blank line before each block
+    tipIndent = 3, -- spaces each level of detail is indented by
+    tipOrder = "queue,disenchant,alts", -- the blocks' order, top to bottom (a string: a reset can't share a table)
+    queueTooltip = true, -- "Needed by Crafting Queues" on item tooltips
+    queueTooltipToBuy = true, -- and "Still to Buy" under it, while short
+    queueTooltipRecipes = "shift", -- each character's queued recipes that use it: shift (with the detail key) | always | never
+    queueTooltipGroup = true, -- the recipes under a header per character; off: one list, alts' names after theirs
+    queueTooltipCrafts = true, -- "x40" after each recipe
+    queueTooltipShopRows = true, -- the recipes on shopping list rows too
+    altTipChars = true, -- a line per other character holding it
+    altTipBank = true, -- "(26 bank)" on it
+    altTipSend = true, -- "Send 42" on it
+    altTipTotal = "multi", -- Available on Enabled Characters: never | multi (2 or more characters) | always
+    altTipToBuy = true, -- Still to Buy under the alts
+    altTipIgnored = true, -- characters left out of planning, greyed
+    tipAuctionPrice = "auto", -- "Auction Price: 25c each": auto (unless Auctionator shows one) | always | never
+    tipHints = "line", -- click hints: line (one line) | full (a line per action) | none
+    tipVendor = true, -- "Sold by" and the right-click waypoint hint
+    tipLearnedSource = false, -- where a learned recipe came from, in the recipe list and the detail panel
     deTooltip = true, -- disenchant results on item tooltips
     deTooltipShow = "always", -- always | shift (only while Shift is held)
     deTooltipDetail = "shift", -- terse (one line) | full (every result) | shift (one line, every result with Shift)
@@ -129,7 +182,7 @@ FP.defaults = defaults
 local NO_DEFAULT = { "accent", "trackerPos", "launcherPos", "mainEnchanter" } -- mainEnchanter: nil is Automatic
 
 -- Saved data rather than options, so a reset leaves it alone.
-local DATA_KEYS = { trainerRecipes = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true }
+local DATA_KEYS = { trainerRecipes = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true, fishCVars = true }
 
 local function Merge(dst, src)
     for k, v in pairs(src) do
@@ -149,7 +202,7 @@ function FP:LoadSettings()
     Merge(ProfessionsForeverDB, FP.filterDefaults)
     Merge(ProfessionsForeverDB, FP.deFilterDefaults)
     Merge(ProfessionsForeverDB, defaults)
-    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {} })
+    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {}, fishSaved = {}, fishWeapons = {} })
     self.db, self.chardb = ProfessionsForeverDB, ProfessionsForeverCharDB
 end
 

@@ -106,8 +106,9 @@ function UI.SetSelected(b, on)
     b:SetBackdropBorderColor(unpack(ButtonBorder(b)))
 end
 
-function UI:Button(parent, label, w, h, onClick, secure)
-    local b = CreateFrame("Button", nil, parent, secure and "SecureActionButtonTemplate,BackdropTemplate" or "BackdropTemplate")
+-- `name`, optional, is the button's global name, for a CLICK key binding (Bindings.xml).
+function UI:Button(parent, label, w, h, onClick, secure, name)
+    local b = CreateFrame("Button", name, parent, secure and "SecureActionButtonTemplate,BackdropTemplate" or "BackdropTemplate")
     b:SetSize(w, h)
     b.text = self:Text(b, 0, "CENTER")
     b.text:SetPoint("CENTER")

@@ -291,6 +291,76 @@ commands["debug known"] = function()
 end
 
 ---------------------------------------------------------------------------
+-- /pf debug craftcost: for each reagent of the selected recipe, the recipes that make it (Uses:MakersOf), what each
+-- needs, how many one craft makes, and who knows it. "made 1-1 (no schematic)" means the client gave no schematic for a
+-- recipe whose profession isn't open, so the made count is the fallback of 1.
+---------------------------------------------------------------------------
+commands["debug craftcost"] = function()
+    local id = FP.selected
+    if not id then return FP:Print("Select a recipe first.") end
+    local function Name(itemID) return C_Item.GetItemNameByID(itemID) or itemID end
+    for _, r in ipairs(FP.Recipes:GetReagents(id)) do
+        local makers = FP.Uses:MakersOf(r.itemID)
+        local cost = FP.Prices:ReagentCost(r.itemID)
+        FP:Print(("%s x%d: %d recipe(s) make it; vendor %s, auction %s; priced at %s each (%s%s)"):format(Name(r.itemID), r.qty,
+            #makers, tostring((FP.Prices:VendorUnit(r.itemID))), tostring((FP.Prices:Unit(r.itemID))),
+            cost and ("%.1f"):format(cost.unit) or "nil", cost and cost.source or "no price",
+            cost and cost.recipe and (" by " .. cost.recipe) or ""))
+        for _, recipe in ipairs(makers) do
+            local needs, craftCost, unpriced = {}, 0, false
+            for _, sub in ipairs(FP.Uses:ReagentsOf(recipe)) do
+                local subCost = FP.Prices:ReagentCost(sub.itemID)
+                if subCost then craftCost = craftCost + subCost.unit * sub.qty else unpriced = true end
+                needs[#needs + 1] = ("%s x%d at %s (%s)"):format(Name(sub.itemID), sub.qty, subCost and ("%.1f"):format(subCost.unit) or "nil",
+                    subCost and subCost.source or "no price")
+            end
+            needs[#needs + 1] = ("= %s per craft"):format(unpriced and "unpriced" or ("%.1f"):format(craftCost))
+            local ok, s = pcall(C_TradeSkillUI.GetRecipeSchematic, recipe, false)
+            local made = ok and s and s.quantityMin and s.quantityMin > 0 and ("%d-%d"):format(s.quantityMin, s.quantityMax)
+                or "1-1 (no schematic)"
+            local alts = {}
+            for _, key in ipairs(FP.Known:Who(recipe)) do alts[#alts + 1] = key end
+            FP:Print(("  %d %s: made %s; needs %s; you know it=%s; known by: %s"):format(recipe, C_Spell.GetSpellName(recipe) or "?",
+                made, #needs > 0 and table.concat(needs, ", ") or "nothing", tostring(IsPlayerSpell(recipe)),
+                #alts > 0 and table.concat(alts, ", ") or "nobody recorded"))
+        end
+    end
+end
+
+---------------------------------------------------------------------------
+-- /pf debug fakecheap, fakeclear: an auction price of 1 copper for what the selected recipe's crafted reagents are
+-- made from (Linen Cloth for a recipe that needs Bolt of Linen Cloth), until fakeclear or a reload, so the cost tooltip
+-- can be seen choosing "crafted" when the real prices never make crafting cheaper.
+---------------------------------------------------------------------------
+local fakePrices = {}
+local RealUnit = FP.Prices.Unit
+function FP.Prices:Unit(itemID, link)
+    return fakePrices[itemID] or RealUnit(self, itemID, link)
+end
+
+commands["debug fakecheap"] = function()
+    local id = FP.selected
+    if not id then return FP:Print("Select a recipe first.") end
+    local names = {}
+    for _, r in ipairs(FP.Recipes:GetReagents(id)) do
+        for _, recipe in ipairs(FP.Uses:MakersOf(r.itemID)) do
+            for _, sub in ipairs(FP.Uses:ReagentsOf(recipe)) do
+                fakePrices[sub.itemID] = 1
+                names[#names + 1] = C_Item.GetItemNameByID(sub.itemID) or sub.itemID
+            end
+        end
+    end
+    FP:Changed("prices")
+    FP:Print(#names > 0 and ("1 copper each now: " .. table.concat(names, ", ")) or "No crafted reagents in this recipe.")
+end
+
+commands["debug fakeclear"] = function()
+    wipe(fakePrices)
+    FP:Changed("prices")
+    FP:Print("Fake prices cleared.")
+end
+
+---------------------------------------------------------------------------
 -- Protected calls the game blocked for this addon.
 ---------------------------------------------------------------------------
 local blocked = CreateFrame("Frame")
@@ -326,4 +396,111 @@ commands["debug trainer"] = function()
     local parts = {}
     for cap = 75, 300, 75 do parts[#parts + 1] = cap .. "=" .. tostring(W.TeachesRank(id, cap)) end
     FP:Print("  teaches: " .. table.concat(parts, " "))
+end
+
+---------------------------------------------------------------------------
+-- /pf debug camp: every camp item in Data/Camp.lua, by profession, with how many you hold (bags and bank), who knows
+-- its recipe and the shared cooldown left. The other faction's banner is marked.
+---------------------------------------------------------------------------
+commands["debug camp"] = function()
+    local list = {}
+    for itemID, d in pairs(FP.CampItems) do list[#list + 1] = { id = itemID, d = d } end
+    table.sort(list, function(a, b)
+        if a.d[2] ~= b.d[2] then return a.d[2] < b.d[2] end
+        return a.id < b.id
+    end)
+    local faction = UnitFactionGroup("player")
+    FP:Print(("camp items: %d"):format(#list))
+    for _, e in ipairs(list) do
+        local d = e.d
+        local who = {}
+        for _, key in ipairs(FP.Known:Who(d[1])) do who[#who + 1] = FP.Alts:Label(FP.db.characters[key]) end
+        local start, duration = C_Container.GetItemCooldown(e.id)
+        local left = start and start > 0 and math.ceil(start + duration - GetTime()) or 0
+        print(("     %s %s x%d (bags+bank) | recipe %d known by: %s | cat %d %ds, %ds left%s"):format(
+            C_TradeSkillUI.GetTradeSkillDisplayName(d[2]) or d[2], C_Item.GetItemNameByID(e.id) or e.id,
+            C_Item.GetItemCount(e.id, true), d[1], #who > 0 and table.concat(who, ", ") or "nobody",
+            d[3], d[4], left, d[5] and d[5] ~= faction and " |cffff8000(other faction)|r" or ""))
+    end
+end
+
+---------------------------------------------------------------------------
+-- /pf debug footer: adds grey test cells until the footer has six (two rows), or removes them again.
+---------------------------------------------------------------------------
+commands["debug footer"] = function()
+    local UI = FP.UI
+    local f = UI.frame
+    if not (f and f.footer) then return FP:Print("open the window once first") end
+    local footer = f.footer
+    footer.extra = footer.extra or {}
+    if #footer.extra > 0 then
+        for _, c in ipairs(footer.extra) do c:Hide() end
+        wipe(footer.extra)
+    else
+        local shown = 5 + ((footer.skillup and FP.db.footerSkillUp) and 1 or 0) + (footer.disenchant:IsShown() and 1 or 0)
+        for i = 1, math.max(1, 6 - shown) do
+            local c = UI.MakeFooterCell(f, "cooldowns", "Test Cell " .. i, function() end)
+            c.line:SetText("A long line to see where the text gets cut off")
+            c.sub:SetText("and a second, grey line under it")
+            footer.extra[i] = c
+        end
+    end
+    UI:LayoutFooter()
+    FP:Print(("footer: %d test cell(s), %d row(s)"):format(#footer.extra, UI.footerRows))
+end
+
+---------------------------------------------------------------------------
+-- /pf debug pins: shows the pictures that could replace the word "Pin" on the side panels' pin button, labelled, to
+-- see which this client has. Atlases the client lacks say so; a missing file texture shows as a blank square.
+---------------------------------------------------------------------------
+local pinPreview
+commands["debug pins"] = function()
+    if pinPreview then pinPreview:SetShown(not pinPreview:IsShown()) return end
+    -- From the client's atlas table (UiTextureAtlasMember, build 1.60.1.70888): it has no thumbtack or pushpin.
+    local candidates = {
+        { atlas = "Waypoint-MapPin-Untracked" }, { atlas = "Waypoint-MapPin-Tracked" },
+        { atlas = "waypoint-mappin-minimap-untracked" }, { atlas = "waypoint-mappin-minimap-tracked" },
+        { atlas = "Waypoint-MapPin-ChatIcon" }, { atlas = "communities-icon-lock" },
+        { atlas = "QuestSharing-Padlock" }, { atlas = "UI-CharacterCreate-PadLock" },
+        { atlas = "Legionfall_Padlock" }, { atlas = "LFG-lock" },
+    }
+    local f = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    f:SetSize(380, 24 + #candidates * 30)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    FP.UI:Skin(f, "window")
+    f:EnableMouse(true)
+    f:SetMovable(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    for i, c in ipairs(candidates) do
+        local y = -12 - (i - 1) * 30
+        local tex = f:CreateTexture(nil, "ARTWORK")
+        tex:SetSize(20, 20)
+        tex:SetPoint("TOPLEFT", 12, y)
+        local missing = c.atlas and not C_Texture.GetAtlasInfo(c.atlas)
+        if c.atlas then tex:SetAtlas(c.atlas) else tex:SetTexture(c.file) end
+        local label = FP.UI:Text(f, -1)
+        label:SetPoint("LEFT", tex, "RIGHT", 8, 0)
+        label:SetText(("%d. %s%s"):format(i, c.atlas or c.file, missing and " |cffff4040(not in this client)|r" or ""))
+    end
+    f:SetScript("OnMouseUp", function(_, btn) if btn == "RightButton" then f:Hide() end end)
+    pinPreview = f
+    FP:Print("pin candidates shown; right-click or /pf debug pins again to hide")
+end
+
+---------------------------------------------------------------------------
+-- /pf debug vernew, verold, verclear: test the update alert (Core/VersionCheck.lua) alone, by handing it a version as
+-- if another player had sent it
+---------------------------------------------------------------------------
+local function HearVersion(version)
+    FP:Print("hearing version " .. version)
+    FP.HearVersion(version)
+end
+commands["debug vernew"] = function() HearVersion("99.0.0") end
+commands["debug verold"] = function() HearVersion("0.0.1") end
+commands["debug verclear"] = function()
+    FP.db.newestSeenVersion, FP.db.newestSeenAt = nil, nil
+    FP:Print("newest heard version forgotten; /reload to hear the alert again this session")
 end

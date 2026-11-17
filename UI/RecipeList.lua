@@ -105,6 +105,55 @@ local function Craftable(recipeID)
     return ev, ev.craftBags, ev.craftTotal - ev.craftBags, withAlts - ev.craftTotal
 end
 
+-- A recipe row's tooltip, on GameTooltip or on `tip` (the options' previewer). `pv` stands in for what needs the
+-- profession open: { itemID, chance, reagents, satisfied, bags, bank, alts, source = { trainer } }.
+function UI.FillRecipeTooltip(e, tip, pv)
+    tip = tip or GameTooltip
+    local output = not pv and FP.Recipes:OutputInfo(e.id)
+    if pv then tip:SetItemByID(pv.itemID)
+    elseif output and output.hyperlink then tip:SetHyperlink(output.hyperlink)
+    elseif output and output.itemID then tip:SetItemByID(output.itemID)
+    else tip:AddLine(e.name, 1, 1, 1) end
+    tip:AddLine(e.name, 1, 0.82, 0)
+    tip:AddLine(e.learned and L["Learned"] or L["Not Learned"], 0.6, 0.6, 0.6)
+    local required = not e.learned and UI.RequiredSkillText(e.id)
+    if required then tip:AddLine(required) end
+    local difficulty = DIFF_LABELS[e.difficulty]
+    if difficulty then tip:AddLine(L[difficulty], 1, 0.82, 0) end
+    local chance
+    if pv then chance = pv.chance
+    else chance = e.learned and FP.Recipes:SkillUpChance(e.id, select(2, RankInfo()) or 0) end
+    if chance and chance > 0 and chance < 1 then
+        tip:AddLine(L["Skill Up Chance: %d%%"]:format(math.floor(chance * 100 + 0.5)), 0.8, 0.8, 0.8)
+    end
+    if not pv then
+        local cooldown = FP.Cooldowns:DetailText(e.id)
+        if cooldown ~= "" then tip:AddLine(cooldown) end
+        local description = UI.RecipeDescription(e.id)
+        if description then tip:AddLine(description, 0.9, 0.9, 0.9, true) end
+    end
+    if UI.ShowsSource(e) then UI.AddSourceLines(e.id, e.learned, tip, pv and pv.source) end
+    local reagents, satisfied, bags, bank, alts
+    if pv then
+        reagents, satisfied, bags, bank, alts = pv.reagents, pv.satisfied, pv.bags, pv.bank, pv.alts
+    else
+        local ev
+        ev, bags, bank, alts = Craftable(e.id)
+        reagents, satisfied = #ev.reagents, ev.satisfied
+    end
+    if reagents > 0 then
+        tip:AddLine(" ")
+        tip:AddDoubleLine(L["From Bags"], bags, 0.8, 0.8, 0.8, unpack(STATUS_COLORS.full))
+        tip:AddDoubleLine(L["From Bank"], "+" .. bank, 0.8, 0.8, 0.8, unpack(STATUS_COLORS.bank))
+        if FP.Planner:Mode() ~= "never" then
+            tip:AddDoubleLine(L["From Alts"], "+" .. alts, 0.8, 0.8, 0.8, unpack(UI.ALT_COLOR))
+        end
+        tip:AddDoubleLine(L["Total Craftable"], bags + bank + alts, 1, 1, 1, 1, 1, 1)
+        tip:AddDoubleLine(L["Reagents in Stock"], satisfied .. " / " .. reagents, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
+    end
+    if not pv and PreviewLink(e.id) then tip:AddLine(L["Ctrl-click: preview"], 0.5, 0.8, 1) end
+end
+
 -- The skill up chance of a learned recipe, in its difficulty colour; nothing once it is grey or when the option is off.
 local function ChanceText(e, skill)
     if not (FP.db.showSkillChance and e.learned) then return "" end
@@ -177,37 +226,7 @@ function UI:EnsureRows(n)
             local e = s.recipeID and FP.Recipes.byID[s.recipeID]
             if not e then return end
             GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-            local output = FP.Recipes:OutputInfo(e.id)
-            if output and output.hyperlink then GameTooltip:SetHyperlink(output.hyperlink)
-            elseif output and output.itemID then GameTooltip:SetItemByID(output.itemID)
-            else GameTooltip:AddLine(e.name, 1, 1, 1) end
-            GameTooltip:AddLine(e.name, 1, 0.82, 0)
-            GameTooltip:AddLine(e.learned and L["Learned"] or L["Not Learned"], 0.6, 0.6, 0.6)
-            local required = not e.learned and UI.RequiredSkillText(e.id)
-            if required then GameTooltip:AddLine(required) end
-            local difficulty = DIFF_LABELS[e.difficulty]
-            if difficulty then GameTooltip:AddLine(L[difficulty], 1, 0.82, 0) end
-            local chance = e.learned and FP.Recipes:SkillUpChance(e.id, select(2, RankInfo()) or 0)
-            if chance and chance > 0 and chance < 1 then
-                GameTooltip:AddLine(L["Skill Up Chance: %d%%"]:format(math.floor(chance * 100 + 0.5)), 0.8, 0.8, 0.8)
-            end
-            local cooldown = FP.Cooldowns:DetailText(e.id)
-            if cooldown ~= "" then GameTooltip:AddLine(cooldown) end
-            local description = UI.RecipeDescription(e.id)
-            if description then GameTooltip:AddLine(description, 0.9, 0.9, 0.9, true) end
-            if not e.learned then UI.AddSourceLines(e.id) end
-            local ev, bags, bank, alts = Craftable(e.id)
-            if #ev.reagents > 0 then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddDoubleLine(L["From Bags"], bags, 0.8, 0.8, 0.8, unpack(STATUS_COLORS.full))
-                GameTooltip:AddDoubleLine(L["From Bank"], "+" .. bank, 0.8, 0.8, 0.8, unpack(STATUS_COLORS.bank))
-                if FP.Planner:Mode() ~= "never" then
-                    GameTooltip:AddDoubleLine(L["From Alts"], "+" .. alts, 0.8, 0.8, 0.8, unpack(UI.ALT_COLOR))
-                end
-                GameTooltip:AddDoubleLine(L["Total Craftable"], bags + bank + alts, 1, 1, 1, 1, 1, 1)
-                GameTooltip:AddDoubleLine(L["Reagents in Stock"], ev.satisfied .. " / " .. #ev.reagents, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
-            end
-            if PreviewLink(e.id) then GameTooltip:AddLine(L["Ctrl-click: preview"], 0.5, 0.8, 1) end
+            UI.FillRecipeTooltip(e)
             GameTooltip:Show()
             UI:ShowTooltipIcon(e.icon)
         end)

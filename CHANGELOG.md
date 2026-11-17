@@ -1,4 +1,46 @@
 # Changelog
+## 0.10.2
+
+### Added
+- A Camp window (Camp footer cell, quick button or `/pf camp`) for Forever's camp features: the tent, chair, campfire kits and every profession's camp feature. Essentials holds the Cozy Sleeping Bag and the Pouch of Violet Dust, with a Use button. Then Camp Features (In Bags) with a Place button, (Craftable) with Craft, (On Alts) and (Not Learned) with the skill each needs. The camp feature and campfire cooldowns show at the top, on the Place buttons, on the footer cell and on the quick button.
+- Key bindings for the quick buttons: a key for each window, Disenchanting Mode, and Profession 1 to 5, under Options, Quick Buttons, Key Bindings or the game's Key Bindings, AddOns, ProfessionsForever. They work with the quick buttons hidden. Mouseover Keybinding (`/pf bind`): hover a quick button and press a key; right-click to unbind, Escape to finish. Each quick button shows its key (Show Keys on Buttons).
+- Two more quick buttons: Overview (on by default) and Settings (off by default), under Options, Quick Buttons, Buttons. Overview's key is the game's professions key (K).
+- Show Camp Button and Show Disenchanting Mode Button, under Options, Quick Buttons, Buttons.
+- One-Click Fishing: bind a key under Options, One-Click Fishing or Key Bindings. Press it to cast, and again to catch when the fish bites. It only catches the bobber, never a nearby NPC.
+- One-Click Fishing gets you ready first: a press puts on your fishing gear set (picked per character), your best pole and your best lure, then casts. Each step can be turned off. Chat says what was equipped.
+- One-Click Fishing swaps your normal gear back when you mount, when you stop fishing for a while (2 minutes by default) or when combat ends, each an option. Or use the Swap Back key or `/pf swapback`.
+- Louder Fishing Sounds: sound effects turned up while your line is out, and your settings put back after. It can also mute music and ambience, and keep sound on in the background.
+- The version is now shown at login, with a note when a newer version is out. Turn either off under Options, General, Notifications.
+- Manual Transfers: send items or gold between your characters, apart from any queue. Click the letter button in the Transfer Planner's title bar, pick a character, an item (type it, or drop a stack on the window) and an amount, and/or gold, then Send or Ask. It shows on the sender's list, login reminder and mailbox prompt, and their Mail button attaches it. Click a manual transfer to change it; click its X or right-click it to remove it. Soulbound items are refused.
+- Disenchanting Mode: Add to Transfer Plan asks another character to send you their piece of gear.
+- Crafted reagents are priced at what they cost to craft when that's cheaper (a Bolt of Silk Cloth or four Silk Cloth). Used by Cost to Craft, Profit and the Profit sort; the Cost to Craft tooltip lists what each is made from. Include Recipes Your Other Characters Know is under Options, Integrations, Auctionator.
+- `/pf track shop` turns the shopping list's Track on Screen on and off.
+- Item tooltips show "Needed by Crafting Queues" and "Still to Buy" for items your queues need. Hold Shift for who needs it and for which recipes. Shopping list rows show the recipes with Shift too.
+- A Tooltips category in the options, with a page for each part of what the addon adds to tooltips: General (detail key, hint, spacing, indent, block order), Crafting Queues, Alts and Transfers, Prices and Hints, Disenchant Results and Recipes. A live preview sits beside them.
+- Show Where Learned Recipes Came From, under Options, Tooltips, Recipes (off by default): keeps showing a recipe's source after you learn it.
+
+### Changed
+- Recipe and item data updated to the latest Forever build.
+- The options are sorted into categories: General, Appearance, Quick Buttons, Disenchanting, Tooltips, One-Click Fishing, Integrations and About. Each category page links to its pages and has a Reset This Category button. Alt Inventory moved to General.
+- Quick button layout: Fixed Columns or Fixed Rows with a slider, and Grow From any corner, under Options, Quick Buttons, Buttons.
+- The quick buttons and footer cells are in a new order: Overview and Settings, Crafting Queue, Shopping List, Transfer Planner, Cooldowns, Skill Up Route, Camp, Disenchanting Mode, then your professions.
+- With six or more footer cells, the footer takes two rows.
+- Disenchanting Mode has a footer cell, replacing the icon next to the Overview's character picker.
+- A reagent sold by a vendor and on the auction house is priced at whichever is cheaper.
+- Shorter tooltips on shopping list rows, Transfer Planner rows and reagent cards.
+- The click hints are one line, and the auction price line is left off when Auctionator shows its own. Both can go back under Options, Tooltips, Prices and Hints.
+- New addon icon.
+
+### Fixed
+- The Transfer Planner's Mail button attached the whole stack instead of splitting it.
+- Disenchanting Mode: clicking Disenchant during another cast or the global cooldown put the gear on instead.
+- The profession quick buttons opened the profession and closed it again at once.
+- On a character without Enchanting, a second click on Disenchanting Mode opened your enchanter's recipes. It now takes you back to where you were.
+- Windows opened before the main window opened in the middle of the screen, on top of each other. They now dock where the main window will be.
+- A queued recipe the character hadn't learned kept its item and materials on the shopping list.
+- Items the game hadn't loaded yet showed as "item:2840" until the window was reopened.
+- Turning Use Auctionator's Prices on or off scrolled the recipe list to the top.
+
 ## 0.10.1
 
 ### Fixed

@@ -6,7 +6,6 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 local CARD_H, GAP = 136, 12
 local PAD = 14 -- panel padding on the sides and below the cards
 local TOP = 64 -- space above the cards (title, hint)
-local FOOTER = UI.FOOTER_RESERVE
 local SECONDARY_ORDER = {} -- [skill line] = its place among the secondary cards
 for i, skillLine in ipairs(FP.SECONDARY_SKILLS) do SECONDARY_ORDER[skillLine] = i end
 
@@ -209,7 +208,7 @@ function UI:LayoutOverview()
     local o = f and f.overview
     if not o then return end
     -- The panel is the window less its margins; its own size can lag behind while the window is being resized.
-    local width, height = f:GetWidth() - 16, f:GetHeight() - 101 - FOOTER
+    local width, height = f:GetWidth() - 16, f:GetHeight() - 101 - self:FooterReserve()
     local inner = width - PAD * 2
     local half = (inner - GAP) / 2
     for i = 1, 2 do
@@ -230,7 +229,7 @@ function UI:CreateOverview()
     local f = self.frame
     local o = CreateFrame("Frame", "ProfessionsForeverOverview", f, "BackdropTemplate")
     o:SetPoint("TOPLEFT", 8, -93)
-    o:SetPoint("BOTTOMRIGHT", -8, 8 + FOOTER)
+    o:SetPoint("BOTTOMRIGHT", -8, 8 + self:FooterReserve())
     self:Skin(o, "panel")
     f.overview = o
     o.primary, o.secondary, o.trainerChoices = {}, {}, {}
@@ -378,7 +377,6 @@ function UI:RefreshOverview()
     local others = #FP.AltProfs:Characters() > 1
     o.charPick:SetShown(others)
     if others then o.charPick:Sync() end
-    self:SyncOverviewDisenchantButton(o)
     -- Whose cards these are, the name in its class colour; just "Professions" before the character's record exists.
     local shown = FP.db.characters[alt or FP.Alts:GetCharacterKey()]
     o.title:SetText(shown and L["%s Professions"]:format(ClassName(shown, L["%s's"]:format(shown.name or "?"))) or L["Professions"])

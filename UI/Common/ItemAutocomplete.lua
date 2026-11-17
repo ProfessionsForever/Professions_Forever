@@ -94,5 +94,33 @@ function UI:AttachItemAutocomplete(eb, onPick, filter)
         local mine = token
         C_Timer.After(DELAY, function() if token == mine then completion:Update() end end)
     end)
+
+    -- A square slot showing the icon of the item :Resolve gives for the box's text (empty while there is none), with
+    -- that item's tooltip, or `hint` while empty. The caller places it, in front of the box.
+    function s:IconSlot(size, hint)
+        local slot = CreateFrame("Button", nil, eb:GetParent(), "BackdropTemplate")
+        slot:SetSize(size, size)
+        slot:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+        slot:SetBackdropColor(0, 0, 0, 0.5)
+        slot:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        slot.icon = slot:CreateTexture(nil, "ARTWORK")
+        slot.icon:SetPoint("TOPLEFT", 1, -1)
+        slot.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        slot.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        slot:SetScript("OnEnter", function(b)
+            if not (b.itemID or hint) then return end
+            GameTooltip:SetOwner(b, "ANCHOR_TOP")
+            if b.itemID then GameTooltip:SetItemByID(b.itemID) else GameTooltip:AddLine(hint, 1, 1, 1) end
+            GameTooltip:Show()
+        end)
+        slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        eb:HookScript("OnTextChanged", function(box)
+            local text = strtrim(box:GetText())
+            local id = text ~= "" and s:Resolve(text) or nil
+            slot.itemID = id
+            slot.icon:SetTexture(id and select(5, C_Item.GetItemInfoInstant(id)) or nil)
+        end)
+        return slot
+    end
     return s
 end
