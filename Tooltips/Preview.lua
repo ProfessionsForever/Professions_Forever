@@ -59,8 +59,16 @@ local function Data()
         plan.sources[1] = { key = altKey, transfer = 42 }
         plan.localShort, plan.shortage = 69, 27
     end
+    -- The alt's queue also makes 40 of it, which comes off the list: Made by Queues. Crafts Into's sample is the bolt.
+    local cover = alt and { need = 177, made = 40, by = { [altKey] = { qty = 40, recipes = {
+        { name = FP.ItemName(REAGENT), crafts = 40 },
+    } } } } or nil
+    local craftsInto = { { name = FP.ItemName(BOLT), need = 20, amount = 40, recipes = {
+        { name = C_Spell.GetSpellName(BOLT_RECIPE) or FP.ItemName(BOLT), who = FP.Alts:Label(me) },
+    } } }
+    local queued = alt and 137 or 102
     return { key = holdKey, itemID = REAGENT, unit = 65, alts = alts, plan = plan,
-        queue = { row = { queue = alt and 177 or 102, toBuy = 27 }, groups = groups } }
+        queue = { row = { needed = queued, queue = queued, toBuy = 27 }, groups = groups, cover = cover, craftsInto = craftsInto } }
 end
 
 -- The first item in your bags that can be disenchanted.
@@ -90,13 +98,13 @@ function Preview:Update()
     tip:SetPoint("TOPLEFT", panel, "BOTTOMLEFT", 0, -4)
     Tips.preview = data
     if shop then
-        FP.Shop:FillRowTooltip({ itemID = REAGENT, queue = data.queue.row.queue, mine = 0, plan = data.plan,
+        FP.Shop:FillRowTooltip({ itemID = REAGENT, queue = data.queue.row.queue, mine = 0, plan = data.plan, cover = data.queue.cover,
             preview = { unit = data.unit, alts = data.alts, vendor = L["Nearest Trade Goods Vendor"] } }, tip)
     elseif sample == "recipe" then
         -- Made up as well: what needs the profession open. 66 Linen Cloth on the alt makes 33 bolts.
         local e = { id = BOLT_RECIPE, name = FP.ItemName(BOLT), learned = true, difficulty = 1 }
         UI.FillRecipeTooltip(e, tip, { itemID = BOLT, chance = 0.6, reagents = 1, satisfied = 1, bags = 4, bank = 7,
-            alts = 33, source = { trainer = { npc = "Mira Silkweaver" } } })
+            alts = 33, source = { trainers = { { npc = "Mira Silkweaver" } } } })
     elseif sample == "gear" then
         local bag, slot = BagGear()
         if bag then

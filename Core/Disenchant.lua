@@ -58,8 +58,9 @@ end
 
 -- What an item is worth each way, in copper, after the standard auction house cut where it is sold there:
 -- vendor, disenchant (the expected results at auction), auction (the item itself; nil when bound or unpriced).
--- best is "vendor", "disenchant" or "auction". Without prices only the vendor value is known. `link` is the item's own
--- link, for its own auction price (see Prices:Unit).
+-- best is "vendor", "disenchant" or "auction". Auction only wins by more than one deposit for the listing hours picked
+-- in the options (deDeposit, 0 for none), what an unsold listing loses. Without prices only the vendor value is known. `link` is the item's own link, for its own auction
+-- price (see Prices:Unit).
 function DE:Values(tableID, sellPrice, itemID, bound, link)
     local P = FP.Prices
     local v = { vendor = sellPrice }
@@ -72,7 +73,8 @@ function DE:Values(tableID, sellPrice, itemID, bound, link)
     end
     v.best, v.bestValue = "vendor", v.vendor
     if v.disenchant and v.disenchant > v.bestValue then v.best, v.bestValue = "disenchant", v.disenchant end
-    if v.auction and v.auction > v.bestValue then v.best, v.bestValue = "auction", v.auction end
+    local deposit = sellPrice * (P.DEPOSIT[FP.db.deDeposit] or 0)
+    if v.auction and v.auction - deposit > v.bestValue then v.best, v.bestValue = "auction", v.auction end
     return v
 end
 

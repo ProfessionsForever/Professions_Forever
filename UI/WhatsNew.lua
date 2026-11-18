@@ -10,6 +10,16 @@ local UI = FP.UI
 
 -- [version] = { { icon (in Interface\\Icons), heading, text }, ... }. A version without an entry shows nothing.
 local NOTES = {
+    -- 0.10.3 was a small update, so its notes keep the main 0.10.2 ones under its own.
+    ["0.10.3"] = {
+        { "INV_Fabric_Linen_02", "Your Alts' Queues Work Together", "Hover an item to see how many your crafting queues need, how many you still have to buy, and which of your characters' queues are making it. Queue bolts on your tailor and your engineer's shopping list drops them and lists the cloth instead. Ore says what it smelts into, and Queue Needed queues exactly what's missing in one click." },
+        { "INV_Enchant_EssenceMagicLarge", "Queue Your Enchants", "Queue an enchant with a quantity to plan and shop for its materials. Each one you apply with the Enchant button comes off the queue." },
+        { "Spell_Fire_Fire", "Set Up Camp", "A new Camp window (footer, quick button or /pf camp) lists every camp feature you hold, can craft, have on an alt or haven't learned yet. Place them with one click, and the shared cooldowns sit right at the top." },
+        { "Trade_Fishing", "One-Click Fishing", "Bind one key: it puts on your fishing gear, best pole and lure, casts, and catches when the fish bites. Your normal gear goes back on when you mount or stop fishing, and bites are louder so you don't miss the splash." },
+        { "INV_Misc_Coin_02", "Send Stuff by Hand", "The Transfer Planner's letter button opens Manual Transfers: send an alt an item or some gold, or ask one to send you something. Drop a stack from your bags straight on the window. At the mailbox, Mail attaches exactly the right amount, splitting stacks for you. You can ask for gear from Disenchanting Mode too." },
+        { "INV_Misc_Key_03", "Keys for Your Quick Buttons", "Bind a key to any window, to Disenchanting Mode or to each of your professions. Hover a button and press a key to bind it (/pf bind). New Overview and Settings buttons, plus rows or columns, growing from any corner." },
+        { "INV_Misc_Gift_02", "And More", "\"On Shopping List\" on item tooltips, how many a craft makes on the recipe icon, a smarter auction verdict when disenchanting, crafted reagents priced at their crafting cost, options in categories with a live tooltip preview, and a pile of fixes. The changelog has every detail." },
+    },
     ["0.10.2"] = {
         { "Spell_Fire_Fire", "Set Up Camp", "A new Camp window (footer, quick button or /pf camp) lists every camp feature you hold, can craft, have on an alt or haven't learned yet. Place them with one click, and the shared cooldowns sit right at the top." },
         { "Trade_Fishing", "One-Click Fishing", "Bind one key: it puts on your fishing gear, best pole and lure, casts, and catches when the fish bites. Your normal gear goes back on when you mount or stop fishing, and bites are louder so you don't miss the splash." },
@@ -72,6 +82,8 @@ local function Create()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f.fpOpaque = true -- a solid layer under the skin, as the options window has, so see-through skins stay readable
+    f.fpTitleH = PAD + LOGO + 10 -- EllesmereUI's title strip ends at the rule under the logo and title
     UI:Skin(f, "window")
     tinsert(UISpecialFrames, "ProfessionsForeverWhatsNew") -- Escape closes it
     f.logo = f:CreateTexture(nil, "ARTWORK")
@@ -79,19 +91,40 @@ local function Create()
     f.logo:SetPoint("TOPLEFT", PAD, -PAD)
     f.logo:SetTexture(FP.ICON)
     f.title = UI:Text(f, 3)
-    f.title:SetPoint("LEFT", f.logo, "RIGHT", 12, 0) -- centred on the logo
+    f.title:SetPoint("BOTTOMLEFT", f.logo, "RIGHT", 12, 1) -- title and welcome together centred on the logo
     f.title:SetWidth(W - 2 * PAD - LOGO - 12)
     f.title:SetTextColor(1, 0.82, 0)
-    -- A thin line in the accent colour under the title.
+    -- Under it, the options banner's welcome with the character's name in their class colour.
+    f.welcome = UI:Text(f, 0)
+    f.welcome:SetPoint("TOPLEFT", f.logo, "RIGHT", 12, -2)
+    local r, g, b = FP.Alts:ClassColor(select(2, UnitClass("player")))
+    f.welcome:SetText(L["Welcome back, %s"]:format(RGBToColorCode(r, g, b) .. FP.Alts:PlayerName() .. "|r"))
+    -- Behind the logo and title, the options banner's accent glow fading to the right, with a thin accent line under it.
+    -- Placed inside the skin's border each time it opens (UI:ShowWhatsNew).
+    f.glow = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    f.glow:SetTexture(UI.FADE)
     f.rule = f:CreateTexture(nil, "ARTWORK")
     f.rule:SetHeight(1)
-    f.rule:SetPoint("TOPLEFT", f.logo, "BOTTOMLEFT", 0, -10)
-    f.rule:SetPoint("RIGHT", -PAD, 0)
     f.lines = {}
     f.ok = UI:Button(f, L["Got It"], 120, 24, function() f:Hide() end)
     f.ok:SetPoint("BOTTOM", 0, PAD)
     f:Hide()
     return f
+end
+
+-- The header's glow and line: inside the skin's border, in the accent colour. Again on a skin or accent change.
+local function ApplyLook(f)
+    local a = UI:GetAccent()
+    local edge = UI:WindowEdge()
+    f.glow:ClearAllPoints()
+    f.glow:SetPoint("TOPLEFT", edge, -edge)
+    f.glow:SetPoint("TOPRIGHT", -edge, -edge)
+    f.glow:SetHeight(f.fpTitleH - edge)
+    f.rule:ClearAllPoints()
+    f.rule:SetPoint("TOPLEFT", edge, -f.fpTitleH)
+    f.rule:SetPoint("TOPRIGHT", -edge, -f.fpTitleH)
+    f.glow:SetVertexColor(a[1], a[2], a[3], 0.32)
+    f.rule:SetColorTexture(a[1], a[2], a[3], 0.6)
 end
 
 -- Shows the notes for `version` (the newest ones without it); false when there are none.
@@ -102,8 +135,7 @@ function UI:ShowWhatsNew(version)
     frame = frame or Create()
     local f = frame
     f.title:SetText(L["What's New in ProfessionsForever %s"]:format(version))
-    local a = UI:GetAccent()
-    f.rule:SetColorTexture(a[1], a[2], a[3], 0.6)
+    ApplyLook(f)
     local textW = W - 2 * PAD - ICON - ICON_GAP
     local y = PAD + LOGO + 10 + 1 + GAP + 4
     for i, note in ipairs(notes) do
@@ -168,3 +200,8 @@ FP:RegisterEvent("PLAYER_REGEN_ENABLED", function()
         Check()
     end
 end)
+
+-- A skin or accent change while the window is open (UI:ApplySkin).
+function UI:RefreshWhatsNew()
+    if frame and frame:IsShown() then ApplyLook(frame) end
+end

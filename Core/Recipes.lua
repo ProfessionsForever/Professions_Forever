@@ -136,17 +136,6 @@ function R:IsEnchant(recipeID)
     return RecipeType(recipeID) == Enum.TradeskillRecipeType.Enchant
 end
 
--- True for salvage recipes (prospecting, milling...), which break down a chosen stack of items.
-function R:IsSalvage(recipeID)
-    return RecipeType(recipeID) == Enum.TradeskillRecipeType.Salvage
-end
-
--- Items consumed per craft of a salvage recipe.
-function R:SalvageQuantity(recipeID)
-    local s = Schematic(recipeID)
-    return s and max(1, s.max or 1) or 1
-end
-
 -- The open profession's trade categories (the same tree Blizzard's window shows), found by walking up
 -- from each recipe's category, so it doesn't depend on the client's category-listing call.
 function R:LoadCategories()

@@ -87,6 +87,7 @@ function Shop:QueueNeeds()
         end
         if need > 0 then out[r.itemID] = need end
     end
+    self.cover = {}
     if FP.db.shoppingScope ~= "account" then return out end
     local pooled = FP.Planner:Applies()
     for key, rec in pairs(FP.db.characters) do
@@ -100,7 +101,23 @@ function Shop:QueueNeeds()
             end
         end
     end
+    -- What one character's queue makes beyond its own use covers what the others still need, so the list keeps only
+    -- the rest; that craft's materials are already in its queue's needs. self.cover keeps who covers what, for the
+    -- tooltips: [itemID] = { need, made, by } (by as in Queue:Cover).
+    for itemID, c in pairs(FP.Queue:Cover()) do
+        local need = out[itemID]
+        if need then
+            self.cover[itemID] = { need = need, made = c.made, by = c.by }
+            out[itemID] = need > c.made and need - c.made or nil
+        end
+    end
     return out
+end
+
+-- Who covers what of the shared list's queue needs (see QueueNeeds); empty with the character's own list.
+function Shop:Cover()
+    self:QueueNeeds()
+    return self.cover
 end
 
 -- Every listed item's quantity, queues' part and your part: { [itemID] = { qty, queue, mine } }.
@@ -173,7 +190,7 @@ function Shop:Aggregate()
         if it then owned, toBuy, alts = it.have, it.shortage, plan.applies and it.transfer or 0 end
         local unit = FP.Prices:Unit(r.itemID)
         out[#out + 1] = { itemID = r.itemID, name = FP.ItemName(r.itemID), needed = r.need, owned = owned,
-            queue = parts[r.itemID].queue, mine = parts[r.itemID].mine,
+            queue = parts[r.itemID].queue, mine = parts[r.itemID].mine, cover = self.cover[r.itemID],
             alts = alts, plan = it, toBuy = toBuy, unit = unit, cost = unit and unit * toBuy or nil }
     end
     table.sort(out, function(a, b)

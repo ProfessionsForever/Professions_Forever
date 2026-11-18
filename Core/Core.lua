@@ -90,6 +90,7 @@ local defaults = {
     trackShopping = false, -- show the shopping list tracker on screen
     replaceDefault = true, shoppingScope = "account", -- one shopping list shared by all your characters (or "char")
     trainerRecipes = {}, -- [recipe name] = "npcId,npcId" of the trainers seen teaching it
+    trainerItems = {}, -- [item id] = "npcId,npcId" of the trainers seen teaching a recipe that makes it
     trainers = {}, -- [npc id] = { npc, sub, uiMap, x, y, zone, skill, alliance, horde } for trainers you've opened
     bankers = {}, -- same shape, for bankers whose window you've opened
     vendors = {}, -- same shape plus items = ",itemID,itemID," (their stock) and recipes = { names }, for merchants you've opened
@@ -137,6 +138,7 @@ local defaults = {
     quickSkillUp = true, -- SkillUp Forever's Skill Up Route button on the quick buttons
     deSort = "name", -- Disenchanting Mode's list order: name | level | quality | value
     deSortDesc = false, -- Disenchanting Mode's list order reversed
+    deDeposit = 24, -- listing hours whose deposit Sell It at Auction must beat the others by: 0 (not counted) | 2 | 8 | 24
     campCollapsed = { unknown = true }, -- [group] = true for Camp window groups collapsed: "ready", "craft", "alts", "unknown"
     deCollapsed = {}, -- [group] = true for Disenchanting Mode groups the user collapsed: "bags", "bank" or a character key
     -- Tooltips (Tooltips/): the lines the addon adds to item tooltips and to its own windows' item tooltips.
@@ -145,8 +147,11 @@ local defaults = {
     tipSpacing = true, -- a blank line before each block
     tipIndent = 3, -- spaces each level of detail is indented by
     tipOrder = "queue,disenchant,alts", -- the blocks' order, top to bottom (a string: a reset can't share a table)
+    shopTooltip = true, -- "On Shopping List" on item tooltips, for any item on the list
     queueTooltip = true, -- "Needed by Crafting Queues" on item tooltips
-    queueTooltipToBuy = true, -- and "Still to Buy" under it, while short
+    queueTooltipToBuy = true, -- and "Still to Buy" under them, while short
+    queueTooltipMade = true, -- "Made by Queues" under the need, when other queues' crafts cover some of it
+    queueTooltipCraftsInto = true, -- "Crafts Into" on an item a known recipe turns into something the queues need
     queueTooltipRecipes = "shift", -- each character's queued recipes that use it: shift (with the detail key) | always | never
     queueTooltipGroup = true, -- the recipes under a header per character; off: one list, alts' names after theirs
     queueTooltipCrafts = true, -- "x40" after each recipe
@@ -182,7 +187,7 @@ FP.defaults = defaults
 local NO_DEFAULT = { "accent", "trackerPos", "launcherPos", "mainEnchanter" } -- mainEnchanter: nil is Automatic
 
 -- Saved data rather than options, so a reset leaves it alone.
-local DATA_KEYS = { trainerRecipes = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true, fishCVars = true }
+local DATA_KEYS = { trainerRecipes = true, trainerItems = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true, fishCVars = true }
 
 local function Merge(dst, src)
     for k, v in pairs(src) do

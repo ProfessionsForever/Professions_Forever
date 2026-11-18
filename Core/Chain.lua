@@ -16,7 +16,7 @@ function Chain:Record()
     local R, makes = FP.Recipes, FP.chardb.makes
     if not FP.Queue:CurrentSkillLine() then return end
     for _, e in ipairs(R.list) do
-        if e.learned and not recorded[e.id] and #R:GetReagents(e.id) > 0 and not R:IsEnchant(e.id) and not R:IsSalvage(e.id) then
+        if e.learned and not recorded[e.id] and #R:GetReagents(e.id) > 0 and not R:IsEnchant(e.id) then
             local info = FP.Queue:InfoFor(e.id)
             if info and info.output then
                 recorded[e.id] = true

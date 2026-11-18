@@ -258,6 +258,12 @@ local function ResetNotifications() O.ResetKeys("versionNotice", "updateNotice",
 ---------------------------------------------------------------------------
 -- Disenchanting
 ---------------------------------------------------------------------------
+local DEPOSIT_HOURS = { 0, 2, 8, 24 }
+
+local function DepositLabel(hours)
+    return hours == 0 and L["Not Counted"] or L["%d Hour Listing"]:format(hours)
+end
+
 local function BuildDisenchanting(page)
     local db = FP.db
     O.Section(page, L["Disenchanting"])
@@ -280,11 +286,22 @@ local function BuildDisenchanting(page)
         return items
     end)
     UI:Tooltip(main, "ANCHOR_RIGHT", L["The character your other characters send gear to for disenchanting: the quick button, /pf de and the Overview's icon open Disenchanting Mode for them first. Automatic picks the one with the highest Enchanting skill. Characters of the other faction can't be mailed, so they come last whatever is picked here."])
+    local deposit = O.DropList(page, L["Auction Deposit"], function() return DepositLabel(db.deDeposit) end, function()
+        local items = {}
+        for _, hours in ipairs(DEPOSIT_HOURS) do
+            items[#items + 1] = { text = DepositLabel(hours), checked = db.deDeposit == hours, onSelect = function()
+                db.deDeposit = hours
+                UI:UpdateDisenchantMode(true) -- rescanned, for the Best Value sort and Worth Disenchanting Only filter
+            end }
+        end
+        return items
+    end)
+    UI:Tooltip(deposit, "ANCHOR_RIGHT", L["The best choice, in Disenchanting Mode and on item tooltips, is only Sell It at Auction when that beats the others by more than this listing's deposit: what you lose if it doesn't sell. The deposit is 5%, 20% or 60% of the vendor price for 2, 8 or 24 hours at a faction auction house."])
 end
 
 local function ResetDisenchanting()
-    O.ResetKeys("deRecord", "deShowObserved", "mainEnchanter")
-    UI:UpdateDisenchantMode()
+    O.ResetKeys("deRecord", "deShowObserved", "mainEnchanter", "deDeposit")
+    UI:UpdateDisenchantMode(true)
     FP.Launcher:Update() -- the main enchanter is back to Automatic
 end
 
@@ -318,7 +335,7 @@ local PAGES = {
     { key = "tooltips", label = "Tooltips", cat = true },
     { key = "tt_general", parent = "tooltips", label = "General", build = O.BuildTipGeneral, reset = O.ResetTipGeneral,
         desc = "The detail key, spacing, indent and the order of the blocks." },
-    { key = "tt_queue", parent = "tooltips", label = "Crafting Queues", build = O.BuildQueueTooltips, reset = O.ResetQueueTooltips,
+    { key = "tt_queue", parent = "tooltips", label = "Queues & Shopping", build = O.BuildQueueTooltips, reset = O.ResetQueueTooltips,
         desc = "How many of an item your queues need, how many are still to buy, and which recipes use it." },
     { key = "tt_alts", parent = "tooltips", label = "Alts and Transfers", build = O.BuildTipAlts, reset = O.ResetTipAlts,
         desc = "Who else holds an item, what they should send, and what is still to buy." },
@@ -352,14 +369,13 @@ local SUB_INDENT, SUB_ROW_H = 14, 26 -- pages under a category in the list: inde
 -- its name, a welcome in the character's class color, the version, and a strip of the character's professions with
 -- their skill. The accent and professions follow changes each time the window opens.
 local BANNER_H, BANNER_ICON, CHIP_GAP, MAX_CHIPS = 84, 60, 12, 5
-local FADE = "Interface\\AddOns\\ProfessionsForever\\Media\\fade"
 local function Banner(page)
     local w = O.PAGE_W
     local lines = {}
     local glow = page:CreateTexture(nil, "BACKGROUND")
     glow:SetPoint("TOPLEFT")
     glow:SetSize(w, BANNER_H)
-    glow:SetTexture(FADE)
+    glow:SetTexture(UI.FADE)
     for i, y in ipairs({ 0, 1 - BANNER_H }) do
         local line = page:CreateTexture(nil, "ARTWORK")
         line:SetHeight(1)
@@ -382,7 +398,7 @@ local function Banner(page)
     version:SetTextColor(0.6, 0.6, 0.6)
     local welcome = UI:Text(page, 0)
     welcome:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
-    local name = UnitName("player")
+    local name = FP.Alts:PlayerName()
     local r, g, b = FP.Alts:ClassColor(select(2, UnitClass("player")))
     welcome:SetText(L["Welcome back, %s"]:format(RGBToColorCode(r, g, b) .. name .. "|r"))
 

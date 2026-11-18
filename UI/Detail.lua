@@ -109,8 +109,7 @@ function UI:UpdateDetail()
     d.hint:Hide()
     d.content:Show()
 
-    local count = FP.Recipes:IsEnchant(e.id) and 1 or self:GetCount()
-    local salvage = FP.Recipes:IsSalvage(e.id)
+    local count = self:GetCount() -- for an enchant, how many to queue: the Enchant button applies one
     local ev = FP.Recipes:Evaluate(e.id, count)
     local one = FP.Recipes:Evaluate(e.id, 1)
     FP.Recipes:EvaluateAlts(ev)
@@ -118,8 +117,8 @@ function UI:UpdateDetail()
     LayoutTiles(d)
     local sourceKnown = UpdateDetailHeader(d, e)
     UpdateReagentCards(d, e, ev)
-    UpdateDetailSummary(d, e, ev, one, count, salvage)
-    UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
+    UpdateDetailSummary(d, e, ev, one, count)
+    UpdateDetailActions(d, e, ev, one, count, sourceKnown)
 end
 
 -- The name auto-sizes to its text (width 0) so the favorite star can anchor to its right edge; long names are capped
@@ -140,6 +139,8 @@ end
 -- Returns whether a location is known for the recipe (only used for unlearned ones, for the waypoint button).
 function UpdateDetailHeader(d, e)
     d.icon:SetTexture(e.icon)
+    local lo, hi = FP.Recipes:OutputQuantity(e.id)
+    d.iconCount:SetText((hi <= 1 or FP.Recipes:IsEnchant(e.id)) and "" or lo == hi and lo or lo .. "-" .. hi)
     d.name:SetText(e.name)
     FitName(d)
     local dc = DIFF_COLORS[e.difficulty] or WHITE_RGB
@@ -187,7 +188,7 @@ local function ToolsText(recipeID)
 end
 
 -- Why the craft buttons are off, or nil when crafting is possible.
-local function CraftBlockReason(e, crafts, target, salvage)
+local function CraftBlockReason(e, crafts)
     if FP:IsReadOnly() then
         local viewing = FP.AltProfs.viewing
         return viewing and L["Log in on %s to craft this."]:format(viewing.owner) or L["You can't craft from another player's profession."]
@@ -197,8 +198,7 @@ local function CraftBlockReason(e, crafts, target, salvage)
     if FP.Cooldowns:IsOnCooldown(e.id) then return L["This recipe is on cooldown."] end
     -- An enchant needs no target, as in Blizzard's window: without one the cast gives a targeting cursor, which is how
     -- an item in the trade window's "Will not be traded" slot gets enchanted.
-    if salvage and not target then return L["Choose an item first."] end
-    if crafts < 1 then return salvage and L["Not enough of the chosen item."] or L["Not enough materials in your bags."] end
+    if crafts < 1 then return L["Not enough materials in your bags."] end
     local missing = FP.Tools:Missing(e.id)
     if #missing > 0 then return L["Missing requirement: %s"]:format(table.concat(missing, ", ")) end
 end
@@ -212,14 +212,14 @@ function UI:PollStations()
 end
 
 -- Status banner, tool requirements, craftable-count tiles and the cost estimate.
-function UpdateDetailSummary(d, e, ev, one, count, salvage)
+function UpdateDetailSummary(d, e, ev, one, count)
     local covered, inMail = ev.altsCover, ev.mailCovers
     local msg = ev.anyShort and (inMail and "Missing materials are waiting in the mailbox"
         or covered and "Missing materials are available on other characters" or "Items missing - queue it to put them on the shopping list")
-        or (not salvage and BANNER_MSGS[ev.status]) or nil
+        or BANNER_MSGS[ev.status] or nil
     local c = inMail and UI.MAIL_COLOR or covered and UI.ALT_COLOR or STATUS_COLORS[ev.status]
     -- Short only of things you can craft: say so, in place of the missing-items prompt.
-    local chain = ev.anyShort and not covered and not inMail and e.learned and not salvage and not FP:IsReadOnly() and FP.Chain:Describe(e.id, count)
+    local chain = ev.anyShort and not covered and not inMail and e.learned and not FP:IsReadOnly() and FP.Chain:Describe(e.id, count)
     if chain then c = UI.CHAIN_COLOR end
     d.banner:SetText(chain or (msg and L[msg]) or "")
     d.banner:SetTextColor(c[1], c[2], c[3])
@@ -244,7 +244,7 @@ function UpdateDetailSummary(d, e, ev, one, count, salvage)
         if unpriced > 0 then costText = costText .. "  -  " .. L["%d reagent prices unavailable."]:format(unpriced) end
         d.cost:SetText(costText)
     end
-    UpdateProfit(d, e, ev, count, salvage, totalCost, priced, unpriced)
+    UpdateProfit(d, e, ev, count, totalCost, priced, unpriced)
 end
 
 -- The action buttons' labels and spacing, shorter while the panel is narrow; d.actions is what UpdateDetailActions
@@ -272,10 +272,25 @@ local function LayoutActions(d)
     d.addQueue:SetPoint("BOTTOMLEFT", 12, 46)
     d.queueAll:SetPoint("LEFT", d.addQueue, "RIGHT", compactActions and 4 or 6, 0)
     d.track:SetPoint("LEFT", d.queueAll, "RIGHT", compactActions and 4 or 6, 0)
+    if d.forQueuesInfo then
+        SetButtonLabel(d.forQueues, L["Queue Needed (%d)"]:format(math.min(999, d.forQueuesInfo.crafts)), compactActions and 80 or 90)
+    end
+    d.forQueues:ClearAllPoints()
+    d.forQueues:SetPoint("LEFT", d.track:IsShown() and d.track or d.addQueue, "RIGHT", compactActions and 4 or 6, 0)
 end
 
--- Track button, enchant / salvage target, and the state and labels of the craft buttons.
-function UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
+-- What Queue Needed queues: the crafts that make what the queues still need of the recipe's item, from the
+-- shopping list's queue part. Nil when they need none of it.
+local function ForQueues(e)
+    local itemID = FP.Recipes:OutputItemID(e.id)
+    local need = itemID and FP.Shop:QueueNeeds()[itemID]
+    if not need then return end
+    local yield = FP.Recipes:OutputQuantity(e.id)
+    return { itemID = itemID, need = need, yield = yield, crafts = math.ceil(need / yield) }
+end
+
+-- Track button, enchant target, and the state and labels of the craft buttons.
+function UpdateDetailActions(d, e, ev, one, count, sourceKnown)
     local linked = FP:IsReadOnly()
     local tracked = false
     if e.learned and not linked then tracked = C_TradeSkillUI.IsRecipeTracked(e.id, false) and true or false end
@@ -283,42 +298,38 @@ function UpdateDetailActions(d, e, ev, one, count, salvage, sourceKnown)
     d.track:SetActive(not linked and (e.learned or (sourceKnown and FP.Waypoint:NavAvailable())))
 
     local enchant = FP.Recipes:IsEnchant(e.id)
-    local targeted = (enchant or salvage) and not linked -- nothing can be enchanted or salvaged from someone else's profession
+    local targeted = enchant and not linked -- nothing can be enchanted from someone else's profession
     local target = targeted and UI.CurrentTarget(e.id)
     d.target:SetShown(targeted)
     d.targetTitle:SetShown(targeted)
     d.targetName:SetShown(targeted)
-    local crafts = one.craftBags
     if targeted then
-        d.targetTitle:SetText(salvage and L["Salvage Item"] or L["Enchant Target"])
         d.target.icon:SetTexture(target and target:GetItemIcon() or nil)
         d.target.plus:SetShown(not target)
         local name = target and (target:GetItemLink() or target:GetItemName())
-        if name and salvage then name = name .. " x" .. (target:GetStackCount() or 1) end
         d.targetName:SetText(name or L["Click to choose"])
         d.targetName:SetTextColor(target and 1 or 0.6, target and 1 or 0.6, target and 1 or 0.6)
     end
-    -- A salvage craft has no reagents to count; it uses a set number of the chosen stack.
-    if salvage then
-        crafts = target and math.floor((target:GetStackCount() or 0) / FP.Recipes:SalvageQuantity(e.id)) or 0
-    end
-
-    d.craftBlock = CraftBlockReason(e, crafts, target, salvage)
+    d.craftBlock = CraftBlockReason(e, one.craftBags)
     local canCraft = d.craftBlock == nil
     d.craft:SetActive(canCraft)
     d.craftAll:SetActive(canCraft)
-    d.queueAllCount = e.learned and not linked and (salvage and crafts or FP.Queue:RoomFor(e.id)) or 0
+    d.queueAllCount = e.learned and not linked and FP.Queue:RoomFor(e.id) or 0
     d.queueAll:SetActive(d.queueAllCount > 0)
     d.enchantBtn:SetActive(canCraft)
     -- Another player's or character's profession can't be crafted or tracked from here, so those buttons give way to a
     -- line saying why. One of your other characters' learned recipes can still be queued for that character, with a
-    -- quantity.
+    -- quantity. An enchant keeps the quantity and Queue, to plan and shop for its materials; Enchant takes the craft
+    -- buttons' place.
     local viewing = FP.AltProfs.viewing
-    local queueFor = viewing and e.learned and not enchant and not salvage
+    local queueFor = viewing and e.learned
     local plain = not enchant and not linked
+    local canQueue = not linked or queueFor
     for _, w in ipairs({ d.craft, d.craftAll, d.queueAll }) do w:SetShown(plain) end
-    for _, w in ipairs({ d.qtyLabel, d.qty, d.qty.minus, d.qty.plus, d.addQueue }) do w:SetShown(plain or queueFor) end
-    d.addQueue:SetActive(not linked or queueFor)
+    for _, w in ipairs({ d.qtyLabel, d.qty, d.qty.minus, d.qty.plus, d.addQueue }) do w:SetShown(canQueue) end
+    d.addQueue:SetActive(canQueue)
+    d.forQueuesInfo = canQueue and ForQueues(e) or nil
+    d.forQueues:SetShown(d.forQueuesInfo ~= nil)
     d.enchantBtn:SetShown(enchant and not linked)
     d.track:SetShown(not linked)
     d.readOnly:SetShown(linked)

@@ -65,6 +65,11 @@ function Queue:NextEntry()
                 self.skip[q] = true
                 self.unlearned = self.unlearned + 1
                 FP:Print(L["Skipping %s: not learned."]:format(q.name))
+            elseif q.enchant then
+                -- An enchant goes onto an item the player picks, so it is planned and shopped for here and applied
+                -- with the Enchant button; OnEvent counts each one off.
+                self.skip[q] = true
+                self.enchants = self.enchants + q.qty
             elseif FP.Cooldowns:IsOnCooldown(q.id) then
                 self.skip[q] = true
                 self.cooling = self.cooling + 1
@@ -95,6 +100,7 @@ function Queue:Step(fromClick)
         if self.cooling > 0 then msg = msg .. " " .. L["%d recipes skipped (on cooldown)."]:format(self.cooling) end
         if self.noTools > 0 then msg = msg .. " " .. L["%d recipes skipped (missing tools)."]:format(self.noTools) end
         if self.unlearned > 0 then msg = msg .. " " .. L["%d recipes skipped (not learned)."]:format(self.unlearned) end
+        if self.enchants > 0 then msg = msg .. " " .. L["%d enchant(s) left to apply with the Enchant button."]:format(self.enchants) end
         return self:Stop(msg)
     end
     if not fromClick then return self:Ready(q) end
@@ -238,6 +244,14 @@ local function CreditOne(entry)
     end
 end
 
+-- The current character's queued enchant with this spell, if any. The runner never casts enchants, so one that
+-- succeeds was applied by the player (the Enchant button, or Blizzard's window) and comes off the queue.
+local function QueuedEnchant(spellID)
+    for _, q in ipairs(Queue:Data()) do
+        if q.enchant and q.id == spellID then return q end
+    end
+end
+
 -- Hands off to the next entry shortly after the current one ends.
 local function Advance()
     if Queue.run and Queue.run.advancing then
@@ -299,7 +313,7 @@ function Queue:ToggleRun()
         return self:Stop(L["Queue stopped."])
     end
     if #self:Data() == 0 then return end
-    self.skip, self.skipped, self.cooling, self.noTools, self.unlearned, self.run = {}, 0, 0, 0, 0, {}
+    self.skip, self.skipped, self.cooling, self.noTools, self.unlearned, self.enchants, self.run = {}, 0, 0, 0, 0, 0, {}
     self:Step(true)
 end
 
@@ -309,6 +323,12 @@ local function OnEvent(event, _, _, spellID)
         tail.made = tail.made + 1
         CreditOne(tail.entry)
         if tail.made >= tail.batch then Queue.tail = nil end
+        FP:Changed("queue")
+        return
+    end
+    local applied = event == "UNIT_SPELLCAST_SUCCEEDED" and QueuedEnchant(spellID)
+    if applied then
+        CreditOne(applied)
         FP:Changed("queue")
         return
     end

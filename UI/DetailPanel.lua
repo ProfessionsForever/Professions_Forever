@@ -43,6 +43,9 @@ function UI:CreateDetailHeader(d, c)
     d.iconHit:SetAllPoints(d.icon)
     d.iconHit:SetFrameLevel(c:GetFrameLevel() + 2)
     d.iconHit:EnableMouse(true)
+    -- How many items one craft makes ("2", or "2-4" for a range), in the icon's corner as in Blizzard's window.
+    d.iconCount = self:Text(d.iconHit, 1, "RIGHT")
+    d.iconCount:SetPoint("BOTTOMRIGHT", d.icon, "BOTTOMRIGHT", -2, 2)
     d.iconHit:SetScript("OnEnter", function(s)
         local recipe = SelectedRecipe()
         if not recipe then return end
@@ -172,7 +175,7 @@ function UI:CreateDetailHeader(d, c)
     d.desc:SetTextColor(1, 1, 1)
 end
 
--- Banner, requirements, cost, quantity, craft buttons and the enchant / salvage target.
+-- Banner, requirements, cost, quantity, craft buttons and the enchant target.
 function UI:CreateDetailActions(d, c)
     d.banner = self:Text(c, 1)
     d.cost = self:Text(c, -1)
@@ -222,9 +225,9 @@ function UI:CreateDetailActions(d, c)
     d.craft:SetPoint("LEFT", d.qty.plus, "RIGHT", 12, 0)
     d.craftAll = self:Button(c, L["Craft All"], 90, 24, function() UI.DoCraft(math.huge) end)
     d.craftAll:SetPoint("LEFT", d.craft, "RIGHT", 6, 0)
-    -- Enchanting applies one enchant to the chosen item, so it replaces the quantity and craft buttons.
+    -- Enchanting applies one enchant to the chosen item, so it replaces the craft buttons; the quantity is for Queue.
     d.enchantBtn = self:Button(c, L["Enchant"], 120, 24, function() UI.DoCraft(1) end)
-    d.enchantBtn:SetPoint("BOTTOMLEFT", 12, 18)
+    d.enchantBtn:SetPoint("LEFT", d.qty.plus, "RIGHT", 12, 0)
     d.enchantBtn:Hide()
     -- In their place for another player's or character's profession: why it can't be crafted here.
     d.readOnly = self:Text(c, 0)
@@ -250,22 +253,34 @@ function UI:CreateDetailActions(d, c)
     d.bannerBtn = CreateFrame("Button", nil, c)
     d.bannerBtn:SetAllPoints(d.banner)
     d.bannerBtn:SetScript("OnClick", function() FP.Shop:Open() end)
-    d.addQueue = self:Button(c, L["Queue"], 80, 24, function()
-        if not FP.selected then return end
+    -- The selected recipe, `count` crafts, into the queue: that character's while viewing another character's profession.
+    local function AddSelected(count)
         local viewing = FP.AltProfs.viewing
         if viewing then
-            FP.Queue:AddFor(viewing.key, FP.selected, viewing.skillLine, UI:GetCount()) -- into that character's queue
+            FP.Queue:AddFor(viewing.key, FP.selected, viewing.skillLine, count)
         else
-            Queue(function() FP.Queue:AddWithPrerequisites(FP.selected, UI:GetCount()) end)
+            Queue(function() FP.Queue:AddWithPrerequisites(FP.selected, count) end)
         end
+    end
+    d.addQueue = self:Button(c, L["Queue"], 80, 24, function()
+        if not FP.selected then return end
+        AddSelected(UI:GetCount())
         d.qty:SetText("1")
     end)
     d.addQueue:SetPoint("BOTTOMLEFT", 12, 46)
     self:Tooltip(d.addQueue, "ANCHOR_TOP", function(tip)
         local e = SelectedRecipe()
-        if not e or e.learned then return false end
-        tip:AddLine(L["Not Learned"], 1, 0.3, 0.3)
-        tip:AddLine(L["You can queue it to plan and shop for its materials. The queue skips it until it is learned."], 0.8, 0.8, 0.8, true)
+        if not e then return false end
+        local enchant = FP.Recipes:IsEnchant(e.id)
+        if e.learned and not enchant then return false end
+        if not e.learned then
+            tip:AddLine(L["Not Learned"], 1, 0.3, 0.3)
+            tip:AddLine(L["You can queue it to plan and shop for its materials. The queue skips it until it is learned."], 0.8, 0.8, 0.8, true)
+        end
+        if enchant then
+            tip:AddLine(L["Enchant"], 1, 1, 1)
+            tip:AddLine(L["The queue plans and shops for this enchant's materials. Apply it with the Enchant button: each one applied comes off the queue."], 0.8, 0.8, 0.8, true)
+        end
     end)
     d.queueAll = self:Button(c, L["Queue All"], 80, 24, function()
         if FP.selected and d.queueAllCount > 0 then Queue(function() FP.Queue:Add(FP.selected, d.queueAllCount) end) end
@@ -273,6 +288,22 @@ function UI:CreateDetailActions(d, c)
     d.queueAll:SetPoint("LEFT", d.addQueue, "RIGHT", 6, 0)
     d.queueAllCount = 0
     self:Tooltip(d.queueAll, "ANCHOR_TOP", L["Queues as many crafts as your bags can supply."])
+
+    -- Queue Needed: queues the crafts that make what the queues still need of this recipe's item (the shopping list's
+    -- queue part, net of what other queues make), so 441 Bronze Bar queues 221 Smelt Bronze, not 441.
+    d.forQueues = self:Button(c, L["Queue Needed (%d)"], 80, 24, function()
+        if FP.selected and d.forQueuesInfo then AddSelected(math.min(999, d.forQueuesInfo.crafts)) end
+    end)
+    self:Tooltip(d.forQueues, "ANCHOR_TOP", function(tip)
+        local info = d.forQueuesInfo
+        if not info then return false end
+        tip:AddLine(L["Queue Needed (%d)"]:format(info.crafts), 1, 1, 1)
+        tip:AddLine(L["Queues the crafts your crafting queues still need."], 0.8, 0.8, 0.8, true)
+        tip:AddLine(L["Still needed: %d %s. One craft makes %d."]:format(info.need, FP.ItemName(info.itemID), info.yield),
+            0.8, 0.8, 0.8, true)
+        FP.Tooltips:AddQueueRecipeLines(tip, info.itemID)
+    end)
+    d.forQueues:Hide()
 
     d.track = self:Button(c, L["Track"], 80, 24, function()
         local e = SelectedRecipe()
@@ -288,7 +319,7 @@ function UI:CreateDetailActions(d, c)
     self:CreateEnchantTarget(d, c)
 end
 
--- The enchant / salvage target picker, shown only for those recipes.
+-- The enchant target picker, shown only for enchants.
 function UI:CreateEnchantTarget(d, c)
     -- Enchanting: the item to enchant, a square the height of a reagent card above the cost line, text to its right.
     d.target = CreateFrame("Button", nil, c, "BackdropTemplate")
@@ -323,9 +354,8 @@ function UI:CreateEnchantTarget(d, c)
         if guid then
             tip:SetItemByGUID(guid)
         else
-            local salvage = FP.selected and FP.Recipes:IsSalvage(FP.selected)
-            tip:AddLine(salvage and L["Salvage Item"] or L["Enchant Target"], 1, 1, 1)
-            tip:AddLine(salvage and L["Click to choose the item to salvage."] or L["Click to choose the item to enchant."], 0.6, 0.6, 0.6, true)
+            tip:AddLine(L["Enchant Target"], 1, 1, 1)
+            tip:AddLine(L["Click to choose the item to enchant."], 0.6, 0.6, 0.6, true)
         end
     end)
     d.target:Hide()

@@ -6,9 +6,11 @@ local STATUS_COLORS, Hex = UI.STATUS_COLORS, UI.Hex
 -- Where a recipe comes from, and the preview, track and link actions on it. Shared by the recipe list's rows and the
 -- recipe panel (UI/RecipeList.lua, UI/Detail.lua, UI/DetailPanel.lua).
 
--- "Trained by" text for a remembered trainer record.
-local function TrainerText(trainer)
-    return L["Trained by: %s"]:format(trainer.zone and ("%s (%s)"):format(trainer.npc, trainer.zone) or trainer.npc)
+local MAX_TRAINERS = 5 -- trainers listed on a tooltip; the rest are counted
+
+-- "Name (Zone)" for a remembered trainer record.
+local function TrainerWhere(trainer)
+    return trainer.zone and ("%s (%s)"):format(trainer.npc, trainer.zone) or trainer.npc
 end
 
 -- What the recipe makes, when it can be worn and so previewed.
@@ -47,22 +49,34 @@ function UI.ShowsSource(e)
     return not e.learned or FP.db.tipLearnedSource
 end
 
--- Adds where a recipe comes from (source text, trainer, vendors) to `tip`, GameTooltip unless given. A learned one gets
--- no waypoint hint: Ctrl-click doesn't set one for it. `pv`: the options' previewer's made-up source ({ trainer }), as
+-- Adds where a recipe comes from (source text, trainers, vendors) to `tip`, GameTooltip unless given. A learned one gets
+-- no waypoint hint: Ctrl-click doesn't set one for it. `pv`: the options' previewer's made-up source ({ trainers }), as
 -- the game's source text needs the profession open.
 function UI.AddSourceLines(recipeID, learned, tip, pv)
     tip = tip or GameTooltip
-    local src, trainer, sold, loading
+    local src, trainers, sold, loading
     if pv then
-        trainer = pv.trainer
+        trainers = pv.trainers
     else
         src = C_TradeSkillUI.GetRecipeSourceText(recipeID)
-        trainer = FP.Waypoint:TrainerFor(recipeID)
+        trainers = FP.Waypoint:TrainersFor(recipeID)
         sold, loading = FP.Waypoint:Summary(recipeID)
     end
     local hasSrc = src and src ~= ""
+    local trainer = trainers[1]
     if src and hasSrc then tip:AddLine(src, 1, 0.82, 0, true) end
-    if trainer then tip:AddLine(TrainerText(trainer), 1, 0.82, 0, true) end
+    -- One trainer on one line; more under a "Trained by" line, nearest first.
+    if #trainers == 1 then
+        tip:AddLine(L["Trained by: %s"]:format(TrainerWhere(trainer)), 1, 0.82, 0, true)
+    elseif trainer then
+        tip:AddLine(L["Trained by"], 1, 0.82, 0)
+        for i = 1, math.min(#trainers, MAX_TRAINERS) do
+            tip:AddLine(FP.Tooltips:Indent(1) .. TrainerWhere(trainers[i]), 1, 1, 1)
+        end
+        if #trainers > MAX_TRAINERS then
+            tip:AddLine(FP.Tooltips:Indent(1) .. L["+%d more"]:format(#trainers - MAX_TRAINERS), 0.6, 0.6, 0.6)
+        end
+    end
     if sold then tip:AddLine(L["Sold by: %s"]:format(sold), 1, 0.82, 0, true) end
     if loading then tip:AddLine(L["Looking up vendors..."], 0.6, 0.6, 0.6) end
     if not (hasSrc or trainer or sold or loading) then
@@ -75,10 +89,15 @@ function UI.AddSourceLines(recipeID, learned, tip, pv)
     end
 end
 
--- One line on where a recipe is learned from, and whether a location is known to set a waypoint to.
+-- One line on where a recipe is learned from (the nearest trainer, and how many others), and whether a location is
+-- known to set a waypoint to.
 function UI.SourceSummary(recipeID)
-    local trainer = FP.Waypoint:TrainerFor(recipeID)
-    if trainer then return TrainerText(trainer), true end
+    local trainers = FP.Waypoint:TrainersFor(recipeID)
+    if trainers[1] then
+        local text = L["Trained by: %s"]:format(TrainerWhere(trainers[1]))
+        if #trainers > 1 then text = text .. " (" .. L["+%d more"]:format(#trainers - 1) .. ")" end
+        return text, true
+    end
     local sold, loading = FP.Waypoint:Summary(recipeID)
     if sold then return L["Sold by: %s"]:format(sold), true end
     if loading then return L["Looking up vendors..."], false end

@@ -190,7 +190,7 @@ end
 -- One card per reagent: icon, name, owned / needed, and the queue, shopping list and vendor badges.
 function UI.UpdateReagentCards(d, e, ev)
     for i = #d.rows + 1, #ev.reagents do d.AddReagentCard(i) end
-    d.cardCount, d.cardTargeted = #ev.reagents, FP.Recipes:IsEnchant(e.id) or FP.Recipes:IsSalvage(e.id)
+    d.cardCount, d.cardTargeted = #ev.reagents, FP.Recipes:IsEnchant(e.id)
     LayoutReagentCards(d, d.cardCount, d.cardTargeted)
     for i = 1, #d.rows do
         local row, r = d.rows[i], ev.reagents[i]

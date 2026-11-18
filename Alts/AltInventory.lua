@@ -99,6 +99,9 @@ end
 -- The current character's realm, in the form records hold it.
 function Alts:Realm() return select(2, NameAndRealm()) end
 
+-- This character's full name, first and last ("Thorgrim Lightfist"); UnitName gives only the first.
+function Alts:PlayerName() return (NameAndRealm()) or UnitName("player") end
+
 -- The current character's record, created on first sight. Returns record, key.
 function Alts:Current()
     local key = self:GetCharacterKey()

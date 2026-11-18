@@ -185,18 +185,36 @@ local function AddId(list, npcId)
     return list .. "," .. npcId, true
 end
 
-local function FirstUsableTrainer(ids)
+-- Adds the trainers in a "1,2,3" list that are of your faction and not in `seen` yet.
+local function AddUsable(out, seen, ids)
     for v in (ids or ""):gmatch("%d+") do
-        local t = W.KnownEntry("trainers", tonumber(v))
-        if t and W.Usable(t) then return t end
+        local id = tonumber(v)
+        local t = not seen[id] and W.KnownEntry("trainers", id)
+        if t and W.Usable(t) then
+            seen[id] = true
+            out[#out + 1] = t
+        end
     end
 end
 
--- The first recorded or shipped trainer of your faction that teaches the recipe.
-function W:TrainerFor(recipeID)
+-- Every recorded or shipped trainer of your faction that teaches the recipe, nearest first: by the item it makes, and
+-- by name. A trainer lists a recipe by what it makes ("Steel Bar" for Smelt Steel), so the item's name is tried as
+-- well as the recipe's own; enchants make no item and are listed by their own name.
+function W:TrainersFor(recipeID)
     local e = FP.Recipes.byID[recipeID]
-    if not e then return end
-    return FirstUsableTrainer(FP.db.trainerRecipes[e.name]) or FirstUsableTrainer(FP.NpcData.trainerRecipes[e.name])
+    if not e then return {} end
+    local out, seen, names = {}, {}, { e.name }
+    local made = FP.RecipeOutputs[recipeID]
+    if made then
+        AddUsable(out, seen, FP.db.trainerItems[made])
+        local madeName = C_Item.GetItemNameByID(made)
+        if madeName then names[2] = madeName else C_Item.RequestLoadItemDataByID(made) end -- not cached: a later redraw
+    end
+    for _, name in ipairs(names) do
+        AddUsable(out, seen, FP.db.trainerRecipes[name])
+        AddUsable(out, seen, FP.NpcData.trainerRecipes[name])
+    end
+    return W.SortNearest(out)
 end
 
 local function UnitSubtitle()
@@ -243,6 +261,10 @@ local function ScanTrainer()
             local ids, added = AddId(FP.db.trainerRecipes[name], npcId)
             if added then learned = learned + 1 end
             FP.db.trainerRecipes[name] = ids
+            -- What the recipe makes, so it can be matched by item ID rather than by the name the trainer lists it under.
+            local link = GetTrainerServiceItemLink(i)
+            local itemID = link and C_Item.GetItemInfoInstant(link)
+            if itemID then FP.db.trainerItems[itemID] = (AddId(FP.db.trainerItems[itemID], npcId)) end
             -- A profession trainer's recipes name their skill, which doubles as the trainer's profession.
             local skill = GetTrainerServiceSkillReq(i)
             if type(skill) == "string" and skill ~= "" then skills[skill] = (skills[skill] or 0) + 1 end

@@ -3,12 +3,12 @@ local L = FP.L
 local UI = FP.UI
 
 -- Spell buttons beside a profession: Disenchant (then click an item), the tracking spells and Bait and Tackle,
--- which opens Fishing's crafting window.
+-- which opens Fishing's crafting window (`opens`).
 local SPELLS = {
     [FP.ENCHANTING] = { { id = FP.Disenchant.SPELL, needsItem = true } }, -- Enchanting: Disenchant
     [186] = { { id = 2580 } },                    -- Mining: Find Minerals
     [182] = { { id = 2383 } },                    -- Herbalism: Find Herbs
-    [356] = { { id = 1278067 }, { id = 43308 } }, -- Fishing: Bait and Tackle, Find Fish
+    [356] = { { id = 1278067, opens = true }, { id = 43308 } }, -- Fishing: Bait and Tackle, Find Fish
 }
 
 -- The spell's localized name when the character knows it.
@@ -48,14 +48,26 @@ local function CreateButton(parent, size)
             or L["Click to cast %s."]:format(name), 0.7, 0.7, 0.7, true)
         tip:AddLine(L["Drag to an action bar for direct access"], 0.5, 0.8, 1)
     end)
+    -- A spell that opens the profession's window clicks like the profession's card (UI/ProfessionOpener.lua).
+    button:SetScript("PostClick", function(s, btn, down)
+        if down or not s.spell.opens then return end
+        UI.OnProfessionOpenerClick(s, btn)
+    end)
     return button
 end
 
-local function SetButton(button, spell)
+local function SetButton(button, spell, skillLine)
     local name = SpellName(spell)
     button.spell, button.spellName = spell, name
     button:SetAttribute("type", "macro")
-    button:SetAttribute("macrotext", "/cast " .. name)
+    if spell.opens then
+        for _, p in ipairs(FP:GetProfessions()) do
+            if p.skillLine == skillLine then UI:SetProfessionOpener(button, p) end
+        end
+    else
+        button:SetAttribute("macrotext1", nil) -- the button may have held an opener before
+        button:SetAttribute("macrotext", "/cast " .. name)
+    end
     button.icon:SetTexture(C_Spell.GetSpellTexture(spell.id))
     button:Show()
 end
@@ -72,7 +84,7 @@ function UI:SyncExtraSpellButtons(store, parent, skillLine, size, placeFirst)
             buttons[i] = CreateButton(parent, size)
             if i == 1 then placeFirst(buttons[i]) else buttons[i]:SetPoint("RIGHT", buttons[i - 1], "LEFT", -4, 0) end
         end
-        SetButton(buttons[i], spell)
+        SetButton(buttons[i], spell, skillLine)
     end
     for i = #spells + 1, #buttons do buttons[i]:Hide() end
     return buttons[#spells]

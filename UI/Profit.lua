@@ -48,9 +48,9 @@ end
 local PROFIT_GREY = { 0.65, 0.65, 0.65 }
 
 -- The profit line under the cost line: what the craft sells for on the auction house less its reagents.
-local function UpdateProfit(d, e, ev, count, salvage, cost, priced, unpriced)
+local function UpdateProfit(d, e, ev, count, cost, priced, unpriced)
     d.profitInfo = nil
-    if salvage or #ev.reagents == 0 then d.profit:SetText("") return end
+    if #ev.reagents == 0 then d.profit:SetText("") return end
     if priced == 0 then
         d.profit:SetText(L["Profit unavailable: reagent prices unknown"])
         d.profit:SetTextColor(unpack(PROFIT_GREY))

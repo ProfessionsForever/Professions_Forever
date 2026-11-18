@@ -60,7 +60,7 @@
 - **Craft Queue** works through the list and opens each profession as needed; between recipes, a click on the game world crafts the next one. **Stop Craft** cancels the current craft and moves on. **Stop Queue** ends the run.
 - Queueing a recipe whose reagents you can craft yourself queues those first, sized to what you're short of. With only part of the materials, the queue holds back the early steps so the final crafts aren't left short.
 - Rows are marked when something is missing: red when no one has it, blue when it's in the bank, pink when it's waiting in the mailbox.
-- What the queue is short of goes on the shopping list by itself and follows the queue as it changes (with the shared list, the queues of all your characters of the same faction). Shared materials are counted once. Quantities you change or add yourself are kept; **Reset to Queue** in the shopping list undoes your changes to the queue's items.
+- What the queue is short of goes on the shopping list by itself and follows the queue as it changes (with the shared list, the queues of all your characters of the same faction). Shared materials are counted once. With the shared list, an item one character has queued to craft comes off the list, and its materials go on instead. Quantities you change or add yourself are kept; **Reset to Queue** in the shopping list undoes your changes to the queue's items.
 - The **character picker** in the title bar shows and edits another of your characters' queue (it crafts only on that character); the Transfer Planner follows it and shows who should send that character what.
 
 ### Shopping list
@@ -68,7 +68,7 @@
 - Click an item to search for it at the auction house.
 - With Auctionator: a unit price per item, a cost column, an estimated total, and a one-click send to an Auctionator shopping list.
 - Export as plain text.
-- Items your queues need say so on their tooltip in your bags, bank and loot window: **Needed by Crafting Queues** and **Still to Buy**. Hold Shift for each character's queued recipes that use it.
+- Items on your shopping list say so on their tooltip in your bags, bank and loot window: **On Shopping List**, **Needed by Crafting Queues** when your queues need them, and **Still to Buy**. Hold Shift for each character's queued recipes that use it. **Made by Queues** says how many another character's queued crafts cover, and **Crafts Into** on a raw material such as ore says what it is smelted or crafted into that your queues need.
 
 ### Alt inventory and transfer planner
 - With Syndicator active, it does the tracking: other characters' bags and bank are read from its data, and this addon scans and saves no inventory of its own. Characters hidden in Syndicator are skipped.
@@ -266,7 +266,7 @@ Before deploying, `tools/check.py` (the "Check addon code" task) checks the code
 | `UI/Options/` | The options window and its pages |
 | **Tooltips/** | **Lines added to item tooltips** |
 | `Tooltips/Tooltips.lua` | The one item tooltip hook, running each block in the chosen order; the detail key, spacing, indent and key hint |
-| `Tooltips/QueueNeeds.lua` | Needed by Crafting Queues and Still to Buy, the shopping list's numbers |
+| `Tooltips/QueueNeeds.lua` | On Shopping List, Needed by Crafting Queues and Still to Buy, the shopping list's numbers |
 | `Tooltips/Disenchant.lua` | Disenchant results and the best choice (disenchant, vendor or auction) |
 | `Tooltips/Preview.lua` | The tooltip preview docked beside the options while a Tooltips page is open |
 | **Panels/** | **Side windows** |

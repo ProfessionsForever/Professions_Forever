@@ -182,6 +182,8 @@ end
 
 -- Auction house cut: the standard rate, and the neutral auction house's.
 P.CUT, P.NEUTRAL_CUT = 0.05, 0.15
+-- A faction auction house's deposit by listing hours, as a share of the vendor price. Refunded on a sale.
+P.DEPOSIT = { [2] = 0.05, [8] = 0.20, [24] = 0.60 }
 
 local BIND_PICKUP, BIND_QUEST = 1, 4
 

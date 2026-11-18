@@ -9,33 +9,80 @@ local function Loaded(skillLine)
     return base and base.professionID == skillLine and C_TradeSkillUI.IsTradeSkillReady() and not FP:IsReadOnly()
 end
 
+-- Where the profession's spells are in the spellbook now: offset and count. Read from the game each time, not from
+-- FP:GetProfessions(), which is kept until a skill line changes: the slots move when the character learns a class
+-- spell, and a range kept from before then points at class spells.
+local function SpellRange(p)
+    local indices = { GetProfessions() }
+    for i = 1, 7 do
+        local idx = indices[i]
+        if idx and idx > 0 then
+            local _, _, _, _, numSpells, spellOffset, skillLine = GetProfessionInfo(idx)
+            if skillLine == p.skillLine then return spellOffset, numSpells end
+        end
+    end
+end
+
 -- The profession's spellbook entries as { slot, id }.
 local function SpellEntries(p)
     local out = {}
-    local first = (p.spellOffset or 0) + 1
-    for slot = first, first + (p.numSpells or 0) - 1 do
+    local offset, count = SpellRange(p)
+    local first = (offset or 0) + 1
+    for slot = first, first + (count or 0) - 1 do
         local item = C_SpellBook.GetSpellBookItemInfo(slot, Enum.SpellBookSpellBank.Player)
         if item and item.spellID then out[#out + 1] = { slot = slot, id = item.spellID } end
     end
     return out
 end
 
--- The profession's spell that opens its crafting window; Fishing also has one that casts the pole.
-function UI:ProfessionSpellID(p)
-    local fallback
-    for _, spell in ipairs(SpellEntries(p)) do
-        local ok, opensWindow = pcall(C_TradeSkillUI.CanTradeSkillShowCraftingUI, spell.id)
-        if ok and opensWindow then return spell.id end
-        if not fallback and not C_Spell.IsSpellPassive(spell.id) then fallback = spell.id end
+-- Professions with no crafting window of their own: their card casts the profession's first spell instead.
+local NO_WINDOW = { [182] = true, [393] = true, [356] = true } -- Herbalism, Skinning, Fishing
+
+local function OpensWindow(id)
+    local ok, opens = pcall(C_TradeSkillUI.CanTradeSkillShowCraftingUI, id)
+    return ok and opens
+end
+
+-- The spell that opens the profession's crafting window, by ID from the game data (FP.ProfessionOpeners,
+-- Data/Recipes.lua): a rank the character knows, preferring one the game confirms opens it. /cast by its name casts
+-- the highest rank. Specializations such as Gnomish Engineer aren't listed: every specialist also knows a rank.
+local function Opener(skillLine)
+    local known
+    for _, id in ipairs(FP.ProfessionOpeners[skillLine] or {}) do
+        if IsPlayerSpell(id) then
+            if OpensWindow(id) then return id end
+            known = known or id
+        end
     end
-    return fallback
+    return known
+end
+
+-- The profession's spell for its card, tab and key to cast. A profession with a crafting window gets its opener and
+-- nothing else: never a spell found by its place in the spellbook, which could be a class spell (a shaman's totem,
+-- when the spellbook shifted). Without one, the click opens it through C_TradeSkillUI.OpenTradeSkill
+-- (UI.OnProfessionOpenerClick). Herbalism, Skinning and Fishing cast their first spell (Fishing: the pole) unless
+-- Forever gives them a window.
+function UI:ProfessionSpellID(p)
+    if FP.ProfessionOpeners then
+        local id = Opener(p.skillLine)
+        if id or not NO_WINDOW[p.skillLine] then return id end
+    else
+        -- Data/Recipes.lua from before the opener table: the spellbook, but only a spell the game says opens a window.
+        for _, spell in ipairs(SpellEntries(p)) do
+            if OpensWindow(spell.id) then return spell.id end
+        end
+        if not NO_WINDOW[p.skillLine] then return end
+    end
+    for _, spell in ipairs(SpellEntries(p)) do
+        if not C_Spell.IsSpellPassive(spell.id) then return spell.id end
+    end
 end
 
 -- Whether the profession has a crafting window to open (not Herbalism, Skinning or Fishing, whose spell would cast).
 function UI:HasCraftingWindow(p)
+    if FP.ProfessionOpeners then return Opener(p.skillLine) ~= nil end
     for _, spell in ipairs(SpellEntries(p)) do
-        local ok, opensWindow = pcall(C_TradeSkillUI.CanTradeSkillShowCraftingUI, spell.id)
-        if ok and opensWindow then return true end
+        if OpensWindow(spell.id) then return true end
     end
     return false
 end

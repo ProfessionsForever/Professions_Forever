@@ -929,7 +929,7 @@ local function CreateRight(f)
         { "vendor", L["Vendor"], "Interface\\Icons\\INV_Misc_Coin_01", L["What a vendor pays for it. Vendors take no cut."] },
         { "disenchant", L["Disenchant"], C_Spell.GetSpellTexture(FP.Disenchant.SPELL),
             L["The disenchant value is what its results are expected to sell for, from their chances and Auctionator's prices."] },
-        { "auction", L["Auction"], nil, L["What the item itself sells for at auction, from Auctionator's prices."] },
+        { "auction", L["Auction"], nil, L["What the item itself sells for at auction, from Auctionator's prices. It's only best when it beats the others by more than the deposit picked under Options, Disenchanting."] },
     }
     p.valueCards = p.values.cards
     for i, card in ipairs(p.valueCards) do

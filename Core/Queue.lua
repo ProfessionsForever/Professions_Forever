@@ -63,7 +63,8 @@ function Queue:QueuedProduction(itemID)
 end
 
 -- What a queue entry keeps about a recipe of the open profession, so the queue works across professions without
--- reopening them: reagents, what it makes and the skill line to craft it in.
+-- reopening them: reagents, what it makes, the skill line to craft it in, and whether it is an enchant (which the
+-- runner can't cast: it goes onto an item the player picks, see Core/QueueRunner.lua).
 function Queue:InfoFor(recipeID, skillLine)
     local e = FP.Recipes.byID[recipeID]
     if not e then return end
@@ -73,7 +74,8 @@ function Queue:InfoFor(recipeID, skillLine)
     end
     local itemID = FP.Recipes:OutputItemID(recipeID)
     return { id = recipeID, name = e.name, icon = e.icon, reagents = reagents, skillLine = skillLine or self:RecipeSkillLine(recipeID),
-        output = itemID and { itemID = itemID, qty = (FP.Recipes:OutputQuantity(recipeID)) } or nil }
+        output = itemID and { itemID = itemID, qty = (FP.Recipes:OutputQuantity(recipeID)) } or nil,
+        enchant = FP.Recipes:IsEnchant(recipeID) or nil }
 end
 
 -- Adds crafts of a recipe described by InfoFor to `key`'s queue (the current character's without it), merging into its
@@ -93,7 +95,7 @@ function Queue:AddInfo(info, qty, key, from)
         added = entry.qty - before
     else
         entry = { id = info.id, name = info.name, icon = info.icon, qty = math.min(999, qty),
-            reagents = info.reagents, skillLine = info.skillLine, output = info.output }
+            reagents = info.reagents, skillLine = info.skillLine, output = info.output, enchant = info.enchant }
         data[#data + 1] = entry
         added = entry.qty
     end
@@ -250,15 +252,67 @@ function Queue:Clear(key)
     FP:Changed("queue")
 end
 
+-- What `key`'s queue (the current character's without it) makes of each item. A craft of the current character's just
+-- counted off has its output on the way to the bags (Queue.incoming, Core/QueueRunner.lua): it still counts as made, so
+-- nothing reads as short for the moment in between.
+local function Made(self, key)
+    local made = {}
+    for _, q in ipairs(self:Data(key)) do
+        if q.output then made[q.output.itemID] = (made[q.output.itemID] or 0) + q.qty * q.output.qty end
+    end
+    if not key or key == FP.Alts:GetCharacterKey() then
+        for itemID, n in pairs(self.incoming or {}) do made[itemID] = (made[itemID] or 0) + n end
+    end
+    return made
+end
+
+-- What `key`'s queue makes beyond what that same queue uses: [itemID] = quantity, above zero only.
+function Queue:Spare(key)
+    local spare = Made(self, key)
+    for _, q in ipairs(self:Data(key)) do
+        for _, r in ipairs(q.reagents) do
+            if spare[r.itemID] then spare[r.itemID] = spare[r.itemID] - r.qty * q.qty end
+        end
+    end
+    for itemID, n in pairs(spare) do
+        if n <= 0 then spare[itemID] = nil end
+    end
+    return spare
+end
+
+-- What every queue of this faction makes beyond its own use (the current character's included), with who makes it:
+-- [itemID] = { made, by = { [key] = { qty, recipes = { { name, crafts } } } } }. Another faction's crafts can't be
+-- mailed across, so they cover nothing.
+function Queue:Cover()
+    local me, out = FP.Alts:GetCharacterKey(), {}
+    for key, rec in pairs(FP.db.characters) do
+        if key == me or (rec.queue and #rec.queue > 0 and not FP.Alts:IsOtherFaction(rec)) then
+            for itemID, n in pairs(self:Spare(key ~= me and key or nil)) do
+                local c = out[itemID]
+                if not c then
+                    c = { made = 0, by = {} }
+                    out[itemID] = c
+                end
+                local recipes = {}
+                for _, q in ipairs(self:Data(key)) do
+                    if q.output and q.output.itemID == itemID then recipes[#recipes + 1] = { name = q.name, crafts = q.qty } end
+                end
+                c.made = c.made + n
+                c.by[key] = { qty = n, recipes = recipes }
+            end
+        end
+    end
+    return out
+end
+
 -- Totals reagents across all queued recipes of `key` (the current character without it) so shared materials are
 -- counted once against stock. A changed queue drops the amounts chosen in the Transfer Planner for materials it no
 -- longer needs.
 local requirementsSig = {}
 function Queue:Requirements(key)
-    local order, byItem, sig, made = {}, {}, {}, {}
+    local order, byItem, sig = {}, {}, {}
     for _, q in ipairs(self:Data(key)) do
         sig[#sig + 1] = q.id .. "x" .. q.qty
-        if q.output then made[q.output.itemID] = (made[q.output.itemID] or 0) + q.qty * q.output.qty end
         for _, r in ipairs(q.reagents) do
             local n = byItem[r.itemID]
             if not n then
@@ -269,11 +323,7 @@ function Queue:Requirements(key)
             n.need = n.need + r.qty * q.qty
         end
     end
-    -- A craft of the current character's just counted off has its output on the way to the bags (Queue.incoming,
-    -- Core/QueueRunner.lua): it still counts as made, so nothing reads as short for the moment in between.
-    if not key or key == FP.Alts:GetCharacterKey() then
-        for itemID, n in pairs(self.incoming or {}) do made[itemID] = (made[itemID] or 0) + n end
-    end
+    local made = Made(self, key)
     -- What queued crafts will make is not something to acquire.
     local needed = {}
     for _, n in ipairs(order) do

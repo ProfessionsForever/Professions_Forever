@@ -149,7 +149,7 @@ function W:ForRecipe(recipeID)
     local e = FP.Recipes.byID[recipeID]
     if not e then return end
 
-    local trainer = self:TrainerFor(recipeID)
+    local trainer = self:TrainersFor(recipeID)[1]
     if trainer then return SetWaypoint(trainer, trainer.npc, e.name) end
 
     local db, zoneDB = Questie()

@@ -7,7 +7,9 @@ local ROWS, ROW_H = 11, 28
 Queue.ROWS, Queue.ROW_H = ROWS, ROW_H
 local STOP_MACRO = "/stopcasting"
 local MISSING, BANK, MAIL = FP.UI.STATUS_COLORS.missing, FP.UI.STATUS_COLORS.bank, FP.UI.MAIL_COLOR
+local COVERED = FP.UI.STATUS_COLORS.partial -- missing, but another character's queue is making all of it
 local WARN, BANK_MARK = RGBToColorCode(unpack(MISSING)) .. "! |r", RGBToColorCode(unpack(BANK)) .. "! |r"
+local COVERED_MARK = RGBToColorCode(unpack(COVERED)) .. "! |r"
 local MAIL_MARK = RGBToColorCode(unpack(MAIL)) .. "! |r"
 
 ---------------------------------------------------------------------------
@@ -62,6 +64,32 @@ function Queue:AddViewPicker(f)
         return items
     end)
     f.pick:SetPoint("RIGHT", f.pinBtn, "LEFT", -6, 0)
+end
+
+-- Which of an entry's missing reagents other characters' queues are making (Queue:Cover): [itemID] = { text = "Name
+-- (Recipe x221), ...", qty = how many they make beyond their own use }. The current character's own crafts already
+-- count in what is missing.
+local function MadeBy(missing, cover)
+    local me, chars, out = FP.Alts:GetCharacterKey(), FP.db.characters, {}
+    for _, m in ipairs(missing) do
+        local by = cover[m.itemID] and cover[m.itemID].by or {}
+        local keys = {}
+        for key in pairs(by) do
+            if key ~= me then keys[#keys + 1] = key end
+        end
+        if #keys > 0 then
+            table.sort(keys, function(a, b) return FP.Alts:Label(chars[a]) < FP.Alts:Label(chars[b]) end)
+            local parts, qty = {}, 0
+            for i, key in ipairs(keys) do
+                local recipes = {}
+                for j, u in ipairs(by[key].recipes) do recipes[j] = u.name .. " x" .. u.crafts end
+                parts[i] = CharacterName(key) .. " (" .. table.concat(recipes, ", ") .. ")"
+                qty = qty + by[key].qty
+            end
+            out[m.itemID] = { text = table.concat(parts, ", "), qty = qty }
+        end
+    end
+    return out
 end
 
 ---------------------------------------------------------------------------
@@ -121,6 +149,7 @@ function Queue:Update()
             or (bankCount > 0 and L["%d queued recipe(s) need materials from the bank."]:format(bankCount))
             or (mailCount > 0 and L["%d queued recipe(s) need materials from your mailbox."]:format(mailCount)) or "")
     end
+    local cover = shortCount > 0 and self:Cover() or {}
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #data, shown, ROW_H)
     f.scroll.fpSetRange(math.max(0, #data - shown) * ROW_H)
@@ -138,15 +167,24 @@ function Queue:Update()
             row.noTools = noTools and #noTools > 0 and noTools or nil
             -- Unlearned recipes are grey with a star, as in the recipe list.
             row.unlearned = not self:IsLearned(q, view)
+            row.enchant = q.enchant
+            row.madeBy = row.missing and MadeBy(row.missing, cover)
+            local allCovered = row.madeBy and not row.noTools
+            for _, m in ipairs(row.missing or {}) do
+                local by = row.madeBy[m.itemID]
+                if not (by and by.qty >= m.qty) then allCovered = false end
+            end
             local name = row.unlearned and (q.name .. " *") or q.name
-            row.name:SetText((row.missing or row.noTools) and WARN .. name or (row.fromBank and BANK_MARK .. name)
+            row.name:SetText(allCovered and COVERED_MARK .. name or (row.missing or row.noTools) and WARN .. name
+                or (row.fromBank and BANK_MARK .. name)
                 or (row.fromMail and MAIL_MARK .. name) or name)
             if row.unlearned then row.name:SetTextColor(0.5, 0.5, 0.5) else row.name:SetTextColor(1, 1, 1) end
             row.icon:SetDesaturated(row.unlearned)
             if not row.qty:HasFocus() then row.qty:SetText(q.qty) end
             row:Show()
         else
-            row.index, row.missing, row.fromBank, row.fromMail, row.noTools, row.unlearned = nil, nil, nil, nil, nil, nil
+            row.index, row.missing, row.fromBank, row.fromMail, row.noTools, row.unlearned, row.enchant = nil, nil, nil, nil, nil, nil, nil
+            row.madeBy = nil
             row:Hide()
         end
     end
@@ -170,7 +208,11 @@ function Queue:Create()
             if q then UI.LinkToChat(C_TradeSkillUI.GetRecipeLink(q.id)) end
         end,
         tooltip = function(row)
-            if not (row.missing or row.fromBank or row.fromMail or row.noTools or row.unlearned) then return false end
+            if not (row.missing or row.fromBank or row.fromMail or row.noTools or row.unlearned or row.enchant) then return false end
+            if row.enchant then
+                GameTooltip:AddLine(L["Enchant"], 1, 1, 1)
+                GameTooltip:AddLine(L["The queue plans and shops for this enchant's materials. Apply it with the Enchant button: each one applied comes off the queue."], 0.8, 0.8, 0.8, true)
+            end
             if row.unlearned then
                 GameTooltip:AddLine(L["Not Learned"], MISSING[1], MISSING[2], MISSING[3])
                 GameTooltip:AddLine(L["The queue skips this recipe until it is learned. Its materials are still planned and put on the shopping list."], 0.8, 0.8, 0.8, true)
@@ -184,7 +226,15 @@ function Queue:Create()
             if row.missing then
                 GameTooltip:AddLine(L["Missing materials:"], 1, 1, 1)
                 for _, m in ipairs(row.missing) do
-                    GameTooltip:AddDoubleLine(FP.ItemName(m.itemID), m.qty, 1, 1, 1, MISSING[1], MISSING[2], MISSING[3])
+                    local by = row.madeBy[m.itemID]
+                    local c = by and by.qty >= m.qty and COVERED or MISSING
+                    GameTooltip:AddDoubleLine(FP.ItemName(m.itemID), m.qty, 1, 1, 1, c[1], c[2], c[3])
+                end
+                for _, m in ipairs(row.missing) do
+                    local by = row.madeBy[m.itemID]
+                    if by then
+                        GameTooltip:AddLine(L["%s: being made by %s"]:format(FP.ItemName(m.itemID), by.text), COVERED[1], COVERED[2], COVERED[3], true)
+                    end
                 end
             end
             if row.fromBank then

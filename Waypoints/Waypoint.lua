@@ -122,7 +122,7 @@ function W:Available(recipeID)
     if not Navigator() then return false end
     if Questie() then return true end
     local e = recipeID and FP.Recipes.byID[recipeID]
-    return e ~= nil and (W:TrainerFor(recipeID) ~= nil or #W.KnownRecipeVendors(e.name) > 0)
+    return e ~= nil and (#W:TrainersFor(recipeID) > 0 or #W.KnownRecipeVendors(e.name) > 0)
 end
 
 local function WorldPos(uiMap, x, y)
@@ -162,6 +162,23 @@ local function PickNearest(cands)
     return other
 end
 W.PickNearest = PickNearest
+
+-- Sorts candidates ({ uiMap, x, y, ... }) in place: the ones on the player's continent nearest first, then the rest in
+-- the order given. Returns the list.
+function W.SortNearest(cands)
+    local pc, px, py = PlayerWorldPos()
+    local dist, order = {}, {}
+    for i, cand in ipairs(cands) do
+        local c, wx, wy = WorldPos(cand.uiMap, cand.x, cand.y)
+        dist[cand] = c and c == pc and px and sqrt((wx - px) ^ 2 + (wy - py) ^ 2) or math.huge
+        order[cand] = i
+    end
+    table.sort(cands, function(a, b)
+        if dist[a] ~= dist[b] then return dist[a] < dist[b] end
+        return order[a] < order[b]
+    end)
+    return cands
+end
 
 -- Only one waypoint of ours at a time. TomTom's own clearing is unreliable here, so we remove it on arrival too.
 local active

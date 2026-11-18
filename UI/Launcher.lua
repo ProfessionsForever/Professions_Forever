@@ -616,8 +616,9 @@ FP:RegisterEvent("PLAYER_REGEN_ENABLED", function()
     end
 end)
 -- TRADE_SKILL_LIST_UPDATE catches the profession becoming ready, which TRADE_SKILL_SHOW can come before. Runs with
--- the quick buttons off too, for the keys.
-for _, e in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_CLOSE", "SKILL_LINES_CHANGED" }) do
+-- the quick buttons off too, for the keys. SPELLS_CHANGED: the spellbook loaded or changed, so the buttons' and keys'
+-- casts are worked out again from it.
+for _, e in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_CLOSE", "SKILL_LINES_CHANGED", "SPELLS_CHANGED" }) do
     FP:RegisterEvent(e, function() Launcher:Update() end)
 end
 

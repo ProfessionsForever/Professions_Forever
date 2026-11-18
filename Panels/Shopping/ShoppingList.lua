@@ -87,7 +87,7 @@ function Shop:Update()
             row.need:SetText(e.needed)
             row.have:SetText(e.owned)
             row.alts:SetText(e.alts > 0 and e.alts or "")
-            row.plan, row.queue, row.mine = e.plan, e.queue, e.mine
+            row.plan, row.queue, row.mine, row.cover = e.plan, e.queue, e.mine, e.cover
             row.buy:SetText(e.toBuy)
             row.cost:SetShown(hasPrices)
             row.cost:SetText(e.toBuy == 0 and "" or (e.cost and FP.Prices:Format(e.cost) or "-"))
@@ -101,6 +101,18 @@ function Shop:Update()
         end
     end
     f.ah:SetShown(FP.Prices:Available())
+    f.coverHint:SetShown(not FP.Planner:Applies() and self:CoveredByOthers())
+end
+
+-- Whether another character's queued crafts cover something on the list (Shop.cover, set by the Aggregate above).
+function Shop:CoveredByOthers()
+    local me = FP.Alts:GetCharacterKey()
+    for _, c in pairs(self.cover) do
+        for key in pairs(c.by) do
+            if key ~= me then return true end
+        end
+    end
+    return false
 end
 
 ---------------------------------------------------------------------------
@@ -120,9 +132,11 @@ function Shop:FillRowTooltip(row, tip)
     local blocks = {
         queue = function()
             if row.queue <= 0 then return end
+            local c = row.cover
             Tips:Space(tip)
-            tip:AddDoubleLine(L["Needed by Crafting Queues"], row.queue, 0.8, 0.8, 0.8, 1, 1, 1)
+            tip:AddDoubleLine(L["Needed by Crafting Queues"], c and c.need or row.queue, 0.8, 0.8, 0.8, 1, 1, 1)
             if db.queueTooltipShopRows and Tips:AddQueueRecipes(tip, id) then hidden = true end
+            if Tips:AddMadeBy(tip, c) then hidden = true end
             if row.mine ~= 0 then
                 tip:AddDoubleLine(L["Your Change"], ("%+d"):format(row.mine), 0.8, 0.8, 0.8, 1, 1, 1)
             end
@@ -213,6 +227,23 @@ local function BuildList(f)
             row.name:SetWordWrap(false)
         end })
     Shop:LayoutColumns(f, false)
+
+    -- While Planning isn't Include in Planning, items another character's queue makes come back as they are crafted, in
+    -- that character's bags, until mailed. Said where the item names start, left of the column headers.
+    local hint = CreateFrame("Frame", nil, f)
+    hint:SetPoint("TOPLEFT", 14, -34)
+    hint:SetSize(150, 16)
+    hint:EnableMouse(true)
+    hint.text = UI:Text(hint, -2)
+    hint.text:SetPoint("LEFT")
+    hint.text:SetText(L["Made by Queues (?)"])
+    hint.text:SetTextColor(0.6, 0.6, 0.6)
+    UI:Tooltip(hint, "ANCHOR_TOP", function(tip)
+        tip:AddLine(L["Made by Queues"], 1, 1, 1)
+        tip:AddLine(L["Some items are off the list because another character's queue makes them. They come back as that character crafts them, until mailed. Set Alt Inventory to Include in Planning to count them in that character's bags instead."], 0.8, 0.8, 0.8, true)
+    end)
+    hint:Hide()
+    f.coverHint = hint
 
     f.empty = UI:Text(f, 0, "CENTER")
     f.empty:SetPoint("CENTER", 0, 20)

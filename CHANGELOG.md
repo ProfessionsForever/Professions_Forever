@@ -1,4 +1,30 @@
 # Changelog
+## 0.10.3
+
+### Added
+- A recipe's tooltip lists every trainer of your faction known to teach it, nearest first (up to 5, then "+N more"). The recipe panel names the nearest one, with how many others, and the waypoint goes to the nearest.
+- Item tooltips show "On Shopping List" with how many for every item on the shopping list, including ones you added yourself, and "Still to Buy" under it. Show Shopping List on Item Tooltips is under Options, Tooltips, Queues & Shopping (renamed from Crafting Queues).
+- Enchants can be queued with a quantity, to plan and shop for their materials. Each one applied with the Enchant button comes off the queue; the queue runner skips them.
+- Item tooltips and shopping list rows show "Made by Queues": how many your other characters' queued crafts make of an item the queues need, and who makes them. Shown even when nothing is left to buy.
+- "Crafts Into" on item tooltips: on a raw material such as Copper Ore, what a recipe your characters know turns it into that the queues need, and how many that takes.
+- Queue Needed button in the recipe panel: queues the crafts that make what the queues still need, with who needs it in its tooltip.
+- The crafting queue's missing marker names the other character making a missing reagent, and turns yellow when they make all of it.
+- Show Made by Queues and Show Crafts Into are under Options, Tooltips, Queues & Shopping.
+
+### Changed
+- The What's New window's header has the options banner's accent glow and a welcome with your character's name. Its background is solid in the Classic and Minimal skins, as the options window's is.
+
+### Fixed
+- Switching the skin to EllesmereUI with a window open hid the art drawn on the window itself, such as the What's New icons, until a reload.
+- The options' welcome showed only your first name. It now shows your full name.
+- With the shared shopping list, an item another character had queued to craft stayed on the list as well as that craft's materials. It now comes off the list, chains included (bars for ore).
+- Recipes a trainer lists by what they make, such as Smelt Steel ("Steel Bar"), said "Location not currently known" even after visiting the trainer. Trainers are now matched by the item a recipe makes too.
+- The recipe icon in the detail pane now shows how many items one craft makes ("2", or "2-4" for a range), as Blizzard's window does.
+- Profession tabs, quick buttons and keys could cast a class spell, such as a shaman's totem, after learning a new spell.
+- The disenchant verdict (item tooltips and Disenchanting Mode) picked Sell It at Auction when it only just beat the vendor or disenchant value. Auction now has to win by more than a listing's deposit, 24 hours by default (Auction Deposit, under Options, Disenchanting).
+- With EllesmereUI, the What's New window's dark title strip stopped partway down its title. It now ends at the line under the title.
+- The Overview's Bait and Tackle button closed Fishing when it was already open. It now works like the Fishing card, right-click included.
+
 ## 0.10.2
 
 ### Added

@@ -63,7 +63,7 @@ local function WithKey(format) return function() return L[format]:format(Tips:Ke
 -- General
 ---------------------------------------------------------------------------
 local KEY_LABELS = { shift = "Shift", ctrl = "Ctrl", alt = "Alt" }
-local BLOCK_LABELS = { queue = "Crafting Queues", disenchant = "Disenchant Results", alts = "Alts and Transfers" }
+local BLOCK_LABELS = { queue = "Crafting Queues and Shopping List", disenchant = "Disenchant Results", alts = "Alts and Transfers" }
 local ORDER_ROW, ORDER_W = 24, 260
 
 -- The blocks' order, top to bottom: drag a row up or down. A line shows where it will land.
@@ -165,7 +165,7 @@ function O.ResetTipGeneral()
 end
 
 ---------------------------------------------------------------------------
--- Crafting Queues
+-- Crafting Queues and Shopping List
 ---------------------------------------------------------------------------
 local RECIPES = { "shift", "always", "never" }
 -- "shift" is the detail key, Shift unless changed under General.
@@ -173,11 +173,17 @@ local RECIPES_LABELS = { shift = WithKey("While Holding %s"), always = "Always",
 
 function O.BuildQueueTooltips(page)
     local db = FP.db
-    O.Section(page, L["Crafting Queues"])
+    O.Section(page, L["Crafting Queues and Shopping List"])
+    Check(page, L["Show Shopping List on Item Tooltips"], "shopTooltip",
+        L["Items on your shopping list say how many are on it, whether you added them or your queues did."])
     Check(page, L["Show Queue Needs on Item Tooltips"], "queueTooltip",
         L["Items your crafting queues need say how many on their tooltip, in your bags, bank, loot window and chat links: the same number as the shopping list. With a faction-wide shopping list, your other characters' queues count too."])
+    local made = Check(page, L["Show Made by Queues"], "queueTooltipMade",
+        L["Under the queue need, how many your queues make beyond their own use, so another character's queued crafts take that much off the shopping list. Who makes them shows with the recipes."])
     local toBuy = Check(page, L["Show Still to Buy"], "queueTooltipToBuy",
-        L["Under it, how many you still have to buy while you're short, the shopping list's Buy column."])
+        L["Under them, how many you still have to buy while you're short, the shopping list's Buy column."])
+    Check(page, L["Show Crafts Into"], "queueTooltipCraftsInto",
+        L["Items your queues don't need themselves, such as ore, say what a recipe your characters know turns them into that the queues do need, and how many that takes. Who knows each recipe shows with the recipes."])
     local recipes = Drop(page, L["Show the Recipes"], "queueTooltipRecipes", RECIPES, RECIPES_LABELS,
         L["Each character whose queue uses the item, with how many, and under each one the queued recipes and how many each takes."])
     local group = Check(page, L["Group by Character"], "queueTooltipGroup",
@@ -189,15 +195,16 @@ function O.BuildQueueTooltips(page)
 
     refreshers[#refreshers + 1] = function()
         local recipesShown = db.queueTooltipRecipes ~= "never"
-        Follow(db.queueTooltip, { recipes }, { toBuy })
+        Follow(db.queueTooltip or db.shopTooltip, {}, { toBuy })
+        Follow(db.queueTooltip, { recipes }, { made })
         Follow(recipesShown, {}, { group, crafts, shopRows })
     end
     refreshers[#refreshers]()
 end
 
 function O.ResetQueueTooltips()
-    O.ResetKeys("queueTooltip", "queueTooltipToBuy", "queueTooltipRecipes", "queueTooltipGroup", "queueTooltipCrafts",
-        "queueTooltipShopRows")
+    O.ResetKeys("shopTooltip", "queueTooltip", "queueTooltipMade", "queueTooltipToBuy", "queueTooltipCraftsInto", "queueTooltipRecipes",
+        "queueTooltipGroup", "queueTooltipCrafts", "queueTooltipShopRows")
 end
 
 ---------------------------------------------------------------------------

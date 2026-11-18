@@ -82,6 +82,7 @@ GetSendMailMoney
 GetServerTime
 GetTime
 GetTrainerServiceInfo
+GetTrainerServiceItemLink
 GetTrainerServiceSkillLine
 GetTrainerServiceSkillReq
 GetTrainerServiceStepIndex

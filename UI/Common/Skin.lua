@@ -27,7 +27,7 @@ FP.skins = {
     classic = {
         name = "Classic", accent = { 1, 0.82, 0 },
         window = { bg = { 1, 1, 1, 1 }, border = { 1, 1, 1, 1 }, bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", edgeSize = 16, inset = 4 },
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", edgeSize = 16, inset = 4, edge = 5 },
         panel = { bg = { 0, 0, 0, 0.45 }, border = { 0.6, 0.5, 0.2, 1 } },
         button = { bg = { 0.25, 0.15, 0.05, 1 }, border = { 0.8, 0.65, 0.2, 1 } },
     },
@@ -65,6 +65,10 @@ local function Skin()
 end
 UI.ActiveSkin = Skin
 
+-- White fading to clear from left to right, tinted with the accent for a glow (flat strips showed as steps). The
+-- options' banner and the What's New header use it.
+UI.FADE = "Interface\\AddOns\\ProfessionsForever\\Media\\fade"
+
 local accentBuf = {}
 function UI:GetAccent()
     local S = EUI()
@@ -77,7 +81,8 @@ end
 
 local skinned, texts, euiWidgets = {}, {}, {}
 
--- Height of the title strip in every window; titles and header buttons are centred on it.
+-- Height of the title strip in every window; titles and header buttons are centred on it. A window whose header is
+-- taller sets f.fpTitleH before UI:Skin.
 local WINDOW_TITLE_H = 30
 UI.TITLE_H = WINDOW_TITLE_H
 
@@ -96,7 +101,14 @@ local function ApplyBackdrop(f)
     if S then
         -- EllesmereUI draws the window itself; our backdrop would cover its art.
         f:SetBackdrop(nil)
+        -- Shell fades every texture already on the frame. Ours (an icon, a glow) come back after it; the opaque backing
+        -- stays faded, EllesmereUI's backdrop takes its place. Matters when switching to this skin with a window built.
+        local keep = {}
+        for _, r in ipairs({ f:GetRegions() }) do
+            if r:IsObjectType("Texture") and r ~= f.fpBacking and r:GetAlpha() > 0 then keep[r] = r:GetAlpha() end
+        end
         S.Shell(f)
+        for r, alpha in pairs(keep) do r:SetAlpha(alpha) end
         -- Shell and its restrips fade any texture they didn't create, so resize its own 25px bar (BACKGROUND sublevel -5).
         if not f.fpTopBar then
             for _, r in ipairs({ f:GetRegions() }) do
@@ -106,7 +118,7 @@ local function ApplyBackdrop(f)
                 end
             end
         end
-        if f.fpTopBar then f.fpTopBar:SetHeight(WINDOW_TITLE_H) end
+        if f.fpTopBar then f.fpTopBar:SetHeight(f.fpTitleH or WINDOW_TITLE_H) end -- fpTitleH: a window with a taller header
         UI.euiApplied = true
         return
     end
@@ -118,6 +130,14 @@ local function ApplyBackdrop(f)
     local alpha = c.bg[4] * (f.fpKind == "button" and 1 or FP.db.opacity)
     f:SetBackdropColor(c.bg[1], c.bg[2], c.bg[3], alpha)
     f:SetBackdropBorderColor(unpack(c.border))
+end
+
+-- How far in from a window's edge its border art reaches (edge: what the art draws past the backdrop's inset), so
+-- something drawn edge to edge, like the What's New header's glow, stays inside it.
+function UI:WindowEdge()
+    if EUI() then return 1 end
+    local c = Skin().window
+    return c.edge or c.inset or 1
 end
 
 function UI:Skin(f, kind)
@@ -151,6 +171,7 @@ function UI:ApplySkin()
     for _, f in ipairs(skinned) do ApplyBackdrop(f) end
     for _, w in ipairs(euiWidgets) do ApplyEUIWidget(w) end
     self:ApplyFonts()
+    self:RefreshWhatsNew()
     if self.frame then
         self:SyncFilters() self:UpdateList() -- ApplyFonts above redraws the detail panel
         self:RefreshProfessions() self:RefreshFooterSelection()
