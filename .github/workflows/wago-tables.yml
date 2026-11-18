@@ -1,0 +1,89 @@
+# Downloads the WoW: Forever client tables (wago.tools, product wowf) that the generator scripts in tools/ read.
+# Run it by hand: Actions > "Fetch wago tables" > Run workflow.
+#
+# The tables are always kept as a workflow artifact (7 days, only downloadable when signed in to GitHub).
+# With "publish" set to "branch" they are also pushed, gzipped, as the single commit of the wago-cache branch, which
+# anyone can read. That branch is rewritten on every run and can be deleted at any time; nothing else reads it.
+# The tables are Blizzard Entertainment's game data as exported by wago.tools; they are not part of the addon and
+# are never merged into main.
+name: Fetch wago tables
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Forever build, such as 1.60.1.70959 (empty: the newest wowf build)"
+        required: false
+        type: string
+      extra:
+        description: "More table names to try, separated by spaces"
+        required: false
+        type: string
+      publish:
+        description: "Where the tables go"
+        required: true
+        type: choice
+        default: artifact
+        options:
+          - artifact
+          - branch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wago-tables
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUT: ${{ runner.temp }}/wago
+      BUILD_INPUT: ${{ inputs.build }}
+      EXTRA_INPUT: ${{ inputs.extra }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download the tables
+        id: fetch
+        run: |
+          set -euo pipefail
+          args=(--out "$OUT")
+          if [ -n "$BUILD_INPUT" ]; then args+=(--build "$BUILD_INPUT"); fi
+          if [ -n "$EXTRA_INPUT" ]; then read -r -a extra <<< "$EXTRA_INPUT"; args+=(--extra "${extra[@]}"); fi
+          python3 tools/fetch_tables.py "${args[@]}"
+          { echo '```json'; cat "$OUT"/*/MANIFEST.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the tables as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wago-${{ steps.fetch.outputs.build }}
+          path: ${{ env.OUT }}
+          retention-days: 7
+          compression-level: 9
+
+      - name: Publish to the wago-cache branch
+        if: inputs.publish == 'branch'
+        env:
+          BUILD: ${{ steps.fetch.outputs.build }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/publish"
+          mkdir -p "$work"
+          cp -r "$OUT/." "$work/"
+          gzip -9 "$work"/*/*.csv
+          cd "$work"
+          git init -q -b wago-cache
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "wago.tools tables for wowf $BUILD"
+          git push --force "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" wago-cache
+          echo "Published to the wago-cache branch." >> "$GITHUB_STEP_SUMMARY"
