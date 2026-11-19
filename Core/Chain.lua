@@ -35,13 +35,16 @@ function Chain:Maker(itemID)
 end
 
 -- What to craft first for `count` crafts of `info` (Queue:InfoFor). steps lists { recipe, crafts } with makers before
--- the crafts that use them; short[itemID] is what raw materials would still be missing. Bags, bank and mailbox count, less
--- what the queue already needs and plus what it will make.
+-- the crafts that use them; short[itemID] is what raw materials would still be missing. Bags, bank and mailbox count, and
+-- what other characters hold when alts count toward planning, less what the queue already needs and plus what it will
+-- make: bars on a bank alt are sent for, not smelted again.
 function Chain:Plan(info, count)
     local steps, short, supply, active = {}, {}, {}, { [info.id] = true }
+    local alts = FP.Planner:Applies()
     local function Have(itemID)
         if supply[itemID] == nil then
             local _, _, total, mail = FP.Inv:Owned(itemID)
+            if alts then total = total + FP.Alts:GetEnabledAltTotal(itemID) end
             supply[itemID] = total + mail - FP.Queue:QueuedAmount(itemID) + FP.Queue:QueuedProduction(itemID)
         end
         return supply[itemID]

@@ -151,7 +151,7 @@ local function Knowers(recipeID)
 end
 
 -- What a known recipe makes of this item that the queues still need, one level deep: { name, need, amount, recipes =
--- { { name, who } } } per item made, by name. The shopping list's netted queue part is the need.
+-- { { name, who } } } per item made, by name. The need is the shopping list's queue part that nobody holds yet.
 local function CraftsInto(itemID)
     local preview = Tips.preview
     if preview then return preview.queue.craftsInto or {} end
@@ -161,16 +161,18 @@ local function CraftsInto(itemID)
         recipe = tonumber(recipe)
         local made = FP.RecipeOutputs[recipe]
         local row = made and byItem[made]
-        local who = row and row.queue > 0 and Knowers(recipe)
+        -- Only what nobody holds yet is left to craft: bars on a bank alt are not asked of the ore.
+        local need = row and math.min(row.queue, row.toBuy) or 0
+        local who = need > 0 and Knowers(recipe)
         if who and #who > 0 then
             local yield = FP.Recipes:OutputQuantity(recipe)
             local e = byOut[made]
             if not e then
-                e = { name = FP.ItemName(made), need = row.queue, amount = 0, recipes = {} }
+                e = { name = FP.ItemName(made), need = need, amount = 0, recipes = {} }
                 byOut[made] = e
                 out[#out + 1] = e
             end
-            e.amount = math.max(e.amount, math.ceil(row.queue / yield) * tonumber(count))
+            e.amount = math.max(e.amount, math.ceil(need / yield) * tonumber(count))
             e.recipes[#e.recipes + 1] = { name = C_Spell.GetSpellName(recipe) or tostring(recipe), who = table.concat(who, ", ") }
         end
     end

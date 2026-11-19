@@ -200,6 +200,15 @@ function Shop:Aggregate()
     return out
 end
 
+-- What the queues still need of one item that nobody holds: the list's still-to-buy, up to the queues' part. What is
+-- left to craft, where QueueNeeds is what the queues use.
+function Shop:QueueMissing(itemID)
+    for _, e in ipairs(self:Aggregate()) do
+        if e.itemID == itemID then return math.min(e.queue, e.toBuy) end
+    end
+    return 0
+end
+
 -- Items still to buy, their estimated total cost, and how many have no auction price. data: an Aggregate result.
 function Shop:Summary(data)
     local items, cost, unpriced = 0, 0, 0

@@ -280,11 +280,11 @@ local function LayoutActions(d)
 end
 
 -- What Queue Needed queues: the crafts that make what the queues still need of the recipe's item, from the
--- shopping list's queue part. Nil when they need none of it.
+-- shopping list's queue part, less what is already held (Shop:QueueMissing). Nil when they need none of it.
 local function ForQueues(e)
     local itemID = FP.Recipes:OutputItemID(e.id)
-    local need = itemID and FP.Shop:QueueNeeds()[itemID]
-    if not need then return end
+    local need = itemID and FP.Shop:QueueMissing(itemID) or 0
+    if need == 0 then return end
     local yield = FP.Recipes:OutputQuantity(e.id)
     return { itemID = itemID, need = need, yield = yield, crafts = math.ceil(need / yield) }
 end

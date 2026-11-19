@@ -1,4 +1,9 @@
 # Changelog
+## 0.10.4
+
+### Fixed
+- Queuing a recipe queued crafts of a reagent your other characters already hold, such as smelting bars your bank alt has. With alts counting toward planning, those are used first. Queue Needed and Crafts Into on item tooltips also leave out what is already held.
+
 ## 0.10.3
 
 ### Added
