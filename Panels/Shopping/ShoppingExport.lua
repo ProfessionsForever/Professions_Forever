@@ -3,7 +3,7 @@ local L = FP.L
 local Shop = FP.Shop
 local ACTION_BUTTON_H = Shop.ACTION_BUTTON_H
 
--- Handing the list to other places: a copyable text export, Auctionator, and the auction house search box.
+-- Handing the list to other places: a copyable text export, Auctionator's shopping list, and the auction house search box.
 
 function Shop:ExportText()
     local lines = {}
@@ -55,19 +55,40 @@ function Shop:ShowExport()
     f.edit:HighlightText()
 end
 
--- Auctionator's public API v1: ConvertToSearchString supports exact name + quantity.
-function Shop:SendToAuctionator()
-    local api = _G.Auctionator and Auctionator.API and Auctionator.API.v1
-    if not api then return FP:Print(L["Auctionator is not loaded."]) end
-    local terms = {}
+-- Keeps Auctionator's "ProfessionsForever" shopping list the same as what is still to buy, through its public API v1
+-- (exact name and quantity per item). A changed amount is altered and an item no longer needed is deleted in place,
+-- which leaves Auctionator's Shopping tab on the list and results it is showing. The API cannot add one item, so a
+-- new item re-creates the list, and at the auction house that opens it in the Shopping tab. Run by FP:Changed
+-- (UI/Redraw.lua) on the frame after anything the list depends on changes.
+local LIST = "ProfessionsForever"
+function Shop:SyncAuctionator()
+    local api = FP.db.syncAuctionator and _G.Auctionator and Auctionator.API and Auctionator.API.v1
+    if not api then return end
+    local want, terms = {}, {}
     for _, e in ipairs(self:Aggregate()) do
-        local name = C_Item.GetItemNameByID(e.itemID)
+        local name = C_Item.GetItemNameByID(e.itemID) -- not loaded yet: synced when "items" says it arrived
         if e.toBuy > 0 and name then
-            terms[#terms + 1] = api.ConvertToSearchString(addonName, { searchString = name, isExact = true, quantity = e.toBuy })
+            want[name] = api.ConvertToSearchString(addonName, { searchString = name, isExact = true, quantity = e.toBuy })
+            terms[#terms + 1] = want[name]
         end
     end
-    local ok, err = pcall(api.CreateShoppingList, addonName, "ProfessionsForever", terms)
-    if ok then FP:Print(L["Sent %d item(s) to Auctionator."]:format(#terms)) else FP:Print(err) end
+    local exists, have = pcall(api.GetShoppingListItems, addonName, LIST) -- it throws when there is no such list
+    if not exists then
+        if #terms > 0 then api.CreateShoppingList(addonName, LIST, terms) end
+        return
+    end
+    local held = {}
+    for _, term in ipairs(have) do held[api.ConvertFromSearchString(addonName, term).searchString] = term end
+    for name in pairs(want) do
+        if not held[name] then return api.CreateShoppingList(addonName, LIST, terms) end
+    end
+    for name, term in pairs(held) do
+        if not want[name] then
+            api.DeleteShoppingListItem(addonName, LIST, term)
+        elseif want[name] ~= term then
+            api.AlterShoppingListItem(addonName, LIST, term, want[name])
+        end
+    end
 end
 
 function Shop:SearchAuctionHouse(itemID)

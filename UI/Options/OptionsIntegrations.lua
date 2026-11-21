@@ -18,7 +18,7 @@ end
 -- The supported addons: key (its page), name, whether it is loaded, and what it adds.
 local ADDONS = {
     { key = "int_auctionator", name = "Auctionator", loaded = function() return Loaded("Auctionator") end,
-        adds = "Prices for recipe profit, crafting costs, the shopping list and disenchant values." },
+        adds = "Prices for recipe profit, crafting costs, the shopping list and disenchant values. Your shopping list as an Auctionator list, kept in sync." },
     { key = "int_waypoints", name = "Polestar & TomTom", loaded = function() return _G.Polestar ~= nil or _G.TomTom ~= nil end,
         adds = "Waypoints and the arrow to vendors, trainers and bankers." },
     { key = "int_questie", name = "Questie", loaded = function() return Loaded("Questie", "QuestieDB") end,
@@ -107,13 +107,31 @@ function O.BuildIntAuctionator(page)
         alts.label:SetAlpha(active and 1 or 0.4)
     end
     refreshers[#refreshers]()
+    AddonCheck(page, L["Show How Old Auction Prices Are"], a.loaded(),
+        function() return db.priceAge end, function(v) db.priceAge = v FP:Changed("prices") O:Refresh() end,
+        L["\"Auction Scan: 2h Ago\" in the shopping list, Crates and Writs, Disenchanting Mode and the recipe panel's cost and profit tooltips, from Auctionator's last full scan. A single price Auctionator last saw too long ago is marked \"(3 Days Old)\"."])
+    local stale = O.Slider(page, "ProfessionsForeverOptPriceStale", L["Prices Are Old After"], 1, 168, 1,
+        function() return db.priceStaleHours end, function(v)
+            db.priceStaleHours = v
+            FP:Changed("prices")
+        end, function(v) return FP.Cooldowns.Format(v * 3600) end)
+    UI:Tooltip(stale, "ANCHOR_RIGHT", L["The scan's age turns red once it is older than this, and single prices older than this are marked. A single price's age is known in whole days."])
+    refreshers[#refreshers + 1] = function()
+        local active = a.loaded() and db.priceAge and true or false
+        stale:SetEnabled(active)
+        stale.label:SetAlpha(active and 1 or 0.4)
+    end
+    refreshers[#refreshers]()
+    AddonCheck(page, L["Keep Auctionator's Shopping List in Sync"], a.loaded(),
+        function() return db.syncAuctionator end, function(v) db.syncAuctionator = v FP:Changed("shop") end,
+        L["Auctionator's shopping list named ProfessionsForever always holds what is still to buy, with the amounts, and updates as you queue, craft and buy. Off: the list in Auctionator is left as it is."])
     AddonCheck(page, L["Skip Disenchant Tooltips When Auctionator Shows Its Own"], a.loaded(),
         function() return db.deTooltipAuctionator end, function(v) db.deTooltipAuctionator = v end,
         L["While Auctionator's \"Disenchant prices\" tooltip setting is on, ProfessionsForever leaves its disenchant lines off item tooltips, so they aren't shown twice. Off: both are shown."])
 end
 
 function O.ResetIntAuctionator()
-    O.ResetKeys("useAuctionator", "priceCrafted", "priceCraftedAlts", "deTooltipAuctionator")
+    O.ResetKeys("useAuctionator", "priceAge", "priceStaleHours", "priceCrafted", "priceCraftedAlts", "syncAuctionator", "deTooltipAuctionator")
     PricesChanged()
 end
 

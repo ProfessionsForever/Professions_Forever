@@ -38,6 +38,8 @@ local function FillCostTip(tip, info)
     end
     tip:AddLine(" ")
     tip:AddLine(L["The cheapest of the vendor price, the auction price and the cost of crafting it."], 0.6, 0.6, 0.6, true)
+    local scan = FP.Prices:ScanText()
+    if scan then tip:AddLine(scan) end
 end
 
 local function ProfitMoney(copper)
@@ -116,6 +118,8 @@ local function FillProfitTip(tip, info)
         Money(L["Sell to a vendor"], r.vendor)
         Result(L["Profit"], r.vendorProfit)
     end
+    local scan = Prices:ScanText()
+    if scan then tip:AddLine(scan) end
 end
 
 UI.UpdateProfit, UI.FillCostTip, UI.FillProfitTip = UpdateProfit, FillCostTip, FillProfitTip

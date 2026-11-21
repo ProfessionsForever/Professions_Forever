@@ -267,6 +267,13 @@ end
 ---------------------------------------------------------------------------
 -- Recipes
 ---------------------------------------------------------------------------
+local PLACE = { "row", "beside", "corner" }
+local PLACE_LABELS = { row = "Over the Recipe Panel", beside = "Beside the Window", corner = "Beside the Window, at the Top of the List" }
+local SIDE = { "left", "right" }
+local SIDE_LABELS = { left = "Left", right = "Right" }
+local RECIPE_SHOW = { "always", "shift" }
+local RECIPE_SHOW_LABELS = { always = "Always", shift = WithKey("While Holding %s") }
+
 function O.BuildTipRecipes(page)
     O.Section(page, L["Recipes"])
     local intro = O.Label(page, L["The recipe list's tooltips and the recipe's detail panel."])
@@ -274,10 +281,19 @@ function O.BuildTipRecipes(page)
     page.y = page.y - O.ROW_H
     Check(page, L["Show Where Learned Recipes Came From"], "tipLearnedSource",
         L["Keep the trainer, vendor or other source after you learn a recipe, not only while it is unlearned."])
+    Drop(page, L["Recipe List Tooltip"], "tipRecipePlace", PLACE, PLACE_LABELS,
+        L["Where the tooltip of a recipe in the list goes. Beside the Window keeps it off the recipe panel, so the reagents stay readable: level with the recipe you point at, or always level with the top of the list."])
+    local side = Drop(page, L["Side of the Window"], "tipRecipeSide", SIDE, SIDE_LABELS,
+        L["The side a tooltip beside the window is on. Worn gear's comparison tooltips open further out on the same side. It moves to the other side when the screen has no room."])
+    Drop(page, L["Show the Recipe List Tooltip"], "tipRecipeShow", RECIPE_SHOW, RECIPE_SHOW_LABELS,
+        L["Always, or only while you hold the detail key (Options, Tooltips, General)."])
+
+    refreshers[#refreshers + 1] = function() side:SetActive(FP.db.tipRecipePlace ~= "row") end
+    refreshers[#refreshers]()
 end
 
 function O.ResetTipRecipes()
-    O.ResetKeys("tipLearnedSource")
+    O.ResetKeys("tipLearnedSource", "tipRecipePlace", "tipRecipeSide", "tipRecipeShow")
 end
 
 ---------------------------------------------------------------------------
@@ -315,6 +331,19 @@ end
 
 function O.ResetDisenchantTooltips()
     O.ResetKeys("deTooltip", "deTooltipShow", "deTooltipDetail", "deTooltipNeeds", "deTooltipVerdict", "deTooltipBoundSelf")
+end
+
+---------------------------------------------------------------------------
+-- Crates and Writs
+---------------------------------------------------------------------------
+function O.BuildTipOrders(page)
+    O.Section(page, L["Crates and Writs"])
+    Check(page, L["Show the Cheapest Fill on Crates and Writs"], "orderTooltip",
+        L["On a Waylaid Crate: what handing it in pays, and each bundle that fills it with what it would cost you. On a Craftsman's Writ: its reputation, what its item costs you and the customer. The Crates and Writs window always shows them."])
+end
+
+function O.ResetTipOrders()
+    O.ResetKeys("orderTooltip")
 end
 
 -- Any option changing redraws the previewer (it is hidden off the Tooltips pages, so this costs nothing there).

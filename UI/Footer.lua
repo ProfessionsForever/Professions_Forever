@@ -19,6 +19,7 @@ UI.WINDOW_ICONS = {
     queue = "Interface\\Icons\\INV_Misc_Gear_01",
     disenchant = "Interface\\Icons\\INV_Enchant_DustStrange",
     camp = "Interface\\Icons\\Spell_Fire_Fire",
+    orders = "Interface\\Icons\\INV_Crate_01",
 }
 
 -- Height the panels above leave free.
@@ -191,6 +192,8 @@ function TIPS.shop(tip)
         tip:AddLine(" ")
         if cost > 0 then tip:AddDoubleLine(L["Estimated Cost"], P:Format(cost), GOLD[1], GOLD[2], GOLD[3], 1, 1, 1) end
         if unpriced > 0 then tip:AddLine(L["%d without an auction price"]:format(unpriced), 0.6, 0.6, 0.6) end
+        local scan = P:ScanText()
+        if scan then tip:AddLine(scan) end
     end
 end
 
@@ -237,6 +240,18 @@ function TIPS.camp(tip)
     if #rows == 0 then tip:AddLine(L["Nothing to place"], GREY[1], GREY[2], GREY[3]) else AddRows(tip, rows) end
 end
 
+-- Crates and Writs: your standing and Favor, then what you hold.
+function TIPS.orders(tip)
+    local Orders = FP.Orders
+    local standing = Orders:Standing()
+    local crates, writs, ready = Orders:Counts()
+    local name = _G["FACTION_STANDING_LABEL" .. standing.reaction]
+    tip:AddDoubleLine(standing.name or L["Reputation"], standing.need > 0 and ("%s %d / %d"):format(name, standing.have, standing.need)
+        or name, WHITE[1], WHITE[2], WHITE[3], WHITE[1], WHITE[2], WHITE[3])
+    AddRows(tip, { { L["Merchant's Favor"], standing.favor }, { L["Crates Held"], crates }, { L["Writs Held"], writs },
+        { L["Ready to Hand In"], ready, WHITE, ready > 0 and { 0.2, 0.9, 0.2 } or WHITE } })
+end
+
 -- Disenchanting Mode isn't a window: the cell and quick button open Enchanting in the mode, or, without Enchanting, the
 -- gear you could send your best enchanter (UI:QuickDisenchantClick).
 function TIPS.disenchant(tip)
@@ -251,7 +266,7 @@ function TIPS.disenchant(tip)
     if #r > 1 then tip:AddLine(L["Right-click to choose another enchanter."], 0.5, 0.8, 1, true) end
 end
 
--- Adds the lines for the window under `key` (queue, cooldowns, transfer, shop, skillup, camp, disenchant) to `tip`.
+-- Adds the lines for the window under `key` (queue, cooldowns, transfer, shop, skillup, camp, orders, disenchant) to `tip`.
 function UI.FillWindowTip(tip, key)
     TIPS[key](tip)
 end
@@ -296,6 +311,7 @@ function UI:CreateFooter(f)
         footer.skillup = MakeCell(f, "skillup", L["Skill Up Route"], function() FP.SkillUpPanel:Toggle() end)
     end
     footer.camp = MakeCell(f, "camp", L["Camp"], function() FP.CampPanel:Toggle() end)
+    footer.orders = MakeCell(f, "orders", L["Crates and Writs"], function() FP.OrdersPanel:Toggle() end)
     footer.disenchant = MakeCell(f, "disenchant", L["Disenchanting Mode"],
         function(s, btn) UI:QuickDisenchantClick(s, btn) end, "up")
     f.footer = footer
@@ -308,7 +324,7 @@ end
 local windows
 function UI.FooterWindows()
     windows = windows or { cooldowns = FP.CooldownPanel, transfer = FP.Transfer, shop = FP.Shop, queue = FP.Queue,
-        skillup = FP.SkillUpPanel:Available() and FP.SkillUpPanel or nil, camp = FP.CampPanel }
+        skillup = FP.SkillUpPanel:Available() and FP.SkillUpPanel or nil, camp = FP.CampPanel, orders = FP.OrdersPanel }
     return windows
 end
 
@@ -359,7 +375,8 @@ FP:RegisterEvent("PLAYER_REGEN_ENABLED", function()
 end)
 
 -- Sized from the window, as its own size can lag behind while it is being resized. The Skill Up Route cell is left
--- out while its option is off, the Disenchanting Mode cell while it has nothing to do. With two rows the top one takes
+-- and the Camp and Crates and Writs cells are left out while their options are off, the Disenchanting Mode cell while it has
+-- nothing to do. With two rows the top one takes
 -- the extra cell. The window and the Disenchanting Mode cell are protected, so in combat this waits for it to end.
 function UI:LayoutFooter()
     local f = self.frame
@@ -371,7 +388,11 @@ function UI:LayoutFooter()
     end
     self.footerLayoutPending = nil
     -- Planning first (the queue decides what to buy and what to mail), then the activities; the quick buttons match.
-    local cells = { footer.queue, footer.shop, footer.transfer, footer.cooldowns, footer.camp }
+    local cells = { footer.queue, footer.shop, footer.transfer, footer.cooldowns }
+    footer.camp:SetShown(FP.db.footerCamp)
+    if FP.db.footerCamp then cells[#cells + 1] = footer.camp end
+    footer.orders:SetShown(FP.db.footerOrders)
+    if FP.db.footerOrders then cells[#cells + 1] = footer.orders end
     if footer.skillup then
         footer.skillup:SetShown(FP.db.footerSkillUp)
         if FP.db.footerSkillUp then table.insert(cells, 5, footer.skillup) end -- after Cooldowns
@@ -479,6 +500,12 @@ function UI:RefreshFooter()
             FP:Changed("camp")
         end)
     end
+
+    -- Crates and Writs: what your characters hold, then what is ready to hand in, else your Favor.
+    local crates, writs, ready = FP.Orders:Counts()
+    footer.orders.line:SetText(L["%d crates, %d writs"]:format(crates, writs))
+    footer.orders.sub:SetText(ready > 0 and ("|cff33e633" .. L["%d Ready to Hand In"]:format(ready) .. "|r")
+        or L["Favor: %d"]:format(C_CurrencyInfo.GetCurrencyInfo(FP.Orders.FAVOR).quantity))
 
     -- Disenchanting Mode: the gear you could disenchant, or without Enchanting the unbound gear you could mail.
     if not self.CombatBlocked(f) and self:SyncDisenchantCell() then self:LayoutFooter() end

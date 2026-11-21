@@ -23,6 +23,13 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Build readmes",
+			"detail": "README.txt from README.md, and CURSEFORGE.html from CURSEFORGE.md",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/gen_readmes.py",
+			"problemMatcher": []
+		},
+		{
 			"label": "Update all data",
 			"detail": "Runs every wago.tools / classic-db generator in turn, so all the data files come from the same Forever build",
 			"dependsOrder": "sequence",

@@ -1,4 +1,30 @@
 # Changelog
+## 0.10.5
+
+### Added
+- **Crates and Writs:** a new window (footer cell, quick button or `/pf crates`) lists the Waylaid Crates and Craftsman's Writs your characters hold, with what each pays, the cheapest way to fill it and the cost per Merchant's Favor or per reputation. Queue, Shop, Fill and Waypoint buttons act on a row, and a crate you hold several of has a box for how many to fill. Buy Crates and Buy Writs show what one bought at the auction house would cost once filled; Shop adds it to the shopping list and Ctrl-click searches the auction house. Crate and writ tooltips show the same pay and fill costs (Options, Tooltips, Crates and Writs).
+- **Trainers:** built in for 465 trainer-taught recipes, up from 32, on recipe tooltips, the recipe panel and its waypoint, with the skill and cost the trainer asks. New are Forever's own trainers and recipes (Zephras Isle, William Pickman, Camp Tent and the other camp recipes), the specialization trainers, Slagg, and the dungeon trainers Annora and Henry Stern, whose waypoint goes to the dungeon's entrance.
+- **Vendors:** built in for 725 recipes, Forever's own included, on the Sold By line and its waypoint, without Questie.
+- **Recorded in Forever:** 56 trainers, 201 vendors and 8 bankers recorded in game are built in, with the recipes those trainers teach.
+- **New and Changed in Forever:** a glowing infinity marks recipes new in Forever (gold) or changed in Forever (blue), in the recipe list and beside the name in the recipe panel. The recipe's tooltip says which, and what changed: reagents, result, trainer skill or trainer cost. Mark Recipes New or Changed in Forever is under Options, General, Main Window.
+- **Auction price age,** with Auctionator: "Auction Scan: 2h Ago" in the shopping list, Crates and Writs, Disenchanting Mode and the recipe panel's cost and profit tooltips, red once it is old. A single price not seen for a while is marked "(3 Days Old)". Show How Old Auction Prices Are and Prices Are Old After (24 hours by default) are under Options, Integrations, Auctionator.
+- **Recipe tooltip beside the window:** the recipe list's tooltip can dock left or right of the main window, level with the recipe or with the top of the list, with worn gear's comparison tooltips on the same side. It can also show only while the detail key is held. Options, Tooltips, Recipes.
+- **Overview:** a Blacksmithing, Leatherworking or Engineering card shows your specialization, with its icon and name.
+- **Footer:** Show Camp in the Footer and Show Crates and Writs in the Footer, under Options, General, Main Window, hide those cells.
+- **What's New:** Older and Newer buttons step through the notes of earlier versions.
+- **About:** credits for ForeverTDB, forever-db and QuestieDB.
+
+### Changed
+- **Crafting queue:** clicking a recipe opens it in the main window, switching profession when needed. Stop Queue is its own button next to Craft Queue while the queue runs, and Stop Craft has a tooltip.
+- **Mail:** the Transfer Planner's Mail button puts short stacks together in your bags first and attaches the fewest stacks it can. It and Disenchanting Mode's Send Mail fill in an empty subject: Crafting Materials, Gear to Disenchant or Manual Transfer.
+- **Auctionator shopping list:** kept in sync with the shopping list automatically, so the Send to Auctionator button is gone. Keep Auctionator's Shopping List in Sync is under Options, Integrations, Auctionator.
+- **Trainers and vendors in any game language:** built-in and visited ones are matched to recipes by ID, not by English name. Earlier recordings are converted on login, and class and weapon trainers recorded by older versions are forgotten.
+
+### Fixed
+- **Crafting queue:** changing a row's count or removing a row updates the crafts queued to make its reagents, such as Smelt Bronze for bronze recipes, leaving crafts you queued yourself alone. A recipe you queued yourself, such as smelting bars, is no longer held back because a later recipe uses what it makes, only when one needs the same materials, and the chat message names that recipe.
+- **Transfer Planner:** Withdraw from Bank and Collect from Mailbox also fetch what this character has to send. Collect from Mailbox offers everything the bags are short, also when the bank holds it, with the row marked (or). Has on the rows to send, and Character Owns in Manual Transfers, count the mailbox.
+- **Vendors for both factions:** Darkmoon Faire vendors are offered at both faire sites, Mulgore and Elwynn Forest, and named as Darkmoon Faire. Neutral vendors, bankers and trainers you recorded on one faction are offered to the other too.
+
 ## 0.10.4
 
 ### Fixed

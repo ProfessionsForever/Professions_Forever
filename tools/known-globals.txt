@@ -14,11 +14,14 @@ C_ChatInfo
 C_Container
 C_CurrencyInfo
 C_CVar
+C_DateAndTime
 C_EquipmentSet
 C_GameRules
 C_Item
 C_Map
 C_MerchantFrame
+C_QuestLog
+C_Reputation
 C_Spell
 C_SpellBook
 C_Texture
@@ -131,6 +134,7 @@ Minimap
 MoneyInputFrame_SetCopper
 next
 NUM_TOTAL_EQUIPPED_BAG_SLOTS
+OpenAllBags
 pairs
 PARTY
 pcall
@@ -161,11 +165,14 @@ SendMailFrame
 SendMailMoney
 SendMailNameEditBox
 SendMailSendMoneyButton
+SendMailSubjectEditBox
 SetBinding
 setmetatable
 SetOverrideBinding
 SetOverrideBindingClick
 Settings
+ShoppingTooltip1
+ShoppingTooltip2
 SkillUpForever
 SLASH_GUILD1
 SLASH_PARTY1
@@ -176,6 +183,7 @@ SLASH_RAID1
 SlashCmdList
 SOUNDKIT
 Spell
+SpellIsTargeting
 STANDARD_TEXT_FONT
 StaticPopup_Show
 StaticPopupDialogs

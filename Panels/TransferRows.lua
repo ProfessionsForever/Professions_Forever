@@ -3,22 +3,54 @@ local L = FP.L
 local Transfer = {}
 FP.Transfer = Transfer
 
--- What this character's bank must supply for the queue: for each material, the part bags don't cover that the bank does.
+-- What this character must have in its bags: per material, what its queue (`plan`, its own) needs plus what it has
+-- to send its other characters (Outgoing:SendTotals). Entries are { itemID, need, bags, bank, mail }: the plan's
+-- materials in its order, then those it only sends, by item.
+local function Wanted(plan)
+    local sends, out, extra = FP.Outgoing:SendTotals(), {}, {}
+    for _, it in ipairs(plan.items) do
+        out[#out + 1] = { itemID = it.itemID, need = it.need + (sends[it.itemID] or 0), bags = it.bags, bank = it.bank, mail = it.mail }
+        sends[it.itemID] = nil
+    end
+    for itemID, qty in pairs(sends) do
+        local bags, bank, _, mail = FP.Inv:Owned(itemID)
+        extra[#extra + 1] = { itemID = itemID, need = qty, bags = bags, bank = bank, mail = mail }
+    end
+    table.sort(extra, function(a, b) return a.itemID < b.itemID end)
+    for _, w in ipairs(extra) do out[#out + 1] = w end
+    return out
+end
+
+-- What this character's bank must supply for its queue and its sends: for each material, the part bags don't cover
+-- that the bank does. `plan` is its own.
 function Transfer.BankNeeds(plan)
     local out = {}
-    for _, it in ipairs(plan.items) do
-        local qty = math.min(it.bank, math.max(0, it.need - it.bags))
-        if qty > 0 then out[#out + 1] = { itemID = it.itemID, qty = qty, bank = it.bank } end
+    for _, w in ipairs(Wanted(plan)) do
+        local qty = math.min(w.bank, math.max(0, w.need - w.bags))
+        if qty > 0 then out[#out + 1] = { itemID = w.itemID, qty = qty, bank = w.bank } end
     end
     return out
 end
 
--- What this character has to collect from its mailbox for the queue: for each material, the part bags and bank don't
--- cover that the mailbox does.
-function Transfer.MailNeeds(plan)
+-- What can be collected from the mailbox. For this character's own plan: for each material its queue and its sends
+-- need, the part bags don't cover that the mailbox does. The bank is offered the same part (BankNeeds), so either one
+-- can be fetched, whichever is at hand, and fetching it clears the other. For another character's plan (`view`, its
+-- key): what its queue needs that its bags and bank don't cover.
+function Transfer.MailNeeds(plan, view)
     local out = {}
-    for _, it in ipairs(plan.items) do
-        if it.fromMail > 0 then out[#out + 1] = { itemID = it.itemID, qty = it.fromMail, mail = it.mail } end
+    if view then
+        for _, it in ipairs(plan.items) do
+            if it.fromMail > 0 then out[#out + 1] = { itemID = it.itemID, qty = it.fromMail, mail = it.mail } end
+        end
+        return out
+    end
+    for _, w in ipairs(Wanted(plan)) do
+        local short = math.max(0, w.need - w.bags)
+        local qty = math.min(w.mail, short)
+        -- `either`: the bank is offered some of the same part, so not both amounts have to be fetched.
+        if qty > 0 then
+            out[#out + 1] = { itemID = w.itemID, qty = qty, mail = w.mail, either = math.min(w.bank, short) + qty > short }
+        end
     end
     return out
 end
@@ -50,7 +82,7 @@ function Transfer.BuildRows(plan, view)
         for _, p in ipairs(FP.Outgoing:Pending()) do
             if p.key == view then mailTo = p end
         end
-        local mail = Transfer.MailNeeds(plan)
+        local mail = Transfer.MailNeeds(plan, view)
         if #mail > 0 then
             rows[#rows + 1] = { kind = "section", text = L["Waiting in %s's Mailbox"]:format(FP.Alts:Label(FP.db.characters[view])) }
             for _, m in ipairs(mail) do rows[#rows + 1] = { kind = "mail", it = m } end
@@ -196,7 +228,7 @@ function Transfer.RowTooltip(row)
         tip:SetItemByID(e.itemID)
         tip:AddLine(" ")
         tip:AddDoubleLine(L["Manual Transfer"], e.qty, 0.8, 0.8, 0.8, 1, 0.82, 0)
-        tip:AddDoubleLine(L["Character Owns"], select(3, FP.Planner:Holding(e.sender, e.itemID)), 0.8, 0.8, 0.8, 1, 1, 1)
+        tip:AddDoubleLine(L["Character Owns"], FP.Planner:HeldInAll(e.sender, e.itemID), 0.8, 0.8, 0.8, 1, 1, 1)
         tip:AddLine(L["Click to change the amount. Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
     elseif e.kind == "mgear" then
         tip:SetHyperlink(e.gear.link)
@@ -258,6 +290,9 @@ function Transfer.RowTooltip(row)
         tip:AddLine(" ")
         tip:AddDoubleLine(L["Take"], e.it.qty, 0.8, 0.8, 0.8, 1, 1, 1)
         tip:AddDoubleLine(L["In the Mailbox"], e.it.mail, c[1], c[2], c[3], c[1], c[2], c[3])
+        if e.it.either then
+            tip:AddLine(L["Or withdraw it from the bank: taking it from either place lowers what the other asks for."], 0.8, 0.8, 0.8, true)
+        end
     elseif e.kind == "missing" then
         tip:SetItemByID(e.it.itemID)
         tip:AddLine(" ")

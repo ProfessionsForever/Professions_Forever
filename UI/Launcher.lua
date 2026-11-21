@@ -41,6 +41,8 @@ local ITEMS = {
         shown = function() return FP.SkillUpPanel:Available() and FP.db.quickSkillUp end },
     { key = "camp", label = "Camp", icon = ICONS.camp, color = { 0.9, 0.2, 0.2 }, -- shows a cooldown, not a count
         shown = function() return FP.db.quickCamp end },
+    { key = "orders", label = "Crates and Writs", icon = ICONS.orders, color = { 0.2, 0.9, 0.2 }, -- what is ready to hand in
+        shown = function() return FP.db.quickOrders end },
     -- Not a footer window: a secure button that casts Enchanting and opens it in Disenchanting Mode.
     { key = "disenchant", label = "Disenchanting Mode", icon = ICONS.disenchant, color = { 1, 1, 1 },
         secure = true,
@@ -67,7 +69,8 @@ local function Count(key)
         return ""
     end
     local n
-    if key == "cooldowns" then n = FP.Cooldowns:ReadyTotal()
+    if key == "orders" then n = select(3, FP.Orders:Counts())
+    elseif key == "cooldowns" then n = FP.Cooldowns:ReadyTotal()
     elseif key == "transfer" then n = FP.Queue:TransferNeeds().totals.characters + FP.Outgoing:PendingTotals()
     elseif key == "shop" then n = (FP.Shop:Summary())
     else n = (FP.Queue:Summary()) end

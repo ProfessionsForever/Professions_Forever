@@ -89,11 +89,10 @@ local defaults = {
     collapsedCategories = {}, -- [categoryID] = true for recipe-list categories the user collapsed
     trackShopping = false, -- show the shopping list tracker on screen
     replaceDefault = true, shoppingScope = "account", -- one shopping list shared by all your characters (or "char")
-    trainerRecipes = {}, -- [recipe name] = "npcId,npcId" of the trainers seen teaching it
-    trainerItems = {}, -- [item id] = "npcId,npcId" of the trainers seen teaching a recipe that makes it
+    trainerRecipes = {}, -- [recipe spell ID] = "npcId,npcId" of the trainers seen teaching it
     trainers = {}, -- [npc id] = { npc, sub, uiMap, x, y, zone, skill, alliance, horde } for trainers you've opened
     bankers = {}, -- same shape, for bankers whose window you've opened
-    vendors = {}, -- same shape plus items = ",itemID,itemID," (their stock) and recipes = { names }, for merchants you've opened
+    vendors = {}, -- same shape plus items = ",itemID,itemID," (their stock, recipe items included), for merchants you've opened
     minimap = { hide = false, angle = 215 },
     quickButtons = false, -- show the movable bar of buttons that open the queue, shopping list, transfer planner and cooldowns
     quickButtonsLocked = false,
@@ -101,6 +100,7 @@ local defaults = {
     quickOverview = true, -- a quick button opening the main window on its Overview
     quickSettings = false, -- a quick button opening the options
     quickCamp = true, -- the Camp quick button
+    quickOrders = true, -- the Crates and Writs quick button
     quickDisenchant = true, -- the Disenchanting Mode quick button (where it applies: an enchanter, or one to send to)
     quickHeader = true, -- the addon name above the quick buttons
     quickLayout = "columns", -- columns | rows: which the quick buttons keep fixed while they grow the other way
@@ -116,6 +116,7 @@ local defaults = {
     mailPrompt = true, -- open the transfer planner at a mailbox when this character has something to send or collect
     showIgnoredCooldowns = false, -- list the cooldowns turned off in the Cooldowns window
     showSkillChance = true, -- the skill up chance beside each learned recipe in the list
+    foreverIcon = true, -- the infinity on a recipe new or changed in Forever, in the list and the detail panel
     fishEquipPole = true, -- One-Click Fishing equips the best fishing pole in the bags first (UI/Fishing.lua)
     fishApplyLure = true, -- One-Click Fishing puts the best lure in the bags on the pole first
     fishLoud = true, -- sound effects louder while the line is out
@@ -130,17 +131,29 @@ local defaults = {
     -- Integrations: each is used only when its addon is loaded and its switch here is on.
     printRoutes = true, -- print Polestar's route to a ProfessionsForever waypoint when it has more than one step
     useAuctionator = true, -- prices for profit, costs and the shopping list
+    syncAuctionator = true, -- keep Auctionator's "ProfessionsForever" shopping list the same as what is still to buy
+    priceAge = true, -- how old Auctionator's prices are: the last full scan's age, and a note on a price a day or more old
+    priceStaleHours = 24, -- hours after which a scan or a price counts as old
     priceCrafted = true, -- a reagent you can craft is priced at its crafting cost when that is cheapest (Core/Prices.lua)
     priceCraftedAlts = false, -- ... counting recipes your other characters know too
     useQuestie = true, -- Questie's NPC database for vendor, trainer and banker waypoints
     useSyndicator = true, -- Syndicator's bank and other characters' inventory (read at login)
     footerSkillUp = true, -- SkillUp Forever's Skill Up Route cell in the footer
+    footerOrders = true, -- the Crates and Writs cell in the footer
+    footerCamp = true, -- the Camp cell in the footer
     quickSkillUp = true, -- SkillUp Forever's Skill Up Route button on the quick buttons
     deSort = "name", -- Disenchanting Mode's list order: name | level | quality | value
     deSortDesc = false, -- Disenchanting Mode's list order reversed
     deDeposit = 24, -- listing hours whose deposit Sell It at Auction must beat the others by: 0 (not counted) | 2 | 8 | 24
     campCollapsed = { unknown = true }, -- [group] = true for Camp window groups collapsed: "ready", "craft", "alts", "unknown"
     deCollapsed = {}, -- [group] = true for Disenchanting Mode groups the user collapsed: "bags", "bank" or a character key
+    -- Crates and Writs (Core/Orders.lua, Panels/Orders.lua)
+    orderTab = "held", -- the list the window shows: held (what your characters hold) | crates | writs (worth buying)
+    orderCollapsed = {}, -- [group] = true for its groups the user collapsed
+    orderTooltip = true, -- the cheapest way to fill it, on a crate's or a writ's item tooltip
+    cratePay = {}, -- [Sealed crate item ID] = the least Merchant's Favor a hand-in of it has paid
+    writCustomers = {}, -- [writ quest ID] = { name, uiMap, x, y } of the customer, where you handed one in
+    writQty = {}, -- [writ quest ID] = how many of its item the writ asks for, as the game said
     -- Tooltips (Tooltips/): the lines the addon adds to item tooltips and to its own windows' item tooltips.
     tipDetailKey = "shift", -- the key that shows the detail (queued recipes, every disenchant result): shift | ctrl | alt
     tipKeyHint = true, -- "Hold Shift for details" while there is detail to show
@@ -166,6 +179,9 @@ local defaults = {
     tipHints = "line", -- click hints: line (one line) | full (a line per action) | none
     tipVendor = true, -- "Sold by" and the right-click waypoint hint
     tipLearnedSource = false, -- where a learned recipe came from, in the recipe list and the detail panel
+    tipRecipePlace = "row", -- the recipe list's tooltip: row (right of the row) | beside (outside the window, level with the row) | corner (outside, level with the list's top row)
+    tipRecipeSide = "left", -- the side of the window it is docked on, unless "row": left | right
+    tipRecipeShow = "always", -- always | shift (only while the detail key is held)
     deTooltip = true, -- disenchant results on item tooltips
     deTooltipShow = "always", -- always | shift (only while Shift is held)
     deTooltipDetail = "shift", -- terse (one line) | full (every result) | shift (one line, every result with Shift)
@@ -187,7 +203,7 @@ FP.defaults = defaults
 local NO_DEFAULT = { "accent", "trackerPos", "launcherPos", "mainEnchanter" } -- mainEnchanter: nil is Automatic
 
 -- Saved data rather than options, so a reset leaves it alone.
-local DATA_KEYS = { trainerRecipes = true, trainerItems = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true, fishCVars = true }
+local DATA_KEYS = { trainerRecipes = true, trainers = true, bankers = true, vendors = true, shopping = true, shoppingFaction = true, characters = true, skipImport = true, transfers = true, professionData = true, deObserved = true, fishCVars = true, cratePay = true, writCustomers = true, writQty = true }
 
 local function Merge(dst, src)
     for k, v in pairs(src) do
@@ -207,7 +223,7 @@ function FP:LoadSettings()
     Merge(ProfessionsForeverDB, FP.filterDefaults)
     Merge(ProfessionsForeverDB, FP.deFilterDefaults)
     Merge(ProfessionsForeverDB, defaults)
-    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {}, fishSaved = {}, fishWeapons = {} })
+    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {}, fishSaved = {}, fishWeapons = {}, writsDone = {} })
     self.db, self.chardb = ProfessionsForeverDB, ProfessionsForeverCharDB
 end
 
@@ -270,6 +286,7 @@ end)
 
 FP:RegisterEvent("PLAYER_LOGIN", function(self)
     self.Outgoing:MoveOldTransfers()
+    self.Waypoint:MoveOldRecordings()
     self.Shop:MoveOldQueueShare()
     self.Shop:MoveToAccountList() -- after it: that one works on the list as it was
     self.Alts:Init()

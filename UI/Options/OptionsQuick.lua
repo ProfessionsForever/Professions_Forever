@@ -63,6 +63,10 @@ function O.BuildQuick(page)
         db.quickCamp = v
         FP.Launcher:Update()
     end)
+    O.Check(page, L["Show Crates and Writs Button"], function() return db.quickOrders end, function(v)
+        db.quickOrders = v
+        FP.Launcher:Update()
+    end)
     local de = O.Check(page, L["Show Disenchanting Mode Button"], function() return db.quickDisenchant end, function(v)
         db.quickDisenchant = v
         FP.Launcher:Update()
@@ -115,7 +119,7 @@ function O.BuildQuickKeys(page)
 end
 
 function O.ResetQuick()
-    O.ResetKeys("quickButtons", "quickButtonsLocked", "quickProfessions", "quickOverview", "quickSettings", "quickCamp", "quickDisenchant", "quickHeader", "launcherPos", "quickLayout",
+    O.ResetKeys("quickButtons", "quickButtonsLocked", "quickProfessions", "quickOverview", "quickSettings", "quickCamp", "quickOrders", "quickDisenchant", "quickHeader", "launcherPos", "quickLayout",
         "quickColumns", "quickShowKeys", "quickRows", "quickGrowX", "quickGrowY")
     FP.Launcher:Update()
 end

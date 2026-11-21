@@ -124,6 +124,15 @@ function UI:CreateDetailHeader(d, c)
         tip:AddLine(recipe and recipe.favorite and L["Remove from Favorites"] or L["Set as Favorite"], 1, 1, 1)
     end)
 
+    -- New or changed in Forever; UpdateDetail places it between the recipe name and the favorite star.
+    d.forever = CreateFrame("Frame", nil, c)
+    d.forever:EnableMouse(true)
+    d.forever.icon = d.forever:CreateTexture(nil, "ARTWORK")
+    d.forever.icon:SetAllPoints()
+    self:Tooltip(d.forever, "ANCHOR_BOTTOM", function(tip)
+        tip:AddLine(UI.ForeverTagText(SelectedRecipe().id), 0.5, 0.8, 1)
+    end)
+
     d.name = self:Text(c, 4)
     d.name:SetPoint("TOPLEFT", d.icon, "TOPRIGHT", 8, -2)
     d.name:SetWordWrap(true)

@@ -141,6 +141,16 @@ function FP.RankInfo()
     return name, level, base.skillModifier or 0, max, base.professionID
 end
 
+-- The spell of the specialization the character has in a profession (Gnomish Engineer, Armorsmith...), if any: the
+-- last one known, as a Master Swordsmith is also a Weaponsmith.
+function FP:Specialization(skillLine)
+    local known
+    for _, id in ipairs(FP.Specializations[skillLine] or {}) do
+        if IsPlayerSpell(id) then known = id end
+    end
+    return known
+end
+
 -- Professions the player doesn't have yet, for the Overview's "visit a trainer" cards.
 function FP:GetLearnableProfessions()
     local T = C_TradeSkillUI

@@ -129,11 +129,12 @@ end
 
 local function Bags(itemID) return (FP.Inv:Owned(itemID)) end
 
--- How many crafts of `q` are worth making now, when what it makes is used by an entry after it; nil when nothing later
--- uses it (it is crafted as far as the bags allow, as before). Crafting each entry to the limit would let an early step
--- use up a material a later one also needs (Copper Bars go into the bolts and into the modulator), leaving the final
--- crafts short. So the rest of the queue is sized as a whole: the largest share of its final crafts (entries whose
--- output nothing later uses) that the bags can supply through every step, and `q` makes only what that share needs.
+-- How many crafts of `q` are worth making now, when what it makes is used by an entry after it and an entry after it
+-- also needs one of its materials; nil otherwise (it is crafted as far as the bags allow). Crafting each entry to the
+-- limit would let an early step use up a material a later one also needs (Copper Bars go into the bolts and into the
+-- modulator), leaving the final crafts short. So the rest of the queue is sized as a whole: the largest share of its
+-- final crafts (entries whose output nothing later uses) that the bags can supply through every step, and `q` makes
+-- only what that share needs. Also returns the first later entry that needs one of its materials.
 local function UsefulCrafts(q)
     if not q.output then return end
     local data, list, start = Queue:Data(), {}, nil
@@ -141,15 +142,19 @@ local function UsefulCrafts(q)
         if e == q then start = i end
         if start and (e == q or not Queue.skip[e]) then list[#list + 1] = e end
     end
-    local maker, usedLater, consumed = {}, false, {}
+    local mine = {}
+    for _, r in ipairs(q.reagents) do mine[r.itemID] = true end
+    local maker, usedLater, shared, consumed = {}, false, nil, {}
     for i, e in ipairs(list) do
         if e.output and not maker[e.output.itemID] then maker[e.output.itemID] = e end
         for _, r in ipairs(e.reagents) do
             consumed[r.itemID] = true
             if i > 1 and r.itemID == q.output.itemID then usedLater = true end
+            if i > 1 and mine[r.itemID] then shared = shared or e end
         end
     end
-    if not usedLater then return end
+    -- Nothing later wants its materials (smelting ore into bars): making them all leaves no one short.
+    if not (usedLater and shared) then return end
     local function IsFinal(e) return not (e.output and consumed[e.output.itemID] and maker[e.output.itemID] == e) end
     local most = 0
     for _, e in ipairs(list) do
@@ -185,19 +190,19 @@ local function UsefulCrafts(q)
         local mid = math.floor((lo + hi + 1) / 2)
         if Crafts(mid) then lo = mid else hi = mid - 1 end
     end
-    return Crafts(lo)[q] or 0
+    return Crafts(lo)[q] or 0, shared
 end
 
 function Queue:StartCraft(q)
     local n = CraftsFromBags(q)
     if FP.Cooldowns:IsTracked(q.id) then n = math.min(n, 1) end -- a cooldown allows one craft
     if n < 1 then return self:Step(true) end
-    local useful = UsefulCrafts(q)
+    local useful, rival = UsefulCrafts(q)
     if useful then
         if useful < 1 then
             -- The entries after it can't use more yet: keep its materials for them.
             self.skip[q] = true
-            FP:Print(L["Holding back %s: the recipes after it can't use more until you have more of their materials."]:format(q.name))
+            FP:Print(L["Holding back %s: %s needs the same materials, and your bags can't cover more of both. See the Shopping List for what's missing, or lower a count in the queue."]:format(q.name, rival.name))
             return self:Step(true)
         end
         n = math.min(n, useful)
@@ -238,6 +243,8 @@ local function CreditOne(entry)
     for i, q in ipairs(data) do
         if q == entry then
             q.qty = q.qty - 1
+            -- What it made is in the bags now, so one less prerequisite craft is owed (entry.auto, Core/Queue.lua).
+            if q.auto then q.auto = q.auto > 1 and q.auto - 1 or nil end
             if q.qty <= 0 then table.remove(data, i) end
             return
         end
@@ -278,9 +285,9 @@ end
 -- directly. Crafts still in flight afterwards keep being credited via `tail`.
 --
 -- The interrupt that /stopcasting causes can reach OnEvent before the click handler runs. Taken as an ordinary
--- interruption it would end the run there, and the click handler would then find no run and start the queue again
--- (Craft Queue) or do nothing (Stop Craft). So the buttons' PreClick marks the click, OnEvent leaves that interrupt
--- alone, and the handler below decides what the click does.
+-- interruption it would end the run there, and the click handler would then find no run and do nothing. So the
+-- buttons' PreClick marks the click, OnEvent leaves that interrupt alone, and the handler below decides what the
+-- click does.
 function Queue:MarkStopping()
     if self.run and self.run.batch then self.stoppingAt = GetTime() end
 end
@@ -301,20 +308,25 @@ function Queue:SkipCurrent()
     C_Timer.After(0.5, Advance)
 end
 
-function Queue:ToggleRun()
-    self.stoppingAt = nil
+-- Craft Queue: starts a run, or crafts the next recipe when the run waits for a click. Does nothing mid-craft.
+function Queue:StartRun()
     local run = self.run
     if run and run.ready then
         self:HideNotice()
         return self:Step(true)
     end
-    if run then
-        KeepTail(run)
-        return self:Stop(L["Queue stopped."])
-    end
-    if #self:Data() == 0 then return end
+    if run or #self:Data() == 0 then return end
     self.skip, self.skipped, self.cooling, self.noTools, self.unlearned, self.enchants, self.run = {}, 0, 0, 0, 0, 0, {}
     self:Step(true)
+end
+
+-- Stop Queue.
+function Queue:StopRun()
+    self.stoppingAt = nil
+    local run = self.run
+    if not run then return end
+    KeepTail(run)
+    self:Stop(L["Queue stopped."])
 end
 
 local function OnEvent(event, _, _, spellID)

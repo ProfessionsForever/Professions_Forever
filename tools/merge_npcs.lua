@@ -1,5 +1,8 @@
 -- Merges the trainers, bankers and vendors players recorded (SavedVariables/ProfessionsForever.lua files)
 -- into Data/Npcs.lua. NPCs in the player files replace what Data/Npcs.lua has for them; the rest is kept.
+-- Trainers' recipes are kept by recipe spell ID; a file last saved by a version that kept them by name has to be
+-- opened in game once with this version first, which moves them over. Class and weapon trainers that older versions
+-- recorded are left out: 1.12 NPCs with no profession that Data/ClassicNpcs.lua doesn't list as profession trainers.
 --
 -- Usage: luajit tools/merge_npcs.lua <ProfessionsForever.lua>...
 --
@@ -7,6 +10,8 @@
 -- file from another player cannot put anything but plain data into the addon.
 local root = (arg[0]:match("^(.*)/tools/[^/]*$") or ".")
 local TARGET = root .. "/Data/Npcs.lua"
+local BUILT_IN = root .. "/Data/ClassicNpcs.lua"
+local CLASSIC_IDS = 20000 -- 1.12's NPCs have ids below this; Forever's own start far above it
 local KINDS = { "trainers", "bankers", "vendors" }
 
 local function load(path, ...)
@@ -29,17 +34,6 @@ local function text(v)
     if #v > 0 and #v <= 100 then return v end
 end
 
-local function names(list)
-    local out = {}
-    if type(list) == "table" then
-        for _, name in ipairs(list) do
-            name = text(name)
-            if name then out[#out + 1] = name end
-        end
-    end
-    return out
-end
-
 -- Keeps only well-formed entries: a map, a position, plain strings and id lists.
 local function clean(e)
     if type(e) ~= "table" then return end
@@ -52,7 +46,6 @@ local function clean(e)
     for _, k in ipairs({ "items", "ranks", "noRanks" }) do
         if type(e[k]) == "string" and e[k]:match("^,[%d,]*,$") then c[k] = e[k] end
     end
-    c.recipes = names(e.recipes)
     return c
 end
 
@@ -84,8 +77,13 @@ local function mergeEntry(dst, src)
     for _, k in ipairs({ "items", "ranks", "noRanks" }) do
         if dst[k] or src[k] then dst[k] = joinIds(union(ids(dst[k]), ids(src[k]))) end
     end
-    dst.recipes = sorted(union(dst.recipes, src.recipes))
 end
+
+local builtIn = {}
+load(BUILT_IN, "ProfessionsForever", builtIn)
+local professionTrainers = builtIn.ClassicNpcs.trainers
+
+local skippedNames = 0
 
 local function newSet()
     local set = { trainerRecipes = {} }
@@ -98,16 +96,18 @@ local function add(set, source)
     for _, kind in ipairs(KINDS) do
         for id, e in pairs(type(source[kind]) == "table" and source[kind] or {}) do
             local c = type(id) == "number" and clean(e)
+            if c and kind == "trainers" and id < CLASSIC_IDS and not c.skill and not professionTrainers[id] then c = nil end
             if c then
                 local old = set[kind][id]
                 if old then mergeEntry(old, c) else set[kind][id] = c end
             end
         end
     end
-    for name, list in pairs(type(source.trainerRecipes) == "table" and source.trainerRecipes or {}) do
-        name = text(name)
-        if name and type(list) == "string" and list:match("^[%d,]+$") then
-            set.trainerRecipes[name] = union(set.trainerRecipes[name] or {}, ids(list))
+    for recipe, list in pairs(type(source.trainerRecipes) == "table" and source.trainerRecipes or {}) do
+        if number(recipe, 1, 1e9) and type(list) == "string" and list:match("^[%d,]+$") then
+            set.trainerRecipes[recipe] = union(set.trainerRecipes[recipe] or {}, ids(list))
+        elseif type(recipe) == "string" then
+            skippedNames = skippedNames + 1
         end
     end
 end
@@ -140,13 +140,12 @@ for _, kind in ipairs(KINDS) do
             for _, k in ipairs({ "items", "ranks", "noRanks" }) do
                 if e[k] or old[k] then e[k] = joinIds(union(ids(e[k]), ids(old[k]))) end
             end
-            e.recipes = sorted(union(e.recipes, old.recipes))
         end
         data[kind][id] = e
     end
 end
-for name, list in pairs(incoming.trainerRecipes) do
-    data.trainerRecipes[name] = union(data.trainerRecipes[name] or {}, list)
+for recipe, list in pairs(incoming.trainerRecipes) do
+    data.trainerRecipes[recipe] = union(data.trainerRecipes[recipe] or {}, list)
 end
 
 -- Output ---------------------------------------------------------------
@@ -171,11 +170,6 @@ local function entryText(e)
     for _, k in ipairs(ORDER) do
         if e[k] ~= nil then parts[#parts + 1] = field(k, e[k]) end
     end
-    if e.recipes and #e.recipes > 0 then
-        local list = {}
-        for _, name in ipairs(e.recipes) do list[#list + 1] = ("%q"):format(name) end
-        parts[#parts + 1] = "recipes = { " .. table.concat(list, ", ") .. " }"
-    end
     return "{ " .. table.concat(parts, ", ") .. " }"
 end
 
@@ -192,14 +186,18 @@ for _, kind in ipairs(KINDS) do
     end
     out[#out + 1] = "    },"
 end
-out[#out + 1] = "    -- [recipe name] = \"npcId,npcId\""
+out[#out + 1] = "    -- [recipe spell ID] = \"npcId,npcId\""
 out[#out + 1] = "    trainerRecipes = {"
-for _, name in ipairs(sortedKeys(data.trainerRecipes)) do
+local kept = 0
+for _, recipe in ipairs(sortedKeys(data.trainerRecipes)) do
     local trainers = {}
-    for _, id in ipairs(sorted(data.trainerRecipes[name])) do
+    for _, id in ipairs(sorted(data.trainerRecipes[recipe])) do
         if data.trainers[id] then trainers[#trainers + 1] = id end
     end
-    if #trainers > 0 then out[#out + 1] = ("        [%q] = %q,"):format(name, table.concat(trainers, ",")) end
+    if #trainers > 0 then
+        kept = kept + 1
+        out[#out + 1] = ("        [%d] = %q,"):format(recipe, table.concat(trainers, ","))
+    end
 end
 out[#out + 1] = "    },"
 out[#out + 1] = "}"
@@ -212,4 +210,7 @@ for _, kind in ipairs(KINDS) do
     local now = count(data[kind])
     print(("%s: %d (%+d)"):format(kind, now, now - before[kind]))
 end
-print(("trainerRecipes: %d"):format(count(data.trainerRecipes)))
+print(("trainerRecipes: %d"):format(kept))
+if skippedNames > 0 then
+    print(("%d recipes listed by name were skipped: open the game once with this version, then merge that file again"):format(skippedNames))
+end

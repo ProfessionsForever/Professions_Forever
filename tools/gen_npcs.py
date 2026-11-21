@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Writes Data/ClassicNpcs.lua: where the profession trainers, bankers and vendors stand, for players without
-Questie. It also lists what the trainers teach and which reagents and recipes the vendors sell.
+Questie, with the reagents the vendors sell and what a trainer asks to teach a recipe. It also writes
+Data/RecipeSources.lua: who teaches, sells, drops or rewards each recipe, by recipe spell ID, and which recipes are
+new or changed in Forever (tools/recipe_sources.py, which names the other sources read for it).
 
-Spawns, trainers' spell lists and vendors' stock come from cmangos/classic-db (GPL-3.0), pinned to one commit and
-cached in ~/.cache/professionsforever/classic-db. Spell, skill, faction and map data come from the wago.tools
+Spawns, trainers' spell lists, the 1.12 teaching spells and vendors' stock come from cmangos/classic-db (GPL-3.0),
+pinned to one commit and cached in ~/.cache/professionsforever/classic-db. A trainer inside a dungeon is placed at
+that dungeon's entrance. Trainer rows seen on a Forever build come from ForeverTDB (advocaite/TrinityCore, GPL-2.0 or later),
+pinned to one release and cached in ~/.cache/professionsforever/forever-tdb (bsdtar unpacks it): the trainers
+classic-db lacks with what they teach, and the skill and cost to learn a recipe, which win over 1.12's. Its rows
+without a Forever build are its 1.12 base, which duplicates classic-db, and are not read. Spell names, skill, faction and map data come from the wago.tools
 tables for the WoW: Forever build (product wowf), cached the same way gen_recipes.py does; run that first, since
 the reagents come from its Data/Recipes.lua. Run it by hand when the pin or the Forever build moves; leave the
 attribution in the generated file.
@@ -15,9 +21,11 @@ Usage: tools/gen_npcs.py [--build 1.60.1.70888] [--refresh]
 import argparse
 import gzip
 import re
+import subprocess
 import sys
 from pathlib import Path
 
+import recipe_sources
 import wago
 from gen_recipes import PROFESSIONS
 from wago import CACHE, cached_table, fetch, latest_build, rows
@@ -28,18 +36,35 @@ CLASSIC_DB = "cmangos/classic-db"
 COMMIT = "c33f90b8eeb3f8bacb53d5cbfee45075c80b416c"
 DUMP = "Full_DB/ClassicDB_1_12_1_z2815.sql.gz"
 DUMP_CACHE = CACHE.parent / "classic-db" / COMMIT / "ClassicDB.sql.gz"
+TDB = "advocaite/TrinityCore"
+TDB_TAG = "forever-tdb-2026-10-14"
+TDB_ASSET = "TDB_full_forever_2026_10_14.7z"
+TDB_SQL = "TDB_full_world_forever_2026_10_14.sql"
+TDB_CACHE = CACHE.parent / "forever-tdb" / TDB_TAG.removeprefix("forever-tdb-") / TDB_SQL
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "Data" / "ClassicNpcs.lua"
+SOURCES = ROOT / "Data" / "RecipeSources.lua"
 RECIPES = ROOT / "Data" / "Recipes.lua"
 
-WAGO_TABLES = ("UiMap", "UiMapAssignment", "FactionTemplate", "SkillLine", "SkillLineAbility", "SpellName", "SpellEffect", "AreaTable")
+WAGO_TABLES = ("UiMap", "UiMapAssignment", "FactionTemplate", "SkillLine", "SkillLineAbility", "SpellName", "AreaTable",
+               *recipe_sources.TABLES)
 SQL_TABLES = ("creature", "creature_template", "npc_trainer", "npc_trainer_template", "npc_vendor",
-              "npc_vendor_template", "item_template", "disenchant_loot_template")
+              "npc_vendor_template", "item_template", "disenchant_loot_template", "spell_template", "areatrigger_teleport")
+
+TDB_TABLES = ("trainer_spell", "creature_trainer", "creature", "creature_template")
+FOREVER_BUILDS = 70000  # a ForeverTDB row's VerifiedBuild from here up was seen on a Forever client (1.60.1.70124, ...)
 
 FLAG_VENDOR, FLAG_TRAINER, FLAG_BANKER = 0x4, 0x10, 0x100  # UNIT_NPC_FLAG_* of the 1.12 client
-# SpellEffect.Effect 36 learns a spell: most trainer rows are such teaching spells ("Journeyman Mining", "Smelt Thorium").
-LEARN_SPELL = "36"
+# spell_template effect 36 learns a spell: most trainer rows are such 1.12 teaching spells ("Journeyman Mining",
+# "Smelt Thorium"). Forever's client no longer has them, so they are decoded from the dump.
+LEARN_SPELL = 36
+# Instance map -> (the areatrigger_teleport row that leaves it by its front door, the zone map that door is on), for
+# Uldaman (Badlands) and Razorfen Downs (The Barrens): where a trainer inside that dungeon is placed.
+DUNGEON_EXITS = {70: (288, 1418), 129: (444, 1413)}
+# Mobs classic-db flags as trainers that teach nothing (Hillsbrad Tailor, Pyrewood Tailor).
+NOT_TRAINERS = {2264, 3530}
 ZONE_MAP = "3"     # UiMap.Type of a zone or a city
+WORLD_MAP = "0"    # UiMap.System of the maps a player opens (1 is the flight map's copy)
 CAPITAL_FLAG = 0x8  # AreaTable.Flags_0 of a capital city
 CITY_MARGIN = 0.04  # a city's map counts for points at least this far (of the map's size) from its edge
 # NPC id -> the zone map seen in game where the rule above picks a neighbour (Goldshire, Ironforge's edge, ...).
@@ -65,6 +90,15 @@ def download_dump(refresh):
         DUMP_CACHE.write_bytes(fetch(f"https://raw.githubusercontent.com/{CLASSIC_DB}/{COMMIT}/{DUMP}"))
 
 
+def download_tdb():
+    if not TDB_CACHE.exists():
+        print(f"downloading {TDB_ASSET} ({TDB_TAG})")
+        archive = TDB_CACHE.with_name("tdb.7z")
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        archive.write_bytes(fetch(f"https://github.com/{TDB}/releases/download/{TDB_TAG}/{TDB_ASSET}"))
+        subprocess.run(["bsdtar", "-xf", archive, "-C", archive.parent, TDB_SQL], check=True)
+
+
 def unescape(text):
     return re.sub(r"\\(.)|''", lambda m: "'" if m.group(0) == "''" else ESCAPES.get(m.group(1), m.group(1)), text)
 
@@ -88,10 +122,10 @@ def sql_rows(statement):
                 row.append(unescape(string))
 
 
-def load_dump():
-    """Returns { table: (column names, rows) } for the tables this script reads."""
-    columns, found, current = {}, {t: [] for t in SQL_TABLES}, None
-    with gzip.open(DUMP_CACHE, "rt", encoding="utf-8", errors="replace") as dump:
+def load_dump(path, wanted):
+    """Returns { table: (column names, rows) } for the wanted tables of a SQL dump."""
+    columns, found, current = {}, {t: [] for t in wanted}, None
+    with (gzip.open if path.suffix == ".gz" else open)(path, "rt", encoding="utf-8", errors="replace") as dump:
         for line in dump:
             if line.startswith("CREATE TABLE `"):
                 current = line.split("`")[1]
@@ -104,7 +138,7 @@ def load_dump():
                 table = line.split("`")[1]
                 if table in found:
                     found[table].extend(sql_rows(line))
-    return {t: (columns[t], found[t]) for t in SQL_TABLES}
+    return {t: (columns[t], found[t]) for t in wanted}
 
 
 def records(table):
@@ -122,7 +156,8 @@ class Maps:
     """World positions to the zone map a player sees them on, as fractions of that map."""
 
     def __init__(self, tables):
-        zones = {r["ID"]: r["Name_lang"] for r in rows(tables["UiMap"]) if r["Type"] == ZONE_MAP}
+        zones = {r["ID"]: r["Name_lang"] for r in rows(tables["UiMap"]) if r["Type"] == ZONE_MAP and r["System"] == WORLD_MAP}
+        self.zones = {int(ui): name for ui, name in zones.items()}
         capitals = {r["ID"] for r in rows(tables["AreaTable"]) if int(r["Flags_0"]) & CAPITAL_FLAG}
         self.boxes = {}
         for r in rows(tables["UiMapAssignment"]):
@@ -159,7 +194,7 @@ def hostile_to(player, npc):
     return int(player["EnemyGroup"]) & int(npc["FactionGroup"]) != 0
 
 
-def generate(tables, sql):
+def generate(tables, sql, tdb):
     spell_names = {r["ID"]: r["Name_lang"] for r in rows(tables["SpellName"])}
     skill_names = {int(r["ID"]): r["DisplayName_lang"] for r in rows(tables["SkillLine"]) if int(r["ID"]) in PROFESSIONS}
     recipe_skill = {}
@@ -168,11 +203,17 @@ def generate(tables, sql):
         line, spell = int(r["SkillLine"]), int(r["Spell"])
         if line in PROFESSIONS and r["AcquireMethod"] != "3":
             recipe_skill.setdefault(spell, line)
-    recipe_names = {spell_names[str(s)] for s in recipe_skill if str(s) in spell_names}
-    learns = {}
-    for r in rows(tables["SpellEffect"]):
-        if r["Effect"] == LEARN_SPELL and r["EffectTriggerSpell"] != "0":
-            learns.setdefault(int(r["SpellID"]), int(r["EffectTriggerSpell"]))
+    recipes = recipe_sources.recipes(tables)
+    sources = recipe_sources.Sources()
+    learns, classic_spells = {}, {}
+    for r in records(sql["spell_template"]):
+        if r["Id"] in recipes:
+            classic_spells[r["Id"]] = r
+        for i in "123":
+            if r[f"Effect{i}"] == LEARN_SPELL and r[f"EffectTriggerSpell{i}"]:
+                learns.setdefault(r["Id"], r[f"EffectTriggerSpell{i}"])
+    teleports = {r["id"]: r for r in records(sql["areatrigger_teleport"])}
+    exits = {instance: (teleports[trigger], ui) for instance, (trigger, ui) in DUNGEON_EXITS.items()}
 
     templates = {r["ID"]: r for r in rows(tables["FactionTemplate"])}
     players = {side: templates[tid] for side, tid in PLAYER_TEMPLATES.items()}
@@ -183,45 +224,64 @@ def generate(tables, sql):
     for c in sorted(records(sql["creature"]), key=lambda c: c["guid"]):
         spawns.setdefault(c["id"], []).append(c)
 
+    # A 1.12 recipe item teaches through a teaching spell too: item -> recipe spell, joined by ID.
+    item_recipe = {}
+    for r in records(sql["item_template"]):
+        for i in "12345":
+            spell = learns.get(r[f"spellid_{i}"], r[f"spellid_{i}"])
+            if r["class"] == RECIPE_CLASS and spell in recipes:
+                item_recipe[r["entry"]] = spell
+
+    # (from a template, entry) -> {item: whether its supply is limited}
     trainer_spells, vendor_items = {}, {}
-    for table, key, store in (("npc_trainer", "spell", trainer_spells), ("npc_trainer_template", "spell", trainer_spells),
-                              ("npc_vendor", "item", vendor_items), ("npc_vendor_template", "item", vendor_items)):
+    for table in ("npc_trainer", "npc_trainer_template"):
         for r in records(sql[table]):
-            store.setdefault((table.endswith("template"), r["entry"]), set()).add(r[key])
+            trainer_spells.setdefault((table.endswith("template"), r["entry"]), set()).add(r["spell"])
+    for table in ("npc_vendor", "npc_vendor_template"):
+        for r in records(sql[table]):
+            vendor_items.setdefault((table.endswith("template"), r["entry"]), {})[r["item"]] = r["maxcount"] > 0
+    stock_rows = [(item, limited) for stock in vendor_items.values() for item, limited in stock.items() if item in item_recipe]
+    stats = {"classic recipes sold by a vendor": len({item_recipe[item] for item, _ in stock_rows}),
+             "limited-supply rows": sum(limited for _, limited in stock_rows)}
 
     # (from a template, entry) -> {(spell, skill needed to learn it)}, to tell which ranks a trainer teaches.
     trainer_reqs = {}
+    # recipe spell -> {(skill needed to learn it, cost in copper)} of 1.12's trainers
+    classic_learn = {}
     for table in ("npc_trainer", "npc_trainer_template"):
         for r in records(sql[table]):
             trainer_reqs.setdefault((table.endswith("template"), r["entry"]), set()).add((r["spell"], r["reqskillvalue"]))
+            spell = learns.get(r["spell"], r["spell"])
+            if spell in recipes:
+                classic_learn.setdefault(spell, set()).add((r["reqskillvalue"], r["spellcost"]))
 
-    recipe_items = {}
-    for r in records(sql["item_template"]):
-        if r["class"] == RECIPE_CLASS and ": " in r["name"]:
-            name = r["name"].split(": ", 1)[1]
-            if name in recipe_names:
-                recipe_items[r["entry"]] = name
+    def sides_of(faction):
+        npc = templates.get(str(faction))
+        return {side: not (npc and hostile_to(p, npc)) for side, p in players.items()}
 
     out = {"trainers": {}, "bankers": {}, "vendors": {}, "artisan": {}}
-    trainer_recipes = {}
     for t in records(sql["creature_template"]):
         flags = t["NpcFlags"]
         if not flags & (FLAG_TRAINER | FLAG_VENDOR | FLAG_BANKER) and t["Entry"] not in ARTISAN_NPCS:
             continue
         spot = next(filter(None, (maps.locate(s["map"], s["position_x"], s["position_y"], ZONE_FIX.get(t["Entry"])) for s in spawns.get(t["Entry"], ()))), None)
+        dungeon = None
         if not spot:
-            continue
+            dungeon = next((s["map"] for s in spawns.get(t["Entry"], ()) if s["map"] in exits), None)
+            if not dungeon:
+                continue
+            door, door_ui = exits[dungeon]
+            spot = maps.locate(door["target_map"], door["target_position_x"], door["target_position_y"], door_ui)
         ui, zone, x, y = spot
-        npc = templates.get(str(t["Faction"]))
-        sides = {side: not (npc and hostile_to(p, npc)) for side, p in players.items()}
+        sides = sides_of(t["Faction"])
         entry = {"npc": t["Name"], "sub": t["SubName"], "zone": zone, "uiMap": ui, "x": x, "y": y,
-                 "alliance": sides["alliance"], "horde": sides["horde"]}
+                 "alliance": sides["alliance"], "horde": sides["horde"], "dungeon": dungeon}
         if not (sides["alliance"] or sides["horde"]):
             continue
 
         if t["Entry"] in ARTISAN_NPCS:
             out["artisan"][t["Entry"]] = dict(entry)
-        if flags & FLAG_TRAINER:
+        if flags & FLAG_TRAINER and t["Entry"] not in NOT_TRAINERS:
             spells = trainer_spells.get((False, t["Entry"]), set()) | trainer_spells.get((True, t["TrainerTemplateId"]), set())
             taught = {learns.get(s, s) for s in spells}
             # A profession trainer teaches the profession itself (a spell named like it) and its recipes.
@@ -234,21 +294,73 @@ def generate(tables, sql):
                 entry["ranks"] = sorted({RANK_CAPS[need] for s, need in reqs
                                          if spell_names.get(str(learns.get(s, s))) == entry["skill"] and need in RANK_CAPS})
                 out["trainers"][t["Entry"]] = entry
-                for s in taught & recipe_skill.keys():
-                    name = spell_names.get(str(s))
-                    if name and name not in skill_set:
-                        trainer_recipes.setdefault(name, set()).add(t["Entry"])
+                for s in taught & recipes.keys():
+                    sources.add(s, "T", t["Entry"], "c")
         if flags & FLAG_BANKER:
             out["bankers"][t["Entry"]] = dict(entry)
         if flags & FLAG_VENDOR:
-            stock = vendor_items.get((False, t["Entry"]), set()) | vendor_items.get((True, t["VendorTemplateId"]), set())
-            items = sorted(stock & reagents)
-            recipes = sorted({recipe_items[i] for i in stock if i in recipe_items})
-            if items or recipes:
+            stock = vendor_items.get((True, t["VendorTemplateId"]), {}) | vendor_items.get((False, t["Entry"]), {})
+            items = sorted(stock.keys() & reagents)
+            sold = {item: limited for item, limited in stock.items() if item in item_recipe}
+            if items or sold:
                 v = dict(entry)
-                v["items"], v["recipes"] = items, recipes
+                v["items"] = items
                 out["vendors"][t["Entry"]] = v
-    return out, trainer_recipes
+            for item, limited in sold.items():
+                sources.add(item_recipe[item], "L" if limited else "V", t["Entry"], "c")
+
+    # ForeverTDB: trainer list -> {recipe spell: (skill, cost)} of the rows seen on a Forever build.
+    forever, forever_learn = {}, {}
+    for r in records(tdb["trainer_spell"]):
+        spell = r["SpellId"]
+        if r["VerifiedBuild"] >= FOREVER_BUILDS and spell in recipes:
+            learn = forever.setdefault(r["TrainerId"], {})[spell] = (r["ReqSkillRank"], r["MoneyCost"])
+            forever_learn[spell] = min(learn, forever_learn.get(spell, learn))
+    # recipe spell -> (skill needed to learn it, cost in copper, seen on a Forever build); the lowest skill listed.
+    trainer_learn = {spell: (*min(learn), False) for spell, learn in classic_learn.items()}
+    trainer_learn.update({spell: (*learn, True) for spell, learn in forever_learn.items()})
+    classic_npcs = {t["Entry"] for t in records(sql["creature_template"])}
+    tdb_templates = {t["entry"]: t for t in records(tdb["creature_template"]) if t["npcflag"] & FLAG_TRAINER}
+    tdb_spawns = {}
+    for c in sorted(records(tdb["creature"]), key=lambda c: c["guid"]):
+        if c["id"] in tdb_templates:
+            tdb_spawns.setdefault(c["id"], []).append(c)
+    for link in sorted(records(tdb["creature_trainer"]), key=lambda r: (r["CreatureID"], r["TrainerID"])):
+        npc_id, taught = link["CreatureID"], forever.get(link["TrainerID"])
+        # Only Forever's own trainers: which list a 1.12 NPC is tied to comes from the dump's 1.12 base.
+        if not taught or npc_id in classic_npcs:
+            continue
+        if npc_id not in out["trainers"]:
+            t = tdb_templates.get(npc_id)
+            spot = next(filter(None, (maps.locate(s["map"], s["position_x"], s["position_y"]) for s in tdb_spawns.get(npc_id, ()))), None)
+            sides = t and sides_of(t["faction"])
+            if not spot or not (sides["alliance"] or sides["horde"]):
+                continue
+            lines = [recipes[s] for s in taught]
+            out["trainers"][npc_id] = {"npc": t["name"], "sub": t["subname"], "skill": skill_names[max(set(lines), key=lines.count)],
+                                       "zone": spot[1], "uiMap": spot[0], "x": spot[2], "y": spot[3],
+                                       "alliance": sides["alliance"], "horde": sides["horde"]}
+        for s in taught:
+            sources.add(s, "T", npc_id, "d")
+
+    # Forever's recipe items, and who sells, drops or rewards them.
+    item_spell = recipe_sources.recipe_items(tables, recipes)
+    stats["QuestieDB sources"] = recipe_sources.questie(item_spell, sources)
+    forever_db = recipe_sources.ForeverDB()
+    forever_db.add(item_spell, sources)
+    stats["forever-db sources"] = forever_db.count
+    # A vendor classic-db doesn't have selling a recipe or a reagent is placed from forever-db.
+    for by_kind in sources.by_spell.values():
+        for npc_id in by_kind.get("V", ()):
+            entry = npc_id not in out["vendors"] and forever_db.npc(npc_id, maps.zones)
+            if entry:
+                out["vendors"][npc_id] = entry
+    tagged = recipe_sources.tags(tables, recipes, classic_spells, classic_learn, forever_learn)
+    stats.update({"recipes": len(recipes), "in 1.12": len(classic_spells), "with a source": len(sources.by_spell)})
+    for kind in "TVDOQ":
+        stats[f"with {kind}"] = sum(1 for by_kind in sources.by_spell.values() if by_kind.get(kind))
+    stats.update({"new in Forever": sum(1 for t in tagged.values() if t == "N"), "changed in Forever": sum(1 for t in tagged.values() if t != "N")})
+    return out, sources, trainer_learn, tagged, item_spell, stats
 
 
 def lua_string(text):
@@ -264,19 +376,43 @@ def entry_text(e):
     for side in ("alliance", "horde"):
         if e[side]:
             parts.append(f"{side} = true")
+    if e.get("dungeon"):
+        parts.append(f"dungeon = {e['dungeon']}")
     if e.get("ranks"):
         parts.append(f'ranks = ",{",".join(map(str, e["ranks"]))},"')
     if e.get("items"):
         parts.append(f'items = ",{",".join(map(str, e["items"]))},"')
-    if e.get("recipes"):
-        parts.append("recipes = { " + ", ".join(lua_string(n) for n in e["recipes"]) + " }")
     return "{ " + ", ".join(parts) + " }"
 
 
-def render(out, trainer_recipes, build):
+def credits():
+    return [
+        f"-- Trainers, vendors and their limited supplies: {CLASSIC_DB} (GPL-3.0), commit {COMMIT}.",
+        f"-- Forever's own trainers, and the skill and cost to learn a recipe seen on a Forever build: {TDB} ForeverTDB (GPL-2.0 or later), release {TDB_TAG}.",
+        f"-- Vendors, drops, objects and quest rewards: {recipe_sources.FOREVER_DB} (GPL-3.0), commit {recipe_sources.FOREVER_DB_COMMIT},",
+        f"-- and QuestieDB ({recipe_sources.QUESTIE}, commit {recipe_sources.QUESTIE_COMMIT}), whose team allows copying under the",
+        "-- GPLv3 terms. QuestieDB's data will be removed from this file on request.",
+    ]
+
+
+def render_learn(trainer_learn):
+    lines = [
+        "",
+        "-- [recipe spell ID] = { skill needed to learn it from a trainer, cost in copper, true when seen on a Forever build (else 1.12's) }",
+        "FP.RecipeTrainerLearn = {",
+    ]
+    for spell in sorted(trainer_learn):
+        skill, cost, seen = trainer_learn[spell]
+        lines.append(f"    [{spell}] = {{ {skill}, {cost}{', true' if seen else ''} }},")
+    return "\n".join(lines + ["}"]) + "\n"
+
+
+def render(out, build):
     lines = [
         "-- Generated by tools/gen_npcs.py - do not edit.",
         f"-- Spawns, trainer spell lists and vendor stock: {CLASSIC_DB} (GPL-3.0), commit {COMMIT}.",
+        f"-- Forever's own trainers: {TDB} ForeverTDB (GPL-2.0 or later), release {TDB_TAG}.",
+        f"-- Forever's own recipe vendors: {recipe_sources.FOREVER_DB} (GPL-3.0), commit {recipe_sources.FOREVER_DB_COMMIT}.",
         f"-- Spells, skills, factions and maps: wago.tools DB2 tables (product wowf, build {build}).",
         "local _, FP = ...",
         "",
@@ -287,17 +423,12 @@ def render(out, trainer_recipes, build):
         for npc_id in sorted(out[kind]):
             lines.append(f"        [{npc_id}] = {entry_text(out[kind][npc_id])},")
         lines.append("    },")
-    lines.append('    -- [recipe name] = "npcId,npcId"')
-    lines.append("    trainerRecipes = {")
-    for name in sorted(trainer_recipes):
-        ids = ",".join(map(str, sorted(trainer_recipes[name])))
-        lines.append(f'        [{lua_string(name)}] = "{ids}",')
-    lines += ["    },", "}"]
+    lines.append("}")
     return "\n".join(lines) + "\n"
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Data/ClassicNpcs.lua from classic-db and wago.tools data.")
+    parser = argparse.ArgumentParser(description="Generate Data/ClassicNpcs.lua and Data/RecipeSources.lua.")
     parser.add_argument("--build", help="Forever build, such as 1.60.1.70888 (default: the newest)")
     parser.add_argument("--refresh", action="store_true", help="download the data again")
     args = parser.parse_args()
@@ -307,12 +438,17 @@ def main():
     build = args.build or latest_build()
     tables = {t: cached_table(build, t, args.refresh) for t in WAGO_TABLES}
     download_dump(args.refresh)
-    out, trainer_recipes = generate(tables, load_dump())
-    text = render(out, trainer_recipes, build)
-    old = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""
-    TARGET.write_text(text, encoding="utf-8")
-    print(f"build {build}: {len(out['trainers'])} trainers, {len(out['bankers'])} bankers, {len(out['vendors'])} vendors, "
-          f"{len(trainer_recipes)} taught recipes, {len(text) // 1024} KB -> {TARGET}" + (" (unchanged)" if text == old else " (changed)"))
+    download_tdb()
+    out, sources, trainer_learn, tagged, item_spell, stats = generate(tables, load_dump(DUMP_CACHE, SQL_TABLES), load_dump(TDB_CACHE, TDB_TABLES))
+    print(f"build {build}: " + ", ".join(f"{v} {k}" for k, v in stats.items()))
+    texts = {TARGET: render(out, build),
+             SOURCES: recipe_sources.render(sources, tagged, item_spell, build, credits()) + render_learn(trainer_learn)}
+    for target, text in texts.items():
+        old = target.read_text(encoding="utf-8") if target.exists() else ""
+        target.write_text(text, encoding="utf-8")
+        print(f"{len(text) // 1024} KB -> {target}" + (" (unchanged)" if text == old else " (changed)"))
+    print(f"{len(out['trainers'])} trainers, {len(out['bankers'])} bankers, {len(out['vendors'])} vendors, {len(trainer_learn)} recipes "
+          f"with learn skill and cost ({sum(1 for v in trainer_learn.values() if v[2])} from a Forever build)")
 
 
 if __name__ == "__main__":

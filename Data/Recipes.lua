@@ -8805,6 +8805,14 @@ FP.ProfessionOpeners = {
     [393] = { 1278068 }, -- Tanning
 }
 
+-- [skill line ID] = { spell ID, ... }: the profession's specialization spells, in ID order, so a specialization
+-- that builds on another (Master Swordsmith on Weaponsmith) comes after it
+FP.Specializations = {
+    [164] = { 9787, 9788, 17039, 17040, 17041 }, -- Weaponsmith, Armorsmith, Master Swordsmith, Master Hammersmith, Master Axesmith
+    [165] = { 10656, 10658, 10660 }, -- Dragonscale Leatherworking, Elemental Leatherworking, Tribal Leatherworking
+    [202] = { 20219, 20222 }, -- Gnomish Engineer, Goblin Engineer
+}
+
 -- [reagent item ID] = "recipe spell ID,count,skill line ID;..."
 FP.ReagentUses = {
     [118] = "1257369,2,197",

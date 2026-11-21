@@ -4,7 +4,7 @@
 ## Author: Thorgrim Lightfist - PvE
 ## X-Email: professionsforever@gmail.com
 ## X-License: GPL-3.0-only
-## Version: 0.10.4
+## Version: 0.10.5
 ## Category: Professions
 ## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
 ## SavedVariables: ProfessionsForeverDB
@@ -42,6 +42,8 @@ Core\Cooldowns.lua
 Core\Queue.lua
 Core\QueueRunner.lua
 Core\Shopping.lua
+Data\Orders.lua
+Core\Orders.lua
 UI\Common\Skin.lua
 UI\Common\Scrollbar.lua
 UI\Common\Widgets.lua
@@ -70,6 +72,7 @@ UI\DisenchantMode.lua
 Tooltips\Tooltips.lua
 Tooltips\QueueNeeds.lua
 Tooltips\Disenchant.lua
+Tooltips\Orders.lua
 Tooltips\Preview.lua
 UI\DetailPanel.lua
 UI\Overview.lua
@@ -83,9 +86,11 @@ Panels\TransferRows.lua
 Panels\TransferPanel.lua
 Panels\Cooldowns.lua
 Panels\Camp.lua
+Panels\Orders.lua
 Panels\SkillUp.lua
 Panels\ReagentSearch.lua
 Data\ClassicNpcs.lua
+Data\RecipeSources.lua
 Data\Npcs.lua
 Waypoints\Waypoint.lua
 Waypoints\WaypointRecord.lua

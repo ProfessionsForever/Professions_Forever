@@ -11,7 +11,7 @@ function W:NearestBanker()
     W.Search("sub", db, function()
         local cands, have = {}, {}
         for id, t in W.Known("bankers") do
-            if W.Usable(t) then
+            if W.Usable(t, "bankers", id) then
                 cands[#cands + 1] = { name = t.npc, uiMap = t.uiMap, x = t.x, y = t.y, area = t.zone }
                 have[id] = true
             end

@@ -82,6 +82,12 @@ function Planner:Holding(key, id)
     return b, k, b + k, mail[id] or 0
 end
 
+-- Everything `key` (nil = current) holds of an item: bags, bank and mail together.
+function Planner:HeldInAll(key, id)
+    local _, _, total, mail = self:Holding(key, id)
+    return total + mail
+end
+
 -- The characters that can supply the crafter: Alts:Eligible() for the current one; for another, every enabled
 -- character of its faction (mail can't cross factions), the current one included.
 local function Sources(crafter)

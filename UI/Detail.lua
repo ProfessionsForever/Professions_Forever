@@ -121,18 +121,22 @@ function UI:UpdateDetail()
     UpdateDetailActions(d, e, ev, one, count, sourceKnown)
 end
 
--- The name auto-sizes to its text (width 0) so the favorite star can anchor to its right edge; long names are capped
--- short of the tiles and wrap.
+-- The name auto-sizes to its text (width 0) so the Forever mark (if the recipe has one) and the favorite star can
+-- anchor to its right edge; long names are capped short of the tiles and wrap.
 local function FitName(d)
     local _, nameSize = d.name:GetFont()
     nameSize = nameSize or 16
     d.name:SetWidth(0)
     local left, limit = d.name:GetLeft(), d.statBags:GetLeft()
-    local reserve = nameSize + 2 + 10 + 8
+    local mark = d.forever:IsShown() and nameSize + 6 + 4 or 0
+    local reserve = nameSize + 2 + 10 + 8 + mark
     if left and limit and d.name:GetStringWidth() > limit - left - reserve then d.name:SetWidth(math.max(40, limit - left - reserve)) end
+    d.forever:SetSize(nameSize + 6, nameSize + 6)
+    d.forever:ClearAllPoints()
+    d.forever:SetPoint("LEFT", d.name, "TOPRIGHT", 6, -nameSize * 0.6 + 1)
     d.fav:SetSize(nameSize + 2, nameSize + 2)
     d.fav:ClearAllPoints()
-    d.fav:SetPoint("LEFT", d.name, "TOPRIGHT", 10, -nameSize * 0.6 + 1)
+    d.fav:SetPoint("LEFT", d.name, "TOPRIGHT", 10 + mark, -nameSize * 0.6 + 1)
 end
 
 -- Icon, name, favorite star, difficulty, where it is learned from, and the description.
@@ -142,6 +146,9 @@ function UpdateDetailHeader(d, e)
     local lo, hi = FP.Recipes:OutputQuantity(e.id)
     d.iconCount:SetText((hi <= 1 or FP.Recipes:IsEnchant(e.id)) and "" or lo == hi and lo or lo .. "-" .. hi)
     d.name:SetText(e.name)
+    local forever = UI.ForeverIcon(e.id)
+    d.forever.icon:SetTexture(forever)
+    d.forever:SetShown(forever ~= nil)
     FitName(d)
     local dc = DIFF_COLORS[e.difficulty] or WHITE_RGB
     d.name:SetTextColor(dc[1], dc[2], dc[3])

@@ -9,8 +9,19 @@ This program is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-The NPC data in Data/ClassicNpcs.lua is derived from cmangos/classic-db
-(GPL-3.0); see the credits in README.txt.
+Parts of the data in Data/ are derived from other projects:
+
+  Data/ClassicNpcs.lua, Data/RecipeSources.lua and Data/Disenchant.lua:
+    cmangos/classic-db (GPL-3.0)
+  Data/ClassicNpcs.lua and Data/RecipeSources.lua:
+    ForeverTDB, advocaite/TrinityCore (GPL-2.0 or later), which itself builds
+    on VMaNGOS, cmangos/classic-db and Questie data
+    foreverfraddons/forever-db (GPL-3.0)
+  Data/RecipeSources.lua:
+    QuestieDB, Questie/QuestieDB, whose team allows copying under the GPLv3
+    terms; its data will be removed on request
+
+See the credits in README.txt.
 
 --------------------------------------------------------------------------------
 

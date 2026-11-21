@@ -80,8 +80,10 @@ end
 
 -- Adds crafts of a recipe described by InfoFor to `key`'s queue (the current character's without it), merging into its
 -- entry when it is already queued. `from` names the character who queued it for `key`, for the notice `key` gets at its
--- next login. Returns how many crafts were added.
-function Queue:AddInfo(info, qty, key, from)
+-- next login. `auto` marks the crafts as queued by the addon to make a reagent of another queued recipe: entry.auto
+-- counts those, apart from the crafts the player queued, so they can be taken back when nothing needs them any more
+-- (Queue:SetQty). Returns how many crafts were added.
+function Queue:AddInfo(info, qty, key, from, auto)
     qty = math.max(1, qty or 1)
     local data = self:Data(key)
     local entry
@@ -100,6 +102,7 @@ function Queue:AddInfo(info, qty, key, from)
         added = entry.qty
     end
     if from then entry.from, entry.fromQty = from, (entry.fromQty or 0) + added end
+    if auto then entry.auto = (entry.auto or 0) + added end
     return added
 end
 
@@ -206,11 +209,15 @@ end
 -- Like Add, but also queues the crafts of reagents you are short of and know how to make, ahead of the recipe.
 function Queue:AddWithPrerequisites(recipeID, qty)
     local info = self:InfoFor(recipeID)
-    if not info then return end
+    if info then self:AddInfoWithPrerequisites(info, qty) end
+end
+
+-- The same for a recipe described by InfoFor, so one of a profession that isn't open can be queued (Chain:Maker).
+function Queue:AddInfoWithPrerequisites(info, qty)
     local steps = FP.Chain:Plan(info, math.max(1, qty or 1)).steps
     local first = {}
     for _, step in ipairs(steps) do
-        self:AddInfo(step.recipe, step.crafts)
+        self:AddInfo(step.recipe, step.crafts, nil, nil, true)
         first[#first + 1] = ("%dx %s"):format(step.crafts, step.recipe.name)
     end
     local added = self:AddInfo(info, qty)
@@ -233,10 +240,48 @@ function Queue:RoomFor(recipeID)
     return math.max(crafts, 0)
 end
 
+-- Takes back the crafts queued as prerequisites (entry.auto) that the current character's queue no longer needs, down
+-- the whole chain; an entry left with no crafts goes. Crafts the player queued are never taken back.
+local function TrimPrerequisites(self)
+    local data = self:Data()
+    local changed = true
+    while changed do
+        changed = false
+        for i = #data, 1, -1 do
+            local q = data[i]
+            if q.auto then
+                local id, per = q.output.itemID, q.output.qty
+                local others = self:QueuedProduction(id) - q.qty * per
+                local crafts = math.ceil((self:QueuedAmount(id) - FP.Chain:Held(id) - others) / per)
+                local auto = math.min(q.auto, math.max(0, crafts - (q.qty - q.auto)))
+                if auto < q.auto then
+                    q.qty, q.auto = q.qty - q.auto + auto, auto > 0 and auto or nil
+                    if q.qty == 0 then table.remove(data, i) end
+                    changed = true
+                end
+            end
+        end
+    end
+end
+
 -- Edits of `key`'s queue (the current character's without it). What other characters should send follows on its own
 -- (Alts/Outgoing.lua works it out from the queues).
+
+-- Sets how many crafts of the queued entry `q` there are. On the current character's queue the prerequisites follow:
+-- more crafts queue what they are short of, as queuing from the recipe panel does, and fewer take back the
+-- prerequisite crafts nothing needs any more. Lowering an entry takes off the crafts the player queued first.
+function Queue:SetQty(q, qty, key)
+    local steps = not key and qty > q.qty and FP.Chain:Plan(q, qty - q.qty).steps or {}
+    for _, step in ipairs(steps) do self:AddInfo(step.recipe, step.crafts, nil, nil, true) end
+    q.qty = qty
+    if q.auto and q.auto > qty then q.auto = qty end
+    if #steps > 0 then self:OrderByDependency() elseif not key then TrimPrerequisites(self) end
+    FP:Changed("queue")
+end
+
 function Queue:Remove(index, key)
     table.remove(self:Data(key), index)
+    if not key then TrimPrerequisites(self) end
     FP:Changed("queue")
 end
 

@@ -42,7 +42,47 @@ function P:AddUnitLine(tip, itemID, unit)
     local A = _G.Auctionator
     if mode == "auto" and A and A.Config and A.Config.Get(A.Config.Options.AUCTION_TOOLTIPS) then return end
     unit = unit or self:Unit(itemID)
-    if unit then tip:AddLine(FP.L["Auction Price: %s each"]:format(self:Format(unit)), 1, 0.82, 0) end
+    if unit then tip:AddLine(FP.L["Auction Price: %s each"]:format(self:Format(unit)) .. self:AgeNote(itemID), 1, 0.82, 0) end
+end
+
+---------------------------------------------------------------------------
+-- How old the prices are (Options, Integrations, Auctionator: Show How Old Auction Prices Are)
+---------------------------------------------------------------------------
+local OLD, FRESH = "|cffe63333", "|cff999999"
+
+-- Seconds since Auctionator's last full scan of the auction house; nil when it has run none, or the option is off.
+-- The times are Auctionator's own saved state, not part of its API (it keeps one per kind of full scan, by game
+-- version), so an update of it may rename them: no age is shown then.
+function P:ScanAge()
+    if not (API() and FP.db.priceAge) then return end
+    local state = Auctionator.SavedState
+    if not state then return end
+    local at = math.max(state.TimeOfLastGetAllScan or 0, state.TimeOfLastReplicateScan or 0, state.TimeOfLastBrowseScan or 0)
+    if at > 0 then return time() - at end
+end
+
+-- "Auction Scan: 2h Ago", red once it is older than Prices Are Old After; nil when ScanAge is.
+function P:ScanText()
+    local age = self:ScanAge()
+    if not age then return end
+    return (age >= FP.db.priceStaleHours * 3600 and OLD or FRESH)
+        .. FP.L["Auction Scan: %s Ago"]:format(FP.Cooldowns.Format(age)) .. "|r"
+end
+
+-- Days since Auctionator last saw the item at auction (a search counts, not just a full scan), when that makes its
+-- price old: a day or more, and at least Prices Are Old After. Nil for a fresh price, one with no age, or the option off.
+function P:OldDays(itemID)
+    local api = API()
+    if not (api and FP.db.priceAge and api.GetAuctionAgeByItemID) then return end
+    local ok, days = pcall(api.GetAuctionAgeByItemID, CALLER, itemID)
+    if ok and type(days) == "number" and days >= 1 and days * 24 >= FP.db.priceStaleHours then return days end
+end
+
+-- " (3 Days Old)" in red after an old auction price, else "".
+function P:AgeNote(itemID)
+    local days = self:OldDays(itemID)
+    if not days then return "" end
+    return " " .. OLD .. (days == 1 and FP.L["(1 Day Old)"] or FP.L["(%d Days Old)"]:format(days)) .. "|r"
 end
 
 function P:VendorUnit(itemID)

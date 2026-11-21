@@ -173,6 +173,47 @@ local function CraftableText(ev, bags, bank, alts)
     return Hex(STATUS_COLORS[ev.status] or STATUS_COLORS.none) .. ev.satisfied .. "/" .. #ev.reagents .. "|r"
 end
 
+-- A recipe row's tooltip docked outside the main window (Options, Tooltips, Recipes), so it doesn't cover the recipe
+-- panel: on the chosen side of the window, or the other one when the screen has no room there. "beside" is level
+-- with the row, "corner" with the list's top row. The icon UI:ShowTooltipIcon hangs on the tooltip's left counts.
+-- Returns whether it went left.
+local DOCK_GAP, DOCK_ICON = 4, 52
+local function DockRowTooltip(row)
+    local db, f, tip = FP.db, UI.frame, GameTooltip
+    local scale, tipScale = f:GetEffectiveScale(), tip:GetEffectiveScale()
+    local level = db.tipRecipePlace == "beside" and row or UI.rows[1]
+    local y = (level:GetTop() - f:GetTop()) * scale / tipScale
+    local need = (tip:GetWidth() + DOCK_GAP + DOCK_ICON) * tipScale
+    local left
+    if db.tipRecipeSide == "left" then left = f:GetLeft() * scale >= need
+    else left = UIParent:GetRight() * UIParent:GetEffectiveScale() - f:GetRight() * scale < need end
+    tip:ClearAllPoints()
+    if left then tip:SetPoint("TOPRIGHT", f, "TOPLEFT", -DOCK_GAP, y)
+    else tip:SetPoint("TOPLEFT", f, "TOPRIGHT", DOCK_GAP + DOCK_ICON, y) end
+    return left
+end
+
+-- The worn-gear comparison tooltips of a docked tooltip build away from the window: leftwards past the icon on the
+-- left, rightwards on the right. The game would put them wherever the screen has room, over the window.
+local function DockCompareTooltips(left)
+    local one, two = ShoppingTooltip1, ShoppingTooltip2
+    if not one:IsShown() then return end
+    one:ClearAllPoints()
+    if left then one:SetPoint("TOPRIGHT", GameTooltip, "TOPLEFT", -DOCK_ICON, 0)
+    else one:SetPoint("TOPLEFT", GameTooltip, "TOPRIGHT") end
+    if not two:IsShown() then return end
+    two:ClearAllPoints()
+    if left then two:SetPoint("TOPRIGHT", one, "TOPLEFT")
+    else two:SetPoint("TOPLEFT", one, "TOPRIGHT") end
+end
+
+-- The row under the mouse. With the tooltip shown only while the detail key is held, the key going down or up
+-- shows or hides it without the mouse moving.
+local hovered
+FP:RegisterEvent("MODIFIER_STATE_CHANGED", function()
+    if hovered and FP.db.tipRecipeShow == "shift" then hovered:GetScript("OnEnter")(hovered) end
+end)
+
 function UI:EnsureRows(n)
     local f = self.frame
     n = math.min(n, MAX_ROWS)
@@ -199,6 +240,10 @@ function UI:EnsureRows(n)
         row.fav:SetTexture("Interface\\Common\\ReputationStar")
         row.fav:SetTexCoord(0, 0.5, 0, 0.5)
         row.fav:Hide()
+        row.forever = row:CreateTexture(nil, "OVERLAY") -- new or changed in Forever, under the favorite star
+        row.forever:SetSize(14, 14)
+        row.forever:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMLEFT", -5, -4)
+        row.forever:Hide()
         row.mats = self:Text(row, -1, "RIGHT")
         row.mats:SetPoint("RIGHT", -4, 0)
         row.name = self:Text(row, 0)
@@ -223,14 +268,23 @@ function UI:EnsureRows(n)
             UI:Select(s.recipeID)
         end)
         row:SetScript("OnEnter", function(s)
+            hovered = s
             local e = s.recipeID and FP.Recipes.byID[s.recipeID]
             if not e then return end
-            GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+            if FP.db.tipRecipeShow == "shift" and not FP.Tooltips:DetailDown() then return GameTooltip:Hide() end
+            local docked = FP.db.tipRecipePlace ~= "row"
+            GameTooltip:SetOwner(s, docked and "ANCHOR_NONE" or "ANCHOR_RIGHT")
+            if docked then DockRowTooltip(s) end
             UI.FillRecipeTooltip(e)
             GameTooltip:Show()
+            -- Again, now that its width says which side has room.
+            if docked then DockCompareTooltips(DockRowTooltip(s)) end
             UI:ShowTooltipIcon(e.icon)
         end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnLeave", function()
+            hovered = nil
+            GameTooltip:Hide()
+        end)
         self.rows[i] = row
     end
     for i, row in ipairs(self.rows) do
@@ -277,6 +331,9 @@ function UI:UpdateList()
             row.categoryID = nil
             row.icon:Show()
             row.fav:SetShown(e.favorite)
+            local forever = UI.ForeverIcon(e.id)
+            row.forever:SetTexture(forever)
+            row.forever:SetShown(forever ~= nil)
             row.bar:Show()
             row.icon:ClearAllPoints()
             row.icon:SetPoint("LEFT", 10 + item.depth * 6, 0)

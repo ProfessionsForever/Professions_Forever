@@ -8,6 +8,7 @@
 	<Binding name="CLICK ProfessionsForeverKey_cooldowns:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK ProfessionsForeverKey_skillup:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK ProfessionsForeverKey_camp:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ProfessionsForeverKey_orders:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK ProfessionsForeverKey_disenchant:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK ProfessionsForeverKey_profession1:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK ProfessionsForeverKey_profession2:LeftButton" category="ADDONS"/>

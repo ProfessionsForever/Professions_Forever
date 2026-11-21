@@ -14,8 +14,7 @@ local WORKS_WITH = {
     { "Auctionator", "prices and cost totals" },
     { "Syndicator", "live bank counts and other characters' inventory" },
     { "Questie", "vendor, trainer and banker locations" },
-    { "TomTom", "waypoints" },
-    { "Polestar", "waypoints" },
+    { "Polestar & TomTom", "waypoints" },
     { "EllesmereUI", "window skin" },
 }
 
@@ -23,19 +22,15 @@ local function Meta(field) return C_AddOns.GetAddOnMetadata("ProfessionsForever"
 local ICON_SIZE = 96
 
 local DATA_CREDITS = {
-    "Built-in trainer, banker and vendor locations: cmangos classic-db (GPL-3.0).",
-    "Recipe, skill and map data: wago.tools.",
+    { "cmangos classic-db (GPL-3.0)", "trainers, vendors and bankers" },
+    { "ForeverTDB (GPL-2.0 or later)", "trainers added in Forever" },
+    { "forever-db (GPL-3.0), QuestieDB", "recipe vendors, drops and quest rewards" },
+    { "wago.tools", "recipe, skill and map data" },
 }
 
-local function DataCreditLines()
+local function CreditLines(list)
     local out = {}
-    for i, text in ipairs(DATA_CREDITS) do out[i] = L[text] end
-    return out
-end
-
-local function WorksWithLines()
-    local out = {}
-    for i, a in ipairs(WORKS_WITH) do out[i] = a[1] .. " - " .. L[a[2]] end
+    for i, a in ipairs(list) do out[i] = a[1] .. " - " .. L[a[2]] end
     return out
 end
 
@@ -96,9 +91,9 @@ function O.BuildAbout(page)
     end
     Line(L["Author"] .. ": " .. (Meta("Author") or "?"))
     Line(L["Works with these addons when they are installed:"], 0.7)
-    for _, text in ipairs(WorksWithLines()) do Line(text) end
+    for _, text in ipairs(CreditLines(WORKS_WITH)) do Line(text) end
     Line(L["Data"] .. ":", 0.7)
-    for _, text in ipairs(DATA_CREDITS) do Line(L[text]) end
+    for _, text in ipairs(CreditLines(DATA_CREDITS)) do Line(text) end
 end
 
 -- Adds an entry to Blizzard's AddOns settings list: the same About content, plus a button that opens the options window.
@@ -156,8 +151,8 @@ function O:RegisterSettings()
     body:SetSpacing(4)
     body:SetText(L["Author"] .. ": " .. (Meta("Author") or "?") .. "\n\n"
         .. L["Works with these addons when they are installed:"] .. "\n"
-        .. table.concat(WorksWithLines(), "\n") .. "\n\n"
-        .. L["Data"] .. ":\n" .. table.concat(DataCreditLines(), "\n"))
+        .. table.concat(CreditLines(WORKS_WITH), "\n") .. "\n\n"
+        .. L["Data"] .. ":\n" .. table.concat(CreditLines(DATA_CREDITS), "\n"))
 
     Settings.RegisterAddOnCategory(Settings.RegisterCanvasLayoutCategory(panel, panel.name))
 end

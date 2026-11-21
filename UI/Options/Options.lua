@@ -195,6 +195,21 @@ local function BuildMainWindow(page)
         db.showSkillChance = v
         UI:UpdateList()
     end)
+    O.Check(page, L["Mark Recipes New or Changed in Forever"], function() return db.foreverIcon end, function(v)
+        db.foreverIcon = v
+        UI:UpdateList()
+        UI:UpdateDetail()
+    end)
+    local camp = O.Check(page, L["Show Camp in the Footer"], function() return db.footerCamp end, function(v)
+        db.footerCamp = v
+        UI:LayoutFooter()
+    end)
+    UI:Tooltip(camp, "ANCHOR_RIGHT", L["The Camp cell along the bottom of the main window. Off: the window still opens from its quick button or /pf camp."])
+    local orders = O.Check(page, L["Show Crates and Writs in the Footer"], function() return db.footerOrders end, function(v)
+        db.footerOrders = v
+        UI:LayoutFooter()
+    end)
+    UI:Tooltip(orders, "ANCHOR_RIGHT", L["The Crates and Writs cell along the bottom of the main window. Off: the window still opens from its quick button or /pf crates."])
     O.Check(page, L["Hide Minimap Button"], function() return db.minimap.hide end, function(v)
         db.minimap.hide = v
         FP.Minimap:Update()
@@ -204,10 +219,12 @@ end
 local function ResetMainWindow()
     local db = FP.db
     local replaced = db.replaceDefault
-    O.ResetKeys("replaceDefault", "showSkillChance")
+    O.ResetKeys("replaceDefault", "showSkillChance", "foreverIcon", "footerCamp", "footerOrders")
     db.minimap.hide = FP.defaults.minimap.hide
     FP.Minimap:Update()
+    UI:LayoutFooter()
     UI:UpdateList()
+    UI:UpdateDetail()
     if replaced ~= db.replaceDefault then FP:Print(L["Changing this needs a UI reload to take full effect."]) end
 end
 
@@ -346,6 +363,8 @@ local PAGES = {
     { key = "tt_disenchant", parent = "tooltips", label = "Disenchant Results", build = O.BuildDisenchantTooltips,
         reset = O.ResetDisenchantTooltips,
         desc = "What disenchanting gear gives: when it shows, how much, and for which characters." },
+    { key = "tt_orders", parent = "tooltips", label = "Crates and Writs", build = O.BuildTipOrders, reset = O.ResetTipOrders,
+        desc = "What a Waylaid Crate pays and the cheapest way to fill it; what a Craftsman's Writ's item costs you." },
     { key = "fishing", label = "One-Click Fishing", build = O.BuildFishing, reset = O.ResetFishing },
     { key = "integrations", label = "Integrations", cat = true },
     { key = "int_auctionator", parent = "integrations", label = "Auctionator", build = O.BuildIntAuctionator, reset = O.ResetIntAuctionator },

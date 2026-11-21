@@ -18,16 +18,76 @@ do
             -- The classic database's list of a trainer's ranks stays beside whatever players recorded of them.
             local ranks = entry.ranks
             entry.ranks = nil
-            if not data[kind][id] then data[kind][id] = entry end
+            local recorded = data[kind][id]
+            if recorded then
+                -- A recording only knows the faction that made it; the classic database knows who else the NPC serves.
+                recorded.alliance, recorded.horde = recorded.alliance or entry.alliance, recorded.horde or entry.horde
+            else
+                data[kind][id] = entry
+            end
             data[kind][id].classicRanks = ranks
         end
     end
-    for name, ids in pairs(classic.trainerRecipes) do
-        local recorded = data.trainerRecipes[name]
-        data.trainerRecipes[name] = recorded and (recorded .. "," .. ids) or ids
-    end
     data.artisan = classic.artisan
     FP.ClassicNpcs = nil
+end
+
+-- A recipe's shipped sources of the given kinds (Data/RecipeSources.lua: "T" trainers, "VL" vendors) as one "id,id"
+-- list, whichever database each id comes from; nil when it has none.
+function W.SourceIds(recipeID, kinds)
+    local out
+    for kind, ids in (FP.RecipeSources[recipeID] or ""):gmatch("(%u)%l:([%d,]+)") do
+        if kinds:find(kind, 1, true) then out = out and (out .. "," .. ids) or ids end
+    end
+    return out
+end
+
+-- A trainer's window names each recipe by what it makes ("Steel Bar" for Smelt Steel), or by its own name when it
+-- makes nothing (an enchant). Recordings are kept by recipe ID, so those names are matched to recipes here, in the
+-- client's own language.
+local byName, byItem, lineOf
+
+local function IndexRecipes()
+    byName, byItem, lineOf = {}, {}, {}
+    local function Add(map, key, id)
+        local list = map[key]
+        if not list then list = {} map[key] = list end
+        list[#list + 1] = id
+    end
+    for line, list in pairs(FP.RecipeLines) do
+        for v in list:gmatch("%d+") do
+            local id = tonumber(v)
+            lineOf[id] = line
+            local name, made = C_Spell.GetSpellName(id), FP.RecipeOutputs[id]
+            if name then Add(byName, name, id) end
+            if made then Add(byItem, made, id) end
+        end
+    end
+end
+
+-- The recipe IDs one trainer teaches, from its services as { { name = , item = }, ... } (either may be missing). A
+-- name or item that recipes of several professions share (a Gold Bar is smelted and transmuted) counts for the
+-- profession most of the trainer's list belongs to.
+function W.TaughtRecipes(services)
+    if not byName then IndexRecipes() end
+    local found, lines = {}, {}
+    for i, s in ipairs(services) do
+        local ids = s.name and byName[s.name] or s.item and byItem[s.item]
+        found[i] = ids or false
+        if ids and #ids == 1 then lines[lineOf[ids[1]]] = (lines[lineOf[ids[1]]] or 0) + 1 end
+    end
+    local top, topN = nil, 0
+    for line, n in pairs(lines) do if n > topN then top, topN = line, n end end
+    local out, seen = {}, {}
+    for _, ids in ipairs(found) do
+        for _, id in ipairs(ids or {}) do
+            if not seen[id] and (#ids == 1 or not top or lineOf[id] == top) then
+                seen[id] = true
+                out[#out + 1] = id
+            end
+        end
+    end
+    return out
 end
 
 -- Returns the entry, the npc id and whether it is new; nil when no NPC is open or it has no known position.
@@ -54,9 +114,13 @@ function W.Remember(kind)
     return entry, npcId, isNew
 end
 
-function W.Usable(entry)
+-- Whether your faction can use the NPC. Your own recording only notes the factions you opened it with, so the
+-- shipped entry for the same NPC (kind, id) also counts: a neutral vendor recorded on one faction serves the other.
+function W.Usable(entry, kind, id)
     local faction = UnitFactionGroup("player")
-    return not faction or entry[faction:lower()] == true
+    if not faction or entry[faction:lower()] == true then return true end
+    local shipped = kind and FP.NpcData[kind][id]
+    return shipped ~= nil and shipped[faction:lower()] == true
 end
 
 -- A recorded or shipped entry; yours win.

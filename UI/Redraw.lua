@@ -7,17 +7,21 @@ local UI = FP.UI
 --   cooldowns: the tracked cooldowns; sends: what this character should mail other characters (Alts/Outgoing.lua),
 --   or the mailbox opening or closing; inventory: the bags or the bank, or the bank opening or closing;
 --   items: an item's name or icon arrived from the server; prices: Auctionator's prices changed (Core/Prices.lua);
---   camp: a camp item's shared cooldown started or ended (Core/Camp.lua).
+--   camp: a camp item's shared cooldown started or ended (Core/Camp.lua);
+--   orders: Merchant's Favor, a writ delivered or what a crate pays (Core/Orders.lua); standing: reputation with
+--   the camp's faction, a writ accepted, or the Performance Bonus talent, which only its window shows.
 local SHOWN_IN = {
-    inventory = { "main", "queue", "shop", "transfer", "launcher", "camp", "tooltips" },
-    items = { "main", "queue", "shop", "transfer", "camp", "tooltips" },
+    inventory = { "main", "queue", "shop", "transfer", "launcher", "camp", "orders", "tooltips", "auctionator" },
+    items = { "main", "queue", "shop", "transfer", "camp", "orders", "tooltips", "auctionator" },
     camp = { "camp", "footer", "launcher" },
-    queue = { "queue", "detail", "footer", "transfer", "launcher", "shop", "tooltips" },
-    shop = { "shop", "detail", "footer", "launcher", "tooltips" },
-    plan = { "main", "queue", "shop", "transfer", "characters", "launcher", "tooltips" },
+    orders = { "orders", "footer" },
+    standing = { "orders" },
+    queue = { "queue", "detail", "footer", "transfer", "launcher", "shop", "orders", "tooltips", "auctionator" },
+    shop = { "shop", "detail", "footer", "launcher", "orders", "tooltips", "auctionator" },
+    plan = { "main", "queue", "shop", "transfer", "characters", "launcher", "orders", "tooltips", "auctionator" },
     cooldowns = { "cooldowns", "footer", "launcher" },
-    sends = { "footer", "transfer", "launcher", "shop", "disenchant" }, -- Disenchanting Mode marks gear asked for
-    prices = { "main", "queue", "shop", "disenchant" },
+    sends = { "footer", "transfer", "launcher", "shop", "disenchant", "auctionator" }, -- Disenchanting Mode marks gear asked for
+    prices = { "main", "queue", "shop", "disenchant", "orders" },
 }
 
 -- Two sets taking turns, so a change made while redrawing is kept for the next frame.
@@ -37,8 +41,10 @@ local function Flush()
     if d.transfer then FP.Transfer:QueueUpdate() end
     if d.cooldowns then FP.CooldownPanel:Update() end
     if d.camp then FP.CampPanel:Update() end
+    if d.orders then FP.OrdersPanel:Update() end
     if d.characters then FP.Options:RefreshCharacters() end
     if d.launcher then FP.Launcher:QueueUpdate() end
+    if d.auctionator then FP.Shop:SyncAuctionator() end -- Auctionator's copy of the shopping list, window open or not
     if d.tooltips then FP.Tooltips:Changed() end -- Tooltips/Tooltips.lua: the queue needs on item tooltips
     -- Rescanned too, so the list's Best Value sort and Worth Disenchanting Only filter use the new values.
     if d.disenchant then UI:UpdateDisenchantMode(true) end

@@ -68,7 +68,14 @@ local function CardTooltip(s)
     GameTooltip:Show()
 end
 
--- The card is one mouse target, so the icon's highlight follows the cursor while a card is hovered.
+-- The card is one mouse target, so the icons' highlights follow the cursor while a card is hovered.
+local function CursorOver(icon)
+    local scale = icon:GetEffectiveScale()
+    local x, y = GetCursorPosition()
+    x, y = x / scale, y / scale
+    return x >= icon:GetLeft() and x <= icon:GetRight() and y >= icon:GetBottom() and y <= icon:GetTop()
+end
+
 local hoverCard
 local iconWatcher = CreateFrame("Frame")
 iconWatcher:Hide()
@@ -76,13 +83,11 @@ iconWatcher:SetScript("OnUpdate", function(s)
     if not hoverCard:IsMouseOver() then
         s:Hide()
         hoverCard.glow:Hide()
+        if hoverCard.specGlow then hoverCard.specGlow:Hide() end
         return
     end
-    local icon = hoverCard.icon
-    local scale = icon:GetEffectiveScale()
-    local x, y = GetCursorPosition()
-    x, y = x / scale, y / scale
-    hoverCard.glow:SetShown(x >= icon:GetLeft() and x <= icon:GetRight() and y >= icon:GetBottom() and y <= icon:GetTop())
+    hoverCard.glow:SetShown(CursorOver(hoverCard.icon))
+    if hoverCard.specGlow then hoverCard.specGlow:SetShown(hoverCard.spec:IsShown() and CursorOver(hoverCard.spec)) end
 end)
 
 -- `tall` cards are the narrow, vertical ones used for secondary professions; their height is set by LayoutOverview.
@@ -115,6 +120,20 @@ local function MakeCard(o, tall)
         card.name:SetPoint("RIGHT", card.maxed, "LEFT", -6, 0)
         card.tier:SetPoint("TOPLEFT", card.name, "BOTTOMLEFT", 0, -3)
         card.tier:SetPoint("RIGHT", -10, 0)
+        -- The specialization, as in Blizzard's book: its icon under the profession's with its name beside it. Part of
+        -- the card, so a click on it opens the profession too. Only primary professions have one.
+        card.spec = card:CreateTexture(nil, "ARTWORK")
+        card.spec:SetSize(44, 44)
+        card.spec:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -4)
+        card.specName = UI:Text(card, 3, "LEFT")
+        card.specName:SetWordWrap(false)
+        card.specName:SetPoint("LEFT", card.spec, "RIGHT", 10, 0)
+        card.specName:SetPoint("RIGHT", -10, 0)
+        card.specGlow = card:CreateTexture(nil, "OVERLAY")
+        card.specGlow:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+        card.specGlow:SetBlendMode("ADD")
+        card.specGlow:SetAllPoints(card.spec)
+        card.specGlow:Hide()
     end
 
     card.glow = card:CreateTexture(nil, "OVERLAY")
@@ -142,6 +161,7 @@ local function MakeCard(o, tall)
     card:HookScript("OnLeave", function(s)
         iconWatcher:Hide()
         s.glow:Hide()
+        if s.specGlow then s.specGlow:Hide() end
         GameTooltip:Hide()
     end)
 
@@ -277,6 +297,13 @@ local function FillCard(card, p, accent, nav)
     card.icon:SetTexture(p.icon)
     card.icon:SetDesaturated(p.learnable == true)
     card.name:SetText(p.name)
+    -- Read from the character's own spells, so only for its own professions.
+    card.specialization = not p.alt and not p.learnable and FP:Specialization(p.skillLine) or nil
+    if card.spec then
+        card.spec:SetTexture(card.specialization and C_Spell.GetSpellTexture(card.specialization))
+        card.spec:SetShown(card.specialization ~= nil)
+        card.specName:SetText(card.specialization and C_Spell.GetSpellName(card.specialization) or "")
+    end
     if card.unlearn then
         card.unlearn:SetShown(not p.learnable and not p.alt)
         card.unlearn:ClearAllPoints()

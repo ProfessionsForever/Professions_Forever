@@ -34,18 +34,23 @@ function Chain:Maker(itemID)
     return info and IsPlayerSpell(info.id) and info or nil
 end
 
+-- What planning counts as already held of an item: bags, bank and mailbox, and what other characters hold when alts
+-- count toward planning.
+function Chain:Held(itemID)
+    local _, _, total, mail = FP.Inv:Owned(itemID)
+    if FP.Planner:Applies() then total = total + FP.Alts:GetEnabledAltTotal(itemID) end
+    return total + mail
+end
+
 -- What to craft first for `count` crafts of `info` (Queue:InfoFor). steps lists { recipe, crafts } with makers before
 -- the crafts that use them; short[itemID] is what raw materials would still be missing. Bags, bank and mailbox count, and
 -- what other characters hold when alts count toward planning, less what the queue already needs and plus what it will
 -- make: bars on a bank alt are sent for, not smelted again.
 function Chain:Plan(info, count)
     local steps, short, supply, active = {}, {}, {}, { [info.id] = true }
-    local alts = FP.Planner:Applies()
     local function Have(itemID)
         if supply[itemID] == nil then
-            local _, _, total, mail = FP.Inv:Owned(itemID)
-            if alts then total = total + FP.Alts:GetEnabledAltTotal(itemID) end
-            supply[itemID] = total + mail - FP.Queue:QueuedAmount(itemID) + FP.Queue:QueuedProduction(itemID)
+            supply[itemID] = self:Held(itemID) - FP.Queue:QueuedAmount(itemID) + FP.Queue:QueuedProduction(itemID)
         end
         return supply[itemID]
     end

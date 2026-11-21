@@ -122,7 +122,7 @@ function W:Available(recipeID)
     if not Navigator() then return false end
     if Questie() then return true end
     local e = recipeID and FP.Recipes.byID[recipeID]
-    return e ~= nil and (#W:TrainersFor(recipeID) > 0 or #W.KnownRecipeVendors(e.name) > 0)
+    return e ~= nil and (#W:TrainersFor(recipeID) > 0 or #W.KnownRecipeVendors(recipeID) > 0)
 end
 
 local function WorldPos(uiMap, x, y)

@@ -76,7 +76,11 @@ function Shop:Update()
     f.totalLabel:SetShown(hasPrices)
     f.total:SetShown(hasPrices)
     f.total:SetText(total > 0 and FP.Prices:Format(total) or "-")
-    f.unpriced:SetText(hasPrices and unpriced > 0 and L["%d without an auction price"]:format(unpriced) or "")
+    -- Under the total: what has no price, and how old the prices are.
+    local notes = {}
+    if hasPrices and unpriced > 0 then notes[#notes + 1] = L["%d without an auction price"]:format(unpriced) end
+    notes[#notes + 1] = FP.Prices:ScanText()
+    f.unpriced:SetText(table.concat(notes, "  -  "))
     local colors = FP.UI.STATUS_COLORS
     for i, row in ipairs(f.rows) do
         local e = i <= shown and data[offset + i] or nil
@@ -100,7 +104,6 @@ function Shop:Update()
             row:Hide()
         end
     end
-    f.ah:SetShown(FP.Prices:Available())
     f.coverHint:SetShown(not FP.Planner:Applies() and self:CoveredByOthers())
 end
 
@@ -356,8 +359,6 @@ local function BuildButtons(f)
         tip:AddLine(L["Reset to Queue"], 1, 1, 1)
         tip:AddLine(L["Undoes your changes to the items the queues need, including ones you removed. Anything you added yourself stays on the list."], 0.8, 0.8, 0.8, true)
     end)
-    f.ah = UI:Button(f, L["Send to Auctionator"], 150, ACTION_BUTTON_H, function() Shop:SendToAuctionator() end)
-    f.ah:SetPoint("LEFT", f.reset, "RIGHT", 6, 0)
     UI:AddWindowButtons(f, 80) -- between the item search and Reset to Queue
 end
 

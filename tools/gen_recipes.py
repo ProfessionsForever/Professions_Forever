@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes Data/Recipes.lua: what the profession recipes need and make. That is the skill each needs to learn, the
 item each makes (for its icon; a recipe's own spell icon is only the profession's), for each item the recipes
-that use it as a reagent, and the spells that open each profession's crafting window.
+that use it as a reagent, the spells that open each profession's crafting window, and its specialization spells.
 
 Downloads the DB2 tables it needs from wago.tools for the WoW: Forever build (product wowf), keeps them in a cache
 folder (~/.cache/professionsforever/wago/<build>), and generates the file from them. Run it by hand when Forever
@@ -84,7 +84,7 @@ def generate(tables, build):
                 auto.add(spell)
     ranks = {int(r["SpellID"]) for r in rows(tables["SpellEffect"]) if r["Effect"] == SKILL}
 
-    outputs, openers = {}, {}
+    outputs, openers, specializations = {}, {}, {}
     for r in rows(tables["SpellEffect"]):
         spell = int(r["SpellID"])
         if spell in seen and spell not in outputs and r["Effect"] == CREATE_ITEM and int(r["EffectItemType"] or 0) > 0:
@@ -92,6 +92,10 @@ def generate(tables, build):
         if (r["Effect"] == TRADE_SKILL and spell in line_of and spell not in has_reagents
                 and (spell in auto or (spell in ranks and line_of[spell] not in GATHERING))):
             openers.setdefault(line_of[spell], set()).add(spell)
+        # What is left of the Trade Skill spells: Weaponsmith, Dragonscale Leatherworking, Gnomish Engineer...
+        elif (r["Effect"] == TRADE_SKILL and spell in line_of and spell not in has_reagents
+                and spell not in auto and spell not in ranks and line_of[spell] not in GATHERING):
+            specializations.setdefault(line_of[spell], set()).add(spell)
     names = {int(r["ID"]): r["Name_lang"] for r in rows(tables["SpellName"])}
 
     # A recipe that is taught by an item needs the skill that item asks for; the earliest way to learn it counts.
@@ -154,6 +158,17 @@ def generate(tables, build):
     for line in sorted(openers):
         spells = sorted(openers[line])
         label = ", ".join(sorted({" ".join(names.get(s, "?").split()) for s in spells}))
+        lines.append(f"    [{line}] = {{ {', '.join(map(str, spells))} }}, -- {label}")
+    lines += [
+        "}",
+        "",
+        "-- [skill line ID] = { spell ID, ... }: the profession's specialization spells, in ID order, so a specialization",
+        "-- that builds on another (Master Swordsmith on Weaponsmith) comes after it",
+        "FP.Specializations = {",
+    ]
+    for line in sorted(specializations):
+        spells = sorted(specializations[line])
+        label = ", ".join(" ".join(names.get(s, "?").split()) for s in spells)
         lines.append(f"    [{line}] = {{ {', '.join(map(str, spells))} }}, -- {label}")
     lines += [
         "}",

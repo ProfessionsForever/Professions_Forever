@@ -437,7 +437,7 @@ commands["debug footer"] = function()
         for _, c in ipairs(footer.extra) do c:Hide() end
         wipe(footer.extra)
     else
-        local shown = 5 + ((footer.skillup and FP.db.footerSkillUp) and 1 or 0) + (footer.disenchant:IsShown() and 1 or 0)
+        local shown = 4 + (FP.db.footerCamp and 1 or 0) + (FP.db.footerOrders and 1 or 0) + ((footer.skillup and FP.db.footerSkillUp) and 1 or 0) + (footer.disenchant:IsShown() and 1 or 0)
         for i = 1, math.max(1, 6 - shown) do
             local c = UI.MakeFooterCell(f, "cooldowns", "Test Cell " .. i, function() end)
             c.line:SetText("A long line to see where the text gets cut off")

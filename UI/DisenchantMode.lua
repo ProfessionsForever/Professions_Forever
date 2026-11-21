@@ -520,11 +520,11 @@ local function Money(c) return FP.Prices:Format(c) end
 local function MailboxOpen() return MailFrame:IsShown() end
 
 -- Puts the selected bag item on a new mail to the recipient, as dragging it to the first free attachment slot does,
--- and fills in their name when the To box is empty. Only while a mailbox is open.
+-- and fills in their name and a subject where those boxes are empty. Only while a mailbox is open.
 local function MailSelected()
     local it, to = Selected(), Recipient()
     if not (it and to and not it.inBank and MailboxOpen()) then return end
-    FP.Outgoing.StartMail(to.owner)
+    FP.Outgoing.StartMail(to.owner, L["Gear to Disenchant"])
     FP.Outgoing.AttachSlot(it.bag, it.slot)
 end
 
@@ -784,6 +784,8 @@ local function UpdateDetail()
     -- What it's worth each way, before the auction house cut and after the standard and neutral cuts.
     local v = Values(it)
     it.values = v
+    local scan = P:ScanText() -- how old the prices behind it are
+    d.values.title:SetText(L["What It's Worth"] .. (scan and ("    " .. scan) or ""))
     local rows = {
         vendor = { v.vendor, v.vendor, v.vendor },
         disenchant = priced and { v.deGross, v.deGross * (1 - P.CUT), v.deGross * (1 - P.NEUTRAL_CUT) },

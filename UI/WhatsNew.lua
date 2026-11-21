@@ -6,10 +6,19 @@ local UI = FP.UI
 -- It shows the newest notes the player hasn't seen yet, so updating past a version (0.9.4 straight to 0.10.1) still
 -- shows that version's notes, and a small update without notes of its own shows nothing. A fresh install only notes the
 -- version (FP.freshInstall, Core/Core.lua). /pf whatsnew and the About page's button show the newest notes again.
+-- Older and Newer step through the earlier versions' notes.
 -- FP.db.whatsNewSeen is the version last logged in with.
 
 -- [version] = { { icon (in Interface\\Icons), heading, text }, ... }. A version without an entry shows nothing.
 local NOTES = {
+    ["0.10.5"] = {
+        { "INV_Crate_01", "Crates and Writs", "A new window (footer, quick button or /pf crates) lists the Waylaid Crates and Craftsman's Writs your characters hold, the cheapest way to fill each, and what that costs per Merchant's Favor or per reputation. Queue, Shop and Waypoint buttons do the rest, and Buy Crates and Buy Writs show which ones are worth buying at the auction house. Crate and writ tooltips show the same." },
+        { "INV_Misc_Book_09", "Who Teaches It, Who Sells It", "Trainers are now built in for 465 recipes, up from 32, and vendors for 725, no Questie needed. That includes Forever's own trainers and recipes, the dungeon trainers and the specialization trainers. Recipe tooltips show the skill and cost a trainer asks." },
+        { "INV_Misc_Gem_Variety_01", "New and Changed in Forever", "A glowing infinity marks recipes that are new in Forever (gold) or changed in Forever (blue). The recipe's tooltip says what changed: reagents, result, trainer skill or trainer cost." },
+        { "INV_Misc_PocketWatch_01", "How Old Are Those Prices?", "With Auctionator, the shopping list, Crates and Writs, Disenchanting Mode and the cost and profit tooltips say when the auction house was last scanned, in red once it's old. The shopping list now keeps Auctionator's list in sync on its own, so the Send to Auctionator button is gone." },
+        { "INV_Letter_15", "A Sharper Transfer Planner", "Mail puts short stacks together and attaches the fewest it can, and fills in the subject. Withdraw from Bank and Collect from Mailbox also fetch what this character has to send." },
+        { "INV_Misc_Gift_02", "And More", "Stop Queue as its own button, a click on a queued recipe opens it, your specialization on the Overview, Darkmoon Faire and neutral vendors for both factions, Older and Newer buttons right here, and a pile of fixes. The changelog has every detail." },
+    },
     -- 0.10.3 was a small update, so its notes keep the main 0.10.2 ones under its own.
     ["0.10.3"] = {
         { "INV_Fabric_Linen_02", "Your Alts' Queues Work Together", "Hover an item to see how many your crafting queues need, how many you still have to buy, and which of your characters' queues are making it. Queue bolts on your tailor and your engineer's shopping list drops them and lists the cloth instead. Ore says what it smelts into, and Queue Needed queues exactly what's missing in one click." },
@@ -65,6 +74,17 @@ local function NewestNotes(after)
     end
     return best
 end
+
+-- The versions with notes, up to this one, oldest first.
+local function Versions()
+    local out = {}
+    for v in pairs(NOTES) do
+        if not Before(VERSION, v) then out[#out + 1] = v end
+    end
+    table.sort(out, Before)
+    return out
+end
+
 local W, PAD, GAP = 500, 18, 12
 local ICON, ICON_GAP = 34, 12 -- each highlight's icon, and the room between it and the text
 local LOGO = 40
@@ -108,6 +128,17 @@ local function Create()
     f.lines = {}
     f.ok = UI:Button(f, L["Got It"], 120, 24, function() f:Hide() end)
     f.ok:SetPoint("BOTTOM", 0, PAD)
+    -- The notes of the versions before and after the one shown.
+    local function Step(by)
+        local versions = Versions()
+        for i, v in ipairs(versions) do
+            if v == f.version then return UI:ShowWhatsNew(versions[i + by]) end
+        end
+    end
+    f.older = UI:Button(f, L["Older"], 90, 24, function() Step(-1) end)
+    f.older:SetPoint("BOTTOMLEFT", PAD, PAD)
+    f.newer = UI:Button(f, L["Newer"], 90, 24, function() Step(1) end)
+    f.newer:SetPoint("BOTTOMRIGHT", -PAD, PAD)
     f:Hide()
     return f
 end
@@ -134,6 +165,10 @@ function UI:ShowWhatsNew(version)
     if not notes then return false end
     frame = frame or Create()
     local f = frame
+    f.version = version
+    local versions = Versions()
+    f.older:SetActive(version ~= versions[1])
+    f.newer:SetActive(version ~= versions[#versions])
     f.title:SetText(L["What's New in ProfessionsForever %s"]:format(version))
     ApplyLook(f)
     local textW = W - 2 * PAD - ICON - ICON_GAP

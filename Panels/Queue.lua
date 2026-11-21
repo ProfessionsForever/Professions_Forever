@@ -123,12 +123,13 @@ function Queue:Update()
     local data = self:Data(view)
     f.pick:Sync()
     local busy = self.run and not self.run.ready
-    f.craft.text:SetText(busy and L["Stop Queue"] or L["Craft Queue"])
+    f.craft.text:SetAlpha(busy and 0.4 or 1)
     if not InCombatLockdown() then
         local canSkip = self.run and self.run.entry and true or false
-        f.craft:SetAttribute("macrotext", busy and STOP_MACRO or "")
+        f.stopQueue:SetAttribute("macrotext", busy and STOP_MACRO or "")
         f.stopCraft:SetAttribute("macrotext", busy and canSkip and STOP_MACRO or "")
         f.craft:SetShown(not view)
+        f.stopQueue:SetShown(self.run and not view and true or false)
         f.stopCraft:SetShown(canSkip and not view)
     end
     local short, shortCount = view and {} or self:EntryShortages(), 0
@@ -190,6 +191,23 @@ function Queue:Update()
     end
 end
 
+-- A count typed into a row's box is applied to the queue from the count the row had before the typing (Queue:SetQty),
+-- so the prerequisites follow the whole change. The entry may have been crafted off the queue meanwhile.
+local function SettleTyped(row)
+    local q, from, key = row.typed, row.typedFrom, row.typedKey
+    if not q then return end
+    row.typed, row.typedFrom, row.typedKey = nil, nil, nil
+    if not tContains(Queue:Data(key), q) then return end
+    local to = q.qty
+    q.qty = from
+    Queue:SetQty(q, to, key)
+end
+
+-- Before anything else changes or crafts the queue.
+local function SettleAllTyped()
+    for _, row in ipairs(Queue.frame.rows) do SettleTyped(row) end
+end
+
 function Queue:Create()
     local UI = FP.UI
     local f = UI:CreateSidePanel({ name = "ProfessionsForeverQueueFrame", key = "queue", title = L["Crafting Queue"],
@@ -204,8 +222,12 @@ function Queue:Create()
     UI:AddPanelList(f, { name = "ProfessionsForeverQueueScroll", top = 40, bottom = 100, rows = ROWS, rowH = ROW_H,
         update = function() Queue:Update() end,
         onClick = function(row)
-            local q = row.index and Queue:Data(Queue:ViewKey())[row.index]
-            if q then UI.LinkToChat(C_TradeSkillUI.GetRecipeLink(q.id)) end
+            local view = Queue:ViewKey()
+            local q = row.index and Queue:Data(view)[row.index]
+            if not q or UI.LinkToChat(C_TradeSkillUI.GetRecipeLink(q.id)) then return end
+            -- Another character's recipe can't be opened here, and switching profession would break a running queue.
+            if view or Queue.run or not q.skillLine then return end
+            UI:OpenRecipe(q.id, q.skillLine)
         end,
         tooltip = function(row)
             if not (row.missing or row.fromBank or row.fromMail or row.noTools or row.unlearned or row.enchant) then return false end
@@ -255,7 +277,10 @@ function Queue:Create()
             row.icon = row:CreateTexture(nil, "ARTWORK")
             row.icon:SetSize(ROW_H - 6, ROW_H - 6)
             row.icon:SetPoint("LEFT", 18, 0)
-            local rm = UI:Button(row, "x", 18, 18, function() if row.index then Queue:Remove(row.index, Queue:ViewKey()) end end)
+            local rm = UI:Button(row, "x", 18, 18, function()
+                SettleAllTyped()
+                if row.index then Queue:Remove(row.index, Queue:ViewKey()) end
+            end)
             rm:SetPoint("RIGHT", -2, 0)
             row.qty = CreateFrame("EditBox", nil, row, "InputBoxTemplate")
             row.qty:SetSize(36, 20)
@@ -264,18 +289,29 @@ function Queue:Create()
             row.qty:SetAutoFocus(false)
             row.qty:SetNumeric(true)
             row.qty:SetMaxLetters(3)
+            -- A typed count shows at once, but its prerequisites follow only when the box is left: on the way from
+            -- 7 to 12 the box reads 1, which is not a count to plan for.
             row.qty:SetScript("OnTextChanged", function(s, user)
                 local q = user and row.index and Queue:Data(Queue:ViewKey())[row.index]
                 if q then
+                    if row.typed ~= q then row.typed, row.typedFrom, row.typedKey = q, q.qty, Queue:ViewKey() end
                     q.qty = math.max(1, tonumber(s:GetText()) or 1)
                     FP:Changed("queue")
                 end
             end)
+            -- A frame later, so a click on the stepper (which leaves the box first) settles it with its own count.
+            row.qty:HookScript("OnEditFocusLost", function() C_Timer.After(0, function() SettleTyped(row) end) end)
             row.qty:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
             row.qty:SetScript("OnEnterPressed", function(s) s:ClearFocus() end)
             UI:Stepper(row.qty, 1, 999, function(v)
-                local q = row.index and Queue:Data(Queue:ViewKey())[row.index]
-                if q then q.qty = v FP:Changed("queue") end
+                local q, key = row.typed, row.typedKey
+                if q then
+                    q.qty = row.typedFrom
+                    row.typed, row.typedFrom, row.typedKey = nil, nil, nil
+                else
+                    q, key = row.index and Queue:Data(Queue:ViewKey())[row.index], Queue:ViewKey()
+                end
+                if q then Queue:SetQty(q, v, key) end
             end)
             row.name = UI:Text(row, 0)
             row.name:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
@@ -289,15 +325,20 @@ function Queue:Create()
 
     -- What the queue is short of goes on the shopping list by itself (Core/Shopping.lua).
     UI:AddWindowButtons(f, 46)
-    local clear = UI:Button(f, L["Clear Queue"], 110, 24, function() Queue:Clear(Queue:ViewKey()) end)
+    local clear = UI:Button(f, L["Clear Queue"], 100, 24, function() SettleAllTyped() Queue:Clear(Queue:ViewKey()) end)
     clear:SetPoint("BOTTOMLEFT", 14, 14)
-    f.craft = UI:Button(f, L["Craft Queue"], 130, 24, function() Queue:ToggleRun() end, true)
+    f.craft = UI:Button(f, L["Craft Queue"], 104, 24, function() SettleAllTyped() Queue:StartRun() end, true)
     f.craft:SetPoint("LEFT", clear, "RIGHT", 6, 0)
-    f.stopCraft = UI:Button(f, L["Stop Craft"], 110, 24, function() Queue:SkipCurrent() end, true)
+    f.craft:SetAttribute("macrotext", "")
+    f.stopQueue = UI:Button(f, L["Stop Queue"], 104, 24, function() Queue:StopRun() end, true)
+    f.stopQueue:SetPoint("LEFT", f.craft, "RIGHT", 6, 0)
+    f.stopCraft = UI:Button(f, L["Stop Craft"], 100, 24, function() Queue:SkipCurrent() end, true)
     -- Before their /stopcasting runs, so the interrupt it causes is known to be ours (Core/QueueRunner.lua).
-    for _, b in ipairs({ f.craft, f.stopCraft }) do b:SetScript("PreClick", function() Queue:MarkStopping() end) end
-    f.stopCraft:SetPoint("BOTTOMLEFT", f.craft, "BOTTOMRIGHT", 6, 0)
+    for _, b in ipairs({ f.stopQueue, f.stopCraft }) do b:SetScript("PreClick", function() Queue:MarkStopping() end) end
+    f.stopCraft:SetPoint("BOTTOMLEFT", f.stopQueue, "BOTTOMRIGHT", 6, 0)
     f.stopCraft:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 14)
+    UI:Tooltip(f.stopCraft, "ANCHOR_TOP", L["Stops the current craft and moves on to the next recipe in the queue."])
+    f.stopQueue:Hide()
     f.stopCraft:Hide()
     f.status = UI:Text(f, -1)
     f.status:SetPoint("BOTTOMLEFT", 14, 80)

@@ -49,6 +49,27 @@ function UI.ShowsSource(e)
     return not e.learned or FP.db.tipLearnedSource
 end
 
+-- "New in Forever", or "Changed in Forever: Reagents, Trainer Cost" for a recipe 1.12 had differently
+-- (Data/RecipeSources.lua); nil for one that is as it was.
+local CHANGES = { r = "Reagents", o = "Result", s = "Trainer Skill", c = "Trainer Cost" }
+function UI.ForeverTagText(recipeID)
+    local tag = FP.RecipeForever[recipeID]
+    if not tag then return end
+    if tag == "N" then return L["New in Forever"] end
+    local what = {}
+    for code in tag:sub(2):gmatch(".") do what[#what + 1] = L[CHANGES[code]] end
+    return L["Changed in Forever: %s"]:format(table.concat(what, ", "))
+end
+
+-- The infinity that marks a recipe new in Forever (gold) or changed in Forever (blue): its texture, or nil for a recipe
+-- that is as it was, or with the option off. Drawn by tools/gen_forever_icon.py.
+local FOREVER_NEW = "Interface\\AddOns\\ProfessionsForever\\Media\\forever-new"
+local FOREVER_CHANGED = "Interface\\AddOns\\ProfessionsForever\\Media\\forever-changed"
+function UI.ForeverIcon(recipeID)
+    local tag = FP.db.foreverIcon and FP.RecipeForever[recipeID]
+    return tag and (tag == "N" and FOREVER_NEW or FOREVER_CHANGED) or nil
+end
+
 -- Adds where a recipe comes from (source text, trainers, vendors) to `tip`, GameTooltip unless given. A learned one gets
 -- no waypoint hint: Ctrl-click doesn't set one for it. `pv`: the options' previewer's made-up source ({ trainers }), as
 -- the game's source text needs the profession open.
@@ -64,6 +85,8 @@ function UI.AddSourceLines(recipeID, learned, tip, pv)
     end
     local hasSrc = src and src ~= ""
     local trainer = trainers[1]
+    local tag = not pv and UI.ForeverTagText(recipeID)
+    if tag then tip:AddLine(tag, 0.5, 0.8, 1, true) end
     if src and hasSrc then tip:AddLine(src, 1, 0.82, 0, true) end
     -- One trainer on one line; more under a "Trained by" line, nearest first.
     if #trainers == 1 then
@@ -76,6 +99,11 @@ function UI.AddSourceLines(recipeID, learned, tip, pv)
         if #trainers > MAX_TRAINERS then
             tip:AddLine(FP.Tooltips:Indent(1) .. L["+%d more"]:format(#trainers - MAX_TRAINERS), 0.6, 0.6, 0.6)
         end
+    end
+    -- What a trainer asks: seen on a Forever build, or 1.12's where no one has seen Forever's.
+    local learn = trainer and not pv and FP.RecipeTrainerLearn[recipeID]
+    if learn then
+        tip:AddLine(L[learn[3] and "Trainer Asks: Skill %d, %s" or "Trainer Asks: Skill %d, %s (Classic Value)"]:format(learn[1], FP.Prices:Format(learn[2])), 0.75, 0.75, 0.75, true)
     end
     if sold then tip:AddLine(L["Sold by: %s"]:format(sold), 1, 0.82, 0, true) end
     if loading then tip:AddLine(L["Looking up vendors..."], 0.6, 0.6, 0.6) end

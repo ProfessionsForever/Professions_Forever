@@ -125,7 +125,7 @@ end
 local function TrainerCandidates(db, zoneDB, profession)
     local cands, have = {}, {}
     for id, t in W.Known("trainers") do
-        if W.Usable(t) and (Teaches(t.sub, profession) or (t.skill and t.skill:lower() == profession:lower())) then
+        if W.Usable(t, "trainers", id) and (Teaches(t.sub, profession) or (t.skill and t.skill:lower() == profession:lower())) then
             cands[#cands + 1] = { id = id, sub = t.sub or t.skill, uiMap = t.uiMap, x = t.x, y = t.y, name = t.npc, area = t.zone }
             have[id] = true
         end
@@ -190,31 +190,52 @@ local function AddUsable(out, seen, ids)
     for v in (ids or ""):gmatch("%d+") do
         local id = tonumber(v)
         local t = not seen[id] and W.KnownEntry("trainers", id)
-        if t and W.Usable(t) then
+        if t and W.Usable(t, "trainers", id) then
             seen[id] = true
             out[#out + 1] = t
         end
     end
 end
 
--- Every recorded or shipped trainer of your faction that teaches the recipe, nearest first: by the item it makes, and
--- by name. A trainer lists a recipe by what it makes ("Steel Bar" for Smelt Steel), so the item's name is tried as
--- well as the recipe's own; enchants make no item and are listed by their own name.
+-- Every recorded or shipped trainer of your faction that teaches the recipe, nearest first: the built-in sources,
+-- your own recordings and other players' shipped ones, all by the recipe's ID.
 function W:TrainersFor(recipeID)
-    local e = FP.Recipes.byID[recipeID]
-    if not e then return {} end
-    local out, seen, names = {}, {}, { e.name }
-    local made = FP.RecipeOutputs[recipeID]
-    if made then
-        AddUsable(out, seen, FP.db.trainerItems[made])
-        local madeName = C_Item.GetItemNameByID(made)
-        if madeName then names[2] = madeName else C_Item.RequestLoadItemDataByID(made) end -- not cached: a later redraw
-    end
-    for _, name in ipairs(names) do
-        AddUsable(out, seen, FP.db.trainerRecipes[name])
-        AddUsable(out, seen, FP.NpcData.trainerRecipes[name])
-    end
+    local out, seen = {}, {}
+    AddUsable(out, seen, W.SourceIds(recipeID, "T"))
+    AddUsable(out, seen, FP.db.trainerRecipes[recipeID])
+    AddUsable(out, seen, FP.NpcData.trainerRecipes[recipeID])
     return W.SortNearest(out)
+end
+
+-- 1.12's NPCs have ids below this; Forever's own start far above it.
+local CLASSIC_IDS = 20000
+
+-- Older versions recorded trainers by the name their window gave a recipe and by the item it makes, vendors' recipes
+-- by name, and class trainers too. Once, on login: the lists move to recipe IDs (names that are no recipe, such as
+-- rank and class spells, drop out), a vendor's recipes are read from its stock from now on, and the 1.12 trainers
+-- with no profession that the built-in data doesn't list as profession trainers are forgotten.
+function W:MoveOldRecordings()
+    local db = FP.db
+    if not (db.trainerItems or type(next(db.trainerRecipes)) == "string") then return end
+    local perNpc = {}
+    local function Add(list, service)
+        for v in list:gmatch("%d+") do
+            local npcId = tonumber(v)
+            perNpc[npcId] = perNpc[npcId] or {}
+            table.insert(perNpc[npcId], service)
+        end
+    end
+    for name, list in pairs(db.trainerRecipes) do Add(list, { name = name }) end
+    for item, list in pairs(db.trainerItems or {}) do Add(list, { item = item }) end
+    local byRecipe = {}
+    for npcId, services in pairs(perNpc) do
+        for _, id in ipairs(W.TaughtRecipes(services)) do byRecipe[id] = (AddId(byRecipe[id], npcId)) end
+    end
+    db.trainerRecipes, db.trainerItems = byRecipe, nil
+    for npcId, entry in pairs(db.trainers) do
+        if npcId < CLASSIC_IDS and not entry.skill and not FP.NpcData.trainers[npcId] then db.trainers[npcId] = nil end
+    end
+    for _, vendor in pairs(db.vendors) do vendor.recipes = nil end
 end
 
 local function UnitSubtitle()
@@ -253,22 +274,23 @@ local function ScanTrainer()
     local npc = entry.npc
     if isNew then FP:Print(L["Remembered trainer: %s (%s)"]:format(npc or "?", entry.sub or "?")) end
 
-    local learned, skills = 0, {}
+    local services, skills = {}, {}
     local step = GetTrainerServiceStepIndex()
     for i = 1, GetNumTrainerServices() do
         local name, serviceType = GetTrainerServiceInfo(i)
         if name and serviceType ~= "header" and i ~= step then
-            local ids, added = AddId(FP.db.trainerRecipes[name], npcId)
-            if added then learned = learned + 1 end
-            FP.db.trainerRecipes[name] = ids
-            -- What the recipe makes, so it can be matched by item ID rather than by the name the trainer lists it under.
             local link = GetTrainerServiceItemLink(i)
-            local itemID = link and C_Item.GetItemInfoInstant(link)
-            if itemID then FP.db.trainerItems[itemID] = (AddId(FP.db.trainerItems[itemID], npcId)) end
+            services[#services + 1] = { name = name, item = link and C_Item.GetItemInfoInstant(link) }
             -- A profession trainer's recipes name their skill, which doubles as the trainer's profession.
             local skill = GetTrainerServiceSkillReq(i)
             if type(skill) == "string" and skill ~= "" then skills[skill] = (skills[skill] or 0) + 1 end
         end
+    end
+    local learned = 0
+    for _, id in ipairs(W.TaughtRecipes(services)) do
+        local ids, added = AddId(FP.db.trainerRecipes[id], npcId)
+        if added then learned = learned + 1 end
+        FP.db.trainerRecipes[id] = ids
     end
     local top, topN = nil, 0
     for skill, n in pairs(skills) do if n > topN then top, topN = skill, n end end

@@ -13,65 +13,85 @@ end
 local function RefreshUI() FP.UI:QueueRefresh() end
 
 ---------------------------------------------------------------------------
--- Merchants you open are recorded with their stock and the recipes they sell; shipped data adds the rest.
+-- Merchants you open are recorded with their stock; shipped data adds the rest.
 ---------------------------------------------------------------------------
 local itemVendors, recipeVendors = {}, nil -- caches, cleared when a merchant is recorded
 
-local function Spot(id, v)
-    return { id = id, name = v.npc or "?", uiMap = v.uiMap, x = v.x, y = v.y, area = v.zone }
+-- The Darkmoon Faire's merchants stand wherever the faire is, Mulgore or Elwynn Forest in turn, so the one position
+-- an entry holds is right half the time. Both sites are offered instead, to either faction.
+local DARKMOON_NPCS = { [14828] = true, [14844] = true, [14845] = true, [14846] = true, [14847] = true, [14860] = true }
+local DARKMOON_SITES = { { uiMap = 1412, x = 0.374, y = 0.449 }, { uiMap = 1429, x = 0.412, y = 0.699 } }
+
+local function Serves(id, v)
+    return DARKMOON_NPCS[id] or W.Usable(v, "vendors", id)
 end
 
--- Known vendors of your faction selling the recipe, by recipe name.
-function W.KnownRecipeVendors(recipeName)
+-- Adds the vendor's spot to list: one, or one per faire site.
+local function AddSpots(list, id, v)
+    if DARKMOON_NPCS[id] then
+        for _, site in ipairs(DARKMOON_SITES) do
+            list[#list + 1] = { id = id, name = v.npc or "?", uiMap = site.uiMap, x = site.x, y = site.y, area = L["Darkmoon Faire"] }
+        end
+    else
+        list[#list + 1] = { id = id, name = v.npc or "?", uiMap = v.uiMap, x = v.x, y = v.y, area = v.zone }
+    end
+end
+
+-- Known vendors of your faction selling the recipe, by its ID: the ones recorded with its recipe item in their stock
+-- (yours and other players' shipped ones), and the built-in sources.
+function W.KnownRecipeVendors(recipeID)
     if not recipeVendors then
         recipeVendors = {}
         for id, v in W.Known("vendors") do
-            if v.recipes and W.Usable(v) then
-                for _, name in ipairs(v.recipes) do
-                    local list = recipeVendors[name]
-                    if not list then list = {} recipeVendors[name] = list end
-                    list[#list + 1] = Spot(id, v)
+            if v.items and Serves(id, v) then
+                for item in v.items:gmatch("%d+") do
+                    local recipe = FP.RecipeItems[tonumber(item)]
+                    if recipe then
+                        local list = recipeVendors[recipe]
+                        if not list then list = {} recipeVendors[recipe] = list end
+                        AddSpots(list, id, v)
+                    end
                 end
             end
         end
     end
-    return recipeVendors[recipeName] or {}
+    local out, seen = {}, {}
+    for _, spot in ipairs(recipeVendors[recipeID] or {}) do
+        seen[spot.id] = true
+        out[#out + 1] = spot
+    end
+    for v in (W.SourceIds(recipeID, "VL") or ""):gmatch("%d+") do
+        local id = tonumber(v)
+        local vendor = not seen[id] and W.KnownEntry("vendors", id)
+        if vendor and Serves(id, vendor) then AddSpots(out, id, vendor) end
+    end
+    return out
 end
 
 local function KnownItemVendors(itemID)
     local out, key = {}, "," .. itemID .. ","
     for id, v in W.Known("vendors") do
-        if v.items and W.Usable(v) and v.items:find(key, 1, true) then out[#out + 1] = Spot(id, v) end
+        if v.items and Serves(id, v) and v.items:find(key, 1, true) then AddSpots(out, id, v) end
     end
     return out
 end
 
--- Stock is stored as ",itemID,itemID," to keep the saved file small and searchable.
+-- Stock is stored as ",itemID,itemID," to keep the saved file small and searchable. The recipes a vendor sells are
+-- read from it: a recipe item is in the stock like any other.
 local function RememberVendor()
     local entry = W.Remember("vendors")
     if not entry then return end
-    local ids, recipes = {}, {}
+    local ids = {}
     for i = 1, GetMerchantNumItems() do
         local id = GetMerchantItemID(i)
-        if id then
-            ids[#ids + 1] = id
-            if select(6, C_Item.GetItemInfoInstant(id)) == Enum.ItemClass.Recipe then
-                local info = C_MerchantFrame.GetItemInfo(i)
-                local recipe = info and info.name and info.name:match("^[^:]+: (.+)")
-                if recipe then recipes[#recipes + 1] = recipe end
-            end
-        end
+        if id then ids[#ids + 1] = id end
     end
     -- Combined with what earlier visits saw: sold-out limited-supply items drop off the list, and are far more
     -- common than items a patch removes.
     for v in (entry.items or ""):gmatch("%d+") do
         if not tContains(ids, tonumber(v)) then ids[#ids + 1] = tonumber(v) end
     end
-    for _, name in ipairs(entry.recipes or {}) do
-        if not tContains(recipes, name) then recipes[#recipes + 1] = name end
-    end
     entry.items = "," .. table.concat(ids, ",") .. ","
-    entry.recipes = #recipes > 0 and recipes or nil
     wipe(itemVendors)
     recipeVendors = nil
 end
@@ -126,7 +146,7 @@ function W:Summary(recipeID)
             if not (st and st.building) then W.Index("item", db, RefreshUI) end
         end
     end
-    for _, s in ipairs(W.KnownRecipeVendors(e.name)) do Add(s.name, s.area) end
+    for _, s in ipairs(W.KnownRecipeVendors(recipeID)) do Add(s.name, s.area) end
     return #parts > 0 and table.concat(parts, ", ") or nil, loading
 end
 
@@ -138,7 +158,7 @@ local function SetWaypoint(spot, who, recipeName)
 end
 
 local function GoToKnownVendor(e)
-    local pick = W.PickNearest(W.KnownRecipeVendors(e.name))
+    local pick = W.PickNearest(W.KnownRecipeVendors(e.id))
     if pick then SetWaypoint(pick, pick.name, e.name) end
     return pick ~= nil
 end

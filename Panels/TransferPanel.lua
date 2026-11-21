@@ -166,15 +166,14 @@ function Transfer:Update()
                     row.qty:SetText(kind == "sendgear" and L["Send %d"]:format(1) or "1")
                     row.qty:SetTextColor(1, 1, 1)
                 elseif kind == "send" then
-                    local bags, bank = FP.Inv:Owned(id)
                     row.name:SetTextColor(0.92, 0.92, 0.92)
                     row.qty:SetText(L["Send %d"]:format(e.item.qty))
                     -- Gold when some of it was asked for by hand (the tooltip splits it).
                     if e.item.asked > 0 then row.qty:SetTextColor(1, 0.82, 0) else row.qty:SetTextColor(1, 1, 1) end
-                    row.owns:SetText(bags + bank)
+                    row.owns:SetText(FP.Planner:HeldInAll(nil, id))
                 elseif isAsk then
                     row.name:SetTextColor(0.92, 0.92, 0.92)
-                    row.owns:SetText(select(3, FP.Planner:Holding(kind == "ask" and e.r.key or e.sender, id)))
+                    row.owns:SetText(FP.Planner:HeldInAll(kind == "ask" and e.r.key or e.sender, id))
                 elseif kind == "item" then
                     local opt = e.o.opt
                     if opt.transfer > 0 then row.name:SetTextColor(0.92, 0.92, 0.92) else row.name:SetTextColor(0.55, 0.55, 0.55) end
@@ -188,6 +187,7 @@ function Transfer:Update()
                 elseif kind == "mail" then
                     local c = UI.MAIL_COLOR
                     row.name:SetTextColor(0.92, 0.92, 0.92)
+                    if e.it.either then row.name:SetText(FP.ItemName(id) .. "  |cff999999" .. L["(or)"] .. "|r") end
                     row.qty:SetText(L["Take %d"]:format(e.it.qty))
                     row.qty:SetTextColor(c[1], c[2], c[3])
                     row.owns:SetText(L["%d in mail"]:format(e.it.mail))
@@ -233,7 +233,7 @@ function Transfer:Update()
     local bankNeeds = view and {} or Transfer.BankNeeds(plan)
     local parts = {}
     if #bankNeeds > 0 then parts[#parts + 1] = L["%d to withdraw from your bank"]:format(#bankNeeds) end
-    local mailNeeds = #Transfer.MailNeeds(plan)
+    local mailNeeds = #Transfer.MailNeeds(plan, view)
     if mailNeeds > 0 then
         parts[#parts + 1] = view and L["%d waiting in their mailbox"]:format(mailNeeds)
             or L["%d to collect from your mailbox"]:format(mailNeeds)
@@ -772,7 +772,7 @@ function Transfer:Create()
     UI:Tooltip(f.collect, "ANCHOR_TOP", function(tip)
         tip:AddLine(L["Collect from Mailbox"], 1, 1, 1)
         if f.collect:IsEnabled() then
-            tip:AddLine(L["Takes what the queue needs from your mailbox: whole stacks, never cash-on-delivery mail."], 0.8, 0.8, 0.8, true)
+            tip:AddLine(L["Takes what your queue and your sends need from your mailbox: whole stacks, never cash-on-delivery mail."], 0.8, 0.8, 0.8, true)
         else
             tip:AddLine(MailFrame:IsShown() and L["Nothing to collect."] or L["Open a mailbox to collect."], 0.8, 0.8, 0.8, true)
         end

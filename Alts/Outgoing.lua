@@ -259,6 +259,15 @@ function Outgoing:Pending()
     return out
 end
 
+-- { [itemID] = n }: how many of each item this character should still send, all recipients together. Gear is apart.
+function Outgoing:SendTotals()
+    local out = {}
+    for _, p in ipairs(self:Pending()) do
+        for _, item in ipairs(p.items) do out[item.itemID] = (out[item.itemID] or 0) + item.qty end
+    end
+    return out
+end
+
 -- How many characters this one should still mail, and how many item types (each piece of gear, and money, counting as
 -- one) in all.
 function Outgoing:PendingTotals()
@@ -356,10 +365,11 @@ local function ReadAttachments()
     return out
 end
 
--- Switches the open mailbox to Send Mail and fills in the recipient when the To box is empty.
-function Outgoing.StartMail(name)
+-- Switches the open mailbox to Send Mail and fills in the recipient and the subject where those boxes are empty.
+function Outgoing.StartMail(name, subject)
     if not SendMailFrame:IsShown() then MailFrameTab_OnClick(nil, 2) end -- the Send Mail tab
     if SendMailNameEditBox:GetText() == "" then SendMailNameEditBox:SetText(name) end
+    if SendMailSubjectEditBox:GetText() == "" then SendMailSubjectEditBox:SetText(subject) end
 end
 
 -- The first attachment slot that is free and not taken by `used` (marked taken there), or nil when the mail is full.
@@ -428,14 +438,35 @@ function Outgoing.AttachSlot(bag, slot, count, used)
     return true
 end
 
--- Puts what this character should send `p` (an entry of Pending) on a new mail at the open mailbox: switches to Send
--- Mail, fills in their name when the To box is empty, and attaches from the bags as much of each item as is still
--- asked (less what is already attached), whole stacks where they fit and a split stack for the rest, then each piece
--- of gear asked for, found by its GUID, until the attachment slots are full. Soulbound and locked items are skipped
--- (an item attached to the mail is locked in the bag, so clicking again doesn't attach it twice).
-function Outgoing:Attach(p)
-    if not MailFrame:IsShown() then return end
-    Outgoing.StartMail(p.name)
+-- The stacks of an item in the bags that can go on a mail: { bag, slot, count }. Soulbound and locked ones are left
+-- out (an item attached to the mail is locked in the bag, so it is never attached twice).
+local function MailableStacks(itemID)
+    local out = {}
+    for _, bag in ipairs(FP.Inv:CarriedBags()) do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID == itemID and not info.isLocked and not info.isBound then
+                out[#out + 1] = { bag = bag, slot = slot, count = info.stackCount }
+            end
+        end
+    end
+    return out
+end
+
+-- The subject of a mail to `p`, by what it is mostly for. Only a Pending entry's items say how much was asked by
+-- hand; a ManualSends entry's are all by hand.
+local function Subject(p)
+    for _, item in ipairs(p.items) do
+        if item.asked and item.qty > item.asked then return L["Crafting Materials"] end
+    end
+    if #p.items == 0 and #p.gear > 0 then return L["Gear to Disenchant"] end
+    return L["Manual Transfer"]
+end
+
+-- Puts what this character should send `p` (an entry of Pending) on the mail being written: from the bags each piece of gear asked for, found by its GUID, and as much of each item as is still
+-- asked (less what is already attached), in as few attachments as the stacks allow: the largest stacks that fit whole,
+-- then for the rest the smallest stack that holds it, split when it holds more. Until the attachment slots are full.
+local function AttachNow(p)
     local attached, used = ReadAttachments(), {}
     for _, s in ipairs(landing) do attached[s.itemID] = (attached[s.itemID] or 0) + s.count end -- split, not on yet
     local filled, full = 0, false
@@ -454,22 +485,26 @@ function Outgoing:Attach(p)
     end
     for _, item in ipairs(p.items) do
         local want = item.qty - (attached[item.itemID] or 0)
-        for _, bag in ipairs(FP.Inv:CarriedBags()) do
-            for slot = 1, C_Container.GetContainerNumSlots(bag) do
-                if want <= 0 or full then break end
-                local info = C_Container.GetContainerItemInfo(bag, slot)
-                if info and info.itemID == item.itemID and not info.isLocked and not info.isBound then
-                    local take = math.min(want, info.stackCount)
-                    local done = Outgoing.AttachSlot(bag, slot, take < info.stackCount and take or nil, used)
-                    if done == "bags" then
-                        FP:Print(L["No free bag slot to split %s. Make room in your bags, then click Mail again."]:format(FP.ItemName(item.itemID)))
-                        want = 0
-                    elseif done then
-                        want, filled = want - take, filled + 1
-                    else
-                        full = true
-                    end
-                end
+        local stacks = MailableStacks(item.itemID)
+        table.sort(stacks, function(a, b) return a.count > b.count end)
+        local n = 1
+        while want > 0 and not full and stacks[n] and stacks[n].count <= want do
+            local s = stacks[n]
+            if Outgoing.AttachSlot(s.bag, s.slot, nil, used) then want, filled = want - s.count, filled + 1 else full = true end
+            n = n + 1
+        end
+        if want > 0 and not full and stacks[n] then
+            local s = stacks[n] -- holds more than the rest; a smaller one that still holds it is better
+            for m = n + 1, #stacks do
+                if stacks[m].count >= want then s = stacks[m] end
+            end
+            local done = Outgoing.AttachSlot(s.bag, s.slot, want < s.count and want or nil, used)
+            if done == "bags" then
+                FP:Print(L["No free bag slot to split %s. Make room in your bags, then click Mail again."]:format(FP.ItemName(item.itemID)))
+            elseif done then
+                filled = filled + 1
+            else
+                full = true
             end
         end
     end
@@ -488,6 +523,52 @@ function Outgoing:Attach(p)
     elseif filled == 0 and (#p.items > 0 or #p.gear > 0) then
         FP:Print(L["None of it is in your bags to attach."])
     end
+end
+
+-- Short stacks of what is to be sent are put together in the bags first, since postage is paid per attachment. The
+-- game moves a stack a moment after it is asked to and a slot takes one move at a time, so each pass pairs the short
+-- stacks of an item, smallest onto largest, and the next pass follows the bags' update. `merging` is the Pending
+-- entry being prepared; it is attached once a pass finds nothing left to put together.
+local merging
+
+local function MergePass(p)
+    local moved = false
+    for _, item in ipairs(p.items) do
+        local maxStack = select(8, C_Item.GetItemInfo(item.itemID))
+        local short = {}
+        for _, s in ipairs(MailableStacks(item.itemID)) do
+            if s.count < maxStack then short[#short + 1] = s end
+        end
+        table.sort(short, function(a, b) return a.count < b.count end)
+        local lo, hi = 1, #short
+        while lo < hi do
+            ClearCursor()
+            C_Container.PickupContainerItem(short[lo].bag, short[lo].slot)
+            C_Container.PickupContainerItem(short[hi].bag, short[hi].slot) -- what doesn't fit stays where it was
+            lo, hi, moved = lo + 1, hi - 1, true
+        end
+    end
+    ClearCursor()
+    return moved
+end
+
+local function MergeStep()
+    if not merging then return end
+    if not MailFrame:IsShown() then merging = nil return end
+    if MergePass(merging) then return end
+    local p = merging
+    merging = nil
+    AttachNow(p)
+end
+FP:RegisterEvent("BAG_UPDATE_DELAYED", MergeStep)
+
+-- The Transfer Planner's Mail button, at the open mailbox: switches to Send Mail, fills in `p`'s name (an entry of
+-- Pending) and a subject where those boxes are empty, puts short stacks together, then attaches (AttachNow).
+function Outgoing:Attach(p)
+    if not MailFrame:IsShown() then return end
+    Outgoing.StartMail(p.name, Subject(p))
+    merging = p
+    MergeStep()
 end
 
 -- Attachments are still in the slots when the send is requested; the send only counts once the game confirms it.
@@ -542,12 +623,12 @@ FP:RegisterEvent("MAIL_INBOX_UPDATE", function()
 end)
 
 ---------------------------------------------------------------------------
--- Collecting what the queue needs from the open mailbox (the Transfer Planner's Collect from Mailbox button)
+-- Collecting what the queue and the sends need from the open mailbox (the Transfer Planner's Collect from Mailbox button)
 ---------------------------------------------------------------------------
 -- The game hands over one attachment at a time and needs a moment for each, and a mail that is emptied disappears and
 -- moves the others up. So one stack is taken per step, then the inbox is looked through again. Whole stacks only (a
 -- stack in the mail can't be split), never from cash-on-delivery mail (taking it would pay), and it stops when the bags
--- are full, the mailbox closes, or the queue has what it needs.
+-- are full, the mailbox closes, or everything wanted is taken.
 local COLLECT_STEP = 0.4
 local collecting -- [itemID] = still wanted, while a collect is under way
 
