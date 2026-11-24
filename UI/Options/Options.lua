@@ -4,13 +4,15 @@ local UI = FP.UI
 local O = FP.Options
 local refreshers = O.refreshers
 
+-- The options window: its frame, the page list on the left, and the pages the other Options files don't build.
+
 local WIDTH, MIN_HEIGHT = 640, 260
 local NAV_W, NAV_ROW_H = 156, 32 -- wide enough for Disenchant Results, indented under Tooltips
 local PAGE_LEFT, PAGE_TOP = 184, -44
 O.PAGE_W = WIDTH - PAGE_LEFT - 16
 
 local FONTS = {
-    { "Friz Quadrata", "Fonts\\FRIZQT__.TTF" }, { "Arial Narrow", "Fonts\\ARIALN.TTF" },
+    { L["Game Default"], UI.GAME_FONT }, { "Arial Narrow", "Fonts\\ARIALN.TTF" },
     { "Skurri", "Fonts\\skurri.ttf" }, { "Morpheus", "Fonts\\MORPHEUS.ttf" },
 }
 
@@ -273,6 +275,45 @@ end
 local function ResetNotifications() O.ResetKeys("versionNotice", "updateNotice", "cooldownNotice", "bankPrompt", "mailPrompt") end
 
 ---------------------------------------------------------------------------
+-- Recipe Scout (Core/ZoneRecipes.lua)
+---------------------------------------------------------------------------
+-- { setting, label, what it does }: the window opening by itself, then one switch per kind of recipe it lists.
+local ZONE_CHECKS = {
+    { "zoneRecipes", "Open When You Enter a Zone", "Opens the window once per zone each session, when the zone has a recipe you have not learned. Off: only /pf scout opens it." },
+    { "zonePinned", "Pin the Window", "A pinned window stays open, lists each zone you enter, and does not close when you press Escape. The pin on the window does the same." },
+    { "zoneVendors", "Recipes Sold by Vendors", "Lists the recipes a vendor in the zone sells." },
+    { "zoneLimited", "Recipes in Limited Supply", "Lists the recipes a vendor in the zone sells in a limited supply, which may be sold out." },
+    { "zoneTrainers", "Recipes Taught by Trainers", "Lists the recipes a trainer in the zone teaches, once your skill is high enough to learn them." },
+    { "zoneQuests", "Recipes from Quests", "Lists the recipes a quest given in the zone rewards, when you can take the quest and have not done it." },
+    { "zoneHeld", "Recipes You Already Have", "Lists the recipes whose item is in your bags, your bank or your mailbox, waiting to be learned." },
+}
+
+local function BuildZone(page)
+    local db = FP.db
+    O.Section(page, L["Recipe Scout"])
+    for i, c in ipairs(ZONE_CHECKS) do
+        if i == 3 then O.Section(page, L["What It Lists"]) end
+        local key = c[1]
+        local cb = O.Check(page, L[c[2]], function() return db[key] end, function(v)
+            db[key] = v
+            if key == "zonePinned" then FP.ZoneRecipes:PinChanged() else FP.ZoneRecipes:Refresh() end
+        end)
+        UI:Tooltip(cb, "ANCHOR_RIGHT", L[c[3]])
+    end
+    local scope = O.DropList(page, L["Drops"], function() return FP.ZoneRecipes:DropScopeLabel() end,
+        function() return FP.ZoneRecipes:DropScopeItems() end)
+    UI:Tooltip(scope, "ANCHOR_RIGHT", L["Which of the recipes that creatures drop and that chests and other objects hold are listed. Zone Drops Only leaves out the recipes that also drop in other zones or in a dungeon."])
+end
+
+local function ResetZone()
+    for _, c in ipairs(ZONE_CHECKS) do O.ResetKeys(c[1]) end
+    O.ResetKeys("zoneDropScope", "zoneShowIgnored", "zonePos") -- the window goes back above the middle of the screen
+    wipe(FP.chardb.zoneIgnored) -- this character's ignored recipes are listed again
+    FP.UI:RefreshZonePin()
+    FP.ZoneRecipes:Refresh()
+end
+
+---------------------------------------------------------------------------
 -- Disenchanting
 ---------------------------------------------------------------------------
 local DEPOSIT_HOURS = { 0, 2, 8, 24 }
@@ -293,12 +334,12 @@ local function BuildDisenchanting(page)
         UI:UpdateDisenchantMode()
     end)
     UI:Tooltip(observed, "ANCHOR_RIGHT", L["Under each disenchant result's chance, in Disenchanting Mode and on item tooltips with every result shown: how often your characters really got it from that kind of item. Greyed and marked unreliable until 100 disenchants of that kind are recorded."])
-    local main = O.DropList(page, L["Main Enchanter"], function() return UI:MainEnchanterLabel() end, function()
+    local main = O.DropList(page, L["Main Enchanter"], function() return FP.Disenchant:MainEnchanterLabel() end, function()
         local items = { { text = L["Automatic (Highest Skill)"], checked = db.mainEnchanter == nil,
-            onSelect = function() UI:SetMainEnchanter(nil) end } }
-        for _, e in ipairs(UI:Enchanters()) do
+            onSelect = function() FP.Disenchant:SetMainEnchanter(nil) end } }
+        for _, e in ipairs(FP.Disenchant:Enchanters()) do
             items[#items + 1] = { text = ("%s (%d)"):format(FP.Alts:Label(e.rec), e.rank), checked = db.mainEnchanter == e.key,
-                onSelect = function() UI:SetMainEnchanter(e.key) end }
+                onSelect = function() FP.Disenchant:SetMainEnchanter(e.key) end }
         end
         return items
     end)
@@ -338,6 +379,8 @@ local PAGES = {
         desc = "Whether your other characters' bags and banks count toward what you need, and which characters." },
     { key = "notifications", parent = "general", label = "Notifications", build = BuildNotifications, reset = ResetNotifications,
         desc = "Ready cooldowns at login, and opening the Transfer Planner at your bank or a mailbox." },
+    { key = "zone", parent = "general", label = "Recipe Scout", build = BuildZone, reset = ResetZone,
+        desc = "The window that lists the recipes you can learn in the zone you enter, and which kinds it lists." },
     { key = "appearance", label = "Appearance", cat = true },
     { key = "theme", parent = "appearance", label = "Theme", build = BuildTheme, reset = ResetTheme,
         desc = "Skin, font and accent color." },
@@ -429,7 +472,7 @@ local function Banner(page)
         chip.icon = chip:CreateTexture(nil, "ARTWORK")
         chip.icon:SetSize(16, 16)
         chip.icon:SetPoint("LEFT")
-        chip.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(chip.icon)
         chip.text = UI:Text(chip, -1)
         chip.text:SetPoint("LEFT", chip.icon, "RIGHT", 4, 0)
         chip.text:SetTextColor(0.85, 0.85, 0.85)

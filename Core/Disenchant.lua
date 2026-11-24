@@ -211,3 +211,57 @@ function DE:ScanOthers()
     end
     return out
 end
+
+---------------------------------------------------------------------------
+-- Your enchanters
+---------------------------------------------------------------------------
+-- Every character of yours with Enchanting, by name: { key, rec, rank }. `others`: leave out the current one.
+function DE:Enchanters(others)
+    local me, out = FP.Alts:GetCharacterKey(), {}
+    for key, rec in pairs(FP.db.characters) do
+        local p = not (others and key == me) and rec.professions and rec.professions[FP.ENCHANTING]
+        if p then out[#out + 1] = { key = key, rec = rec, rank = p.rank or 0 } end
+    end
+    table.sort(out, function(a, b) return FP.Alts:Label(a.rec) < FP.Alts:Label(b.rec) end)
+    return out
+end
+
+-- Your main enchanter (FP.db.mainEnchanter, chosen in Options or the enchanter menu) comes first wherever your
+-- enchanter is picked for you; nil is Automatic. One who no longer has Enchanting is simply not listed.
+function DE:SetMainEnchanter(key)
+    FP.db.mainEnchanter = key
+    FP.Launcher:Update() -- the quick button's enchanter
+    FP.Options:Refresh()
+end
+
+-- The main enchanter's name, or Automatic.
+function DE:MainEnchanterLabel()
+    for _, e in ipairs(self:Enchanters()) do
+        if e.key == FP.db.mainEnchanter then return FP.Alts:Label(e.rec) end
+    end
+    return FP.L["Automatic (Highest Skill)"]
+end
+
+-- Your other characters with Enchanting, for a character without it, best first: the ones gear can be mailed to,
+-- then your main enchanter, then the highest skill (higher-level gear needs more), then by name.
+-- { key, rec, rank, otherFaction }
+function DE:Recipients()
+    local main, out = FP.db.mainEnchanter, self:Enchanters(true)
+    for _, e in ipairs(out) do e.otherFaction = FP.Alts:IsOtherFaction(e.rec) end
+    table.sort(out, function(a, b)
+        if a.otherFaction ~= b.otherFaction then return b.otherFaction end
+        if (a.key == main) ~= (b.key == main) then return a.key == main end
+        if a.rank ~= b.rank then return a.rank > b.rank end
+        return FP.Alts:Label(a.rec) < FP.Alts:Label(b.rec)
+    end)
+    return out
+end
+
+-- Your Enchanting from the profession list, once you know Disenchant; nil otherwise. The footer cell and the quick
+-- button cast it to open Enchanting in Disenchanting Mode.
+function DE:OwnEnchanting()
+    if not IsPlayerSpell(DE.SPELL) then return end
+    for _, p in ipairs(FP:GetProfessions()) do
+        if p.skillLine == FP.ENCHANTING then return p end
+    end
+end

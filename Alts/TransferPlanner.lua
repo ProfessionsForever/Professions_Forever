@@ -283,3 +283,58 @@ function Planner:MaxCrafts(reagents, crafter)
     end
     return best
 end
+
+---------------------------------------------------------------------------
+-- What the current character should fetch from its own bank and mailbox
+---------------------------------------------------------------------------
+-- What this character must have in its bags: per material, what its queue (`plan`, its own) needs plus what it has
+-- to send its other characters (Outgoing:SendTotals). Entries are { itemID, need, bags, bank, mail }: the plan's
+-- materials in its order, then those it only sends, by item.
+local function Wanted(plan)
+    local sends, out, extra = FP.Outgoing:SendTotals(), {}, {}
+    for _, it in ipairs(plan.items) do
+        out[#out + 1] = { itemID = it.itemID, need = it.need + (sends[it.itemID] or 0), bags = it.bags, bank = it.bank, mail = it.mail }
+        sends[it.itemID] = nil
+    end
+    for itemID, qty in pairs(sends) do
+        local bags, bank, _, mail = FP.Inv:Owned(itemID)
+        extra[#extra + 1] = { itemID = itemID, need = qty, bags = bags, bank = bank, mail = mail }
+    end
+    table.sort(extra, function(a, b) return a.itemID < b.itemID end)
+    for _, w in ipairs(extra) do out[#out + 1] = w end
+    return out
+end
+
+-- What this character's bank must supply for its queue and its sends: for each material, the part bags don't cover
+-- that the bank does. `plan` is its own.
+function Planner.BankNeeds(plan)
+    local out = {}
+    for _, w in ipairs(Wanted(plan)) do
+        local qty = math.min(w.bank, math.max(0, w.need - w.bags))
+        if qty > 0 then out[#out + 1] = { itemID = w.itemID, qty = qty, bank = w.bank } end
+    end
+    return out
+end
+
+-- What can be collected from the mailbox. For this character's own plan: for each material its queue and its sends
+-- need, the part bags don't cover that the mailbox does. The bank is offered the same part (BankNeeds), so either one
+-- can be fetched, whichever is at hand, and fetching it clears the other. For another character's plan (`view`, its
+-- key): what its queue needs that its bags and bank don't cover.
+function Planner.MailNeeds(plan, view)
+    local out = {}
+    if view then
+        for _, it in ipairs(plan.items) do
+            if it.fromMail > 0 then out[#out + 1] = { itemID = it.itemID, qty = it.fromMail, mail = it.mail } end
+        end
+        return out
+    end
+    for _, w in ipairs(Wanted(plan)) do
+        local short = math.max(0, w.need - w.bags)
+        local qty = math.min(w.mail, short)
+        -- `either`: the bank is offered some of the same part, so not both amounts have to be fetched.
+        if qty > 0 then
+            out[#out + 1] = { itemID = w.itemID, qty = qty, mail = w.mail, either = math.min(w.bank, short) + qty > short }
+        end
+    end
+    return out
+end

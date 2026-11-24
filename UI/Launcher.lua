@@ -197,7 +197,7 @@ local function Tooltip(tip, b)
     if b.item.key == "disenchant" then
         local r = Launcher.deRecipient
         if r then tip:AddLine(L["Gear you could send %s to disenchant"]:format(FP.Alts:Label(r.rec)), 0.2, 0.9, 0.2) end
-        if r and #UI:DisenchantRecipients() > 1 then
+        if r and #FP.Disenchant:Recipients() > 1 then
             tip:AddLine(L["Right-click to choose another enchanter."], 0.5, 0.8, 1, true)
         end
     elseif b.item.tip then
@@ -302,7 +302,7 @@ function Launcher:Create()
         b.icon = b:CreateTexture(nil, "ARTWORK")
         b.icon:SetPoint("TOPLEFT", 3, -3)
         b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
-        b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(b.icon)
         b.count = UI:Text(b, 1, "RIGHT") -- unused, so the count refresh can treat every button alike
         b.count:SetPoint("BOTTOMRIGHT", -3, 3)
         b.action = KeyBinding("profession" .. i)
@@ -318,8 +318,8 @@ end
 -- the buttons, on the corner's side. Buttons switched off are left out; self.shown holds the rest.
 function Launcher:Layout()
     -- Without Enchanting, the button lists gear to send your best enchanter instead, when you have one.
-    self.enchanting = UI:OwnEnchanting()
-    self.deRecipient = not self.enchanting and UI:DisenchantRecipients()[1] or nil
+    self.enchanting = FP.Disenchant:OwnEnchanting()
+    self.deRecipient = not self.enchanting and FP.Disenchant:Recipients()[1] or nil
     local shown = {}
     for _, b in ipairs(self.buttons) do
         local on = not b.item.shown or b.item.shown()
@@ -424,7 +424,7 @@ end
 -- profession key's profession.
 function Launcher:SyncKeys()
     if not self.keys then self:CreateKeys() end
-    local enchanting = UI:OwnEnchanting()
+    local enchanting = FP.Disenchant:OwnEnchanting()
     if enchanting then UI:SetProfessionOpener(self.keys.disenchant, enchanting)
     else self.keys.disenchant:SetAttribute("macrotext1", "") end
     local profs = CraftingProfessions()

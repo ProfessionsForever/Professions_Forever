@@ -82,7 +82,7 @@ local function AddQueue(tip, key, data, limit, colorOf)
             colorOf and colorOf(q) or WHITE }
     end
     tip:AddLine(" ")
-    tip:AddDoubleLine(FP.Queue.CharacterName(key), L["%d recipes, %d crafts"]:format(#data, crafts), 1, 1, 1,
+    tip:AddDoubleLine(FP.Alts:CharacterName(key), L["%d recipes, %d crafts"]:format(#data, crafts), 1, 1, 1,
         GREY[1], GREY[2], GREY[3])
     AddRows(tip, rows, limit)
 end
@@ -128,7 +128,7 @@ function TIPS.cooldowns(tip)
         end
         if #rows > 0 then
             any = true
-            Section(tip, FP.Queue.CharacterName(g.key))
+            Section(tip, FP.Alts:CharacterName(g.key))
             AddRows(tip, rows)
         end
     end
@@ -139,19 +139,19 @@ function TIPS.transfer(tip)
     local plan, colors, any = FP.Queue:TransferNeeds(), UI.STATUS_COLORS, false
     for _, c in ipairs(plan.characters) do
         any = true
-        Section(tip, L["From %s:"]:format(FP.Queue.CharacterName(c.key)))
+        Section(tip, L["From %s:"]:format(FP.Alts:CharacterName(c.key)))
         AddRows(tip, ItemRows(c.items, "transfer"))
     end
     for _, p in ipairs(FP.Outgoing:Pending()) do
         any = true
-        Section(tip, L["Send to %s"]:format(FP.Queue.CharacterName(p.key)) .. ":")
+        Section(tip, L["Send to %s"]:format(FP.Alts:CharacterName(p.key)) .. ":")
         local rows = ItemRows(FP.Outgoing.AllItems(p), "qty")
         if p.gold > 0 then
             table.insert(rows, 1, { WithIcon("Interface\\Icons\\INV_Misc_Coin_01", L["Money"]), FP.Prices:Format(p.gold), GREY })
         end
         AddRows(tip, rows)
     end
-    local waiting = FP.Transfer.MailNeeds(plan)
+    local waiting = FP.Planner.MailNeeds(plan)
     if #waiting > 0 then
         any = true
         Section(tip, L["Collect from Your Mailbox"] .. ":")
@@ -255,7 +255,7 @@ end
 -- Disenchanting Mode isn't a window: the cell and quick button open Enchanting in the mode, or, without Enchanting, the
 -- gear you could send your best enchanter (UI:QuickDisenchantClick).
 function TIPS.disenchant(tip)
-    local r = not UI:OwnEnchanting() and UI:DisenchantRecipients()
+    local r = not FP.Disenchant:OwnEnchanting() and FP.Disenchant:Recipients()
     if not r then
         tip:AddLine(L["Lists the gear in your bags that can be disenchanted, what each may give and what that is worth."],
             GREY[1], GREY[2], GREY[3], true)
@@ -345,8 +345,8 @@ end
 function UI:SyncDisenchantCell()
     local footer = self.frame.footer
     local c = footer.disenchant
-    local enchanting = self:OwnEnchanting()
-    footer.deRecipient = not enchanting and self:DisenchantRecipients()[1] or nil
+    local enchanting = FP.Disenchant:OwnEnchanting()
+    footer.deRecipient = not enchanting and FP.Disenchant:Recipients()[1] or nil
     if enchanting then self:SetProfessionOpener(c, enchanting) else c:SetAttribute("macrotext1", "") end
     local show = (enchanting or footer.deRecipient) and true or false
     if c:IsShown() == show then return false end

@@ -239,7 +239,7 @@ local function CreateMenu()
         row.icon = row:CreateTexture(nil, "ARTWORK")
         row.icon:SetSize(MENU_ROW_H - 4, MENU_ROW_H - 4)
         row.icon:SetPoint("LEFT", 4, 0)
-        row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(row.icon)
         UI:Tooltip(row, "ANCHOR_RIGHT", function(tip, s)
             if s.item and s.item.link then
                 tip:SetHyperlink(s.item.link)

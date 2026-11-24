@@ -3,6 +3,9 @@ local Inv = {}
 FP.Inv = Inv
 Inv.bankOpen = false
 
+-- The current character's bags and bank: counting items, scanning the bank while it is open (kept per character for
+-- when it is closed), the gear that could be disenchanted, and withdrawing from the bank.
+
 local GetItemCount = C_Item.GetItemCount
 local max = math.max
 

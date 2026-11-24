@@ -39,7 +39,7 @@ local function CreateButton(parent, size)
     button.icon = button:CreateTexture(nil, "ARTWORK")
     button.icon:SetPoint("TOPLEFT", 3, -3)
     button.icon:SetPoint("BOTTOMRIGHT", -3, 3)
-    button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    UI.TrimIcon(button.icon)
     UI:Tooltip(button, "ANCHOR_RIGHT", function(tip)
         local name = button.spellName
         if not name then return end

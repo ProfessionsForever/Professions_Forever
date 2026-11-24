@@ -18,7 +18,7 @@ end
 -- The supported addons: key (its page), name, whether it is loaded, and what it adds.
 local ADDONS = {
     { key = "int_auctionator", name = "Auctionator", loaded = function() return Loaded("Auctionator") end,
-        adds = "Prices for recipe profit, crafting costs, the shopping list and disenchant values. Your shopping list as an Auctionator list, kept in sync." },
+        adds = "Prices for recipe profit, crafting costs, the shopping list and disenchant values. Your shopping list as an Auctionator list, kept in sync. A Search button in the recipe panel for its reagents." },
     { key = "int_waypoints", name = "Polestar & TomTom", loaded = function() return _G.Polestar ~= nil or _G.TomTom ~= nil end,
         adds = "Waypoints and the arrow to vendors, trainers and bankers." },
     { key = "int_questie", name = "Questie", loaded = function() return Loaded("Questie", "QuestieDB") end,
@@ -125,14 +125,18 @@ function O.BuildIntAuctionator(page)
     AddonCheck(page, L["Keep Auctionator's Shopping List in Sync"], a.loaded(),
         function() return db.syncAuctionator end, function(v) db.syncAuctionator = v FP:Changed("shop") end,
         L["Auctionator's shopping list named ProfessionsForever always holds what is still to buy, with the amounts, and updates as you queue, craft and buy. Off: the list in Auctionator is left as it is."])
+    AddonCheck(page, L["Show the Auctionator Search Button"], a.loaded(),
+        function() return db.ahSearchButton end, function(v) db.ahSearchButton = v UI:UpdateSearchButton() end,
+        L["While the auction house is open, a Search button in the recipe panel searches Auctionator's Shopping tab for what the recipe makes and each of its reagents."])
     AddonCheck(page, L["Skip Disenchant Tooltips When Auctionator Shows Its Own"], a.loaded(),
         function() return db.deTooltipAuctionator end, function(v) db.deTooltipAuctionator = v end,
         L["While Auctionator's \"Disenchant prices\" tooltip setting is on, ProfessionsForever leaves its disenchant lines off item tooltips, so they aren't shown twice. Off: both are shown."])
 end
 
 function O.ResetIntAuctionator()
-    O.ResetKeys("useAuctionator", "priceAge", "priceStaleHours", "priceCrafted", "priceCraftedAlts", "syncAuctionator", "deTooltipAuctionator")
+    O.ResetKeys("useAuctionator", "priceAge", "priceStaleHours", "priceCrafted", "priceCraftedAlts", "syncAuctionator", "deTooltipAuctionator", "ahSearchButton")
     PricesChanged()
+    UI:UpdateSearchButton()
 end
 
 function O.BuildIntWaypoints(page)

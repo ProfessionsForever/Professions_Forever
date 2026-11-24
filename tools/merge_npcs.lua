@@ -43,7 +43,7 @@ local function clean(e)
         zone = text(e.zone), alliance = e.alliance == true or nil, horde = e.horde == true or nil }
     if type(e.ver) == "string" and e.ver:match("^%d+[%d.]*$") then c.ver = e.ver end
     c.build = number(e.build, 1, 1e9)
-    for _, k in ipairs({ "items", "ranks", "noRanks" }) do
+    for _, k in ipairs({ "items", "ranks", "noRanks", "limited", "noLimit" }) do
         if type(e[k]) == "string" and e[k]:match("^,[%d,]*,$") then c[k] = e[k] end
     end
     return c
@@ -71,7 +71,20 @@ local function joinIds(list)
     return "," .. table.concat(sorted(list), ",") .. ","
 end
 
+-- A vendor's recipe items seen with a limited supply and with none: what src saw replaces what dst had for an item.
+local function mergeSupply(dst, src)
+    local state = {}
+    for _, e in ipairs({ dst, src }) do
+        for _, id in ipairs(ids(e.limited)) do state[id] = "limited" end
+        for _, id in ipairs(ids(e.noLimit)) do state[id] = "noLimit" end
+    end
+    local lists = { limited = {}, noLimit = {} }
+    for id, k in pairs(state) do table.insert(lists[k], id) end
+    for k, list in pairs(lists) do dst[k] = list[1] and joinIds(list) or nil end
+end
+
 local function mergeEntry(dst, src)
+    mergeSupply(dst, src)
     for _, k in ipairs({ "npc", "sub", "skill", "zone" }) do dst[k] = dst[k] or src[k] end
     dst.alliance, dst.horde = dst.alliance or src.alliance, dst.horde or src.horde
     for _, k in ipairs({ "items", "ranks", "noRanks" }) do
@@ -137,6 +150,9 @@ for _, kind in ipairs(KINDS) do
         local old = data[kind][id]
         if old then
             e.alliance, e.horde = e.alliance or old.alliance, e.horde or old.horde
+            local supply = { limited = old.limited, noLimit = old.noLimit }
+            mergeSupply(supply, e)
+            e.limited, e.noLimit = supply.limited, supply.noLimit
             for _, k in ipairs({ "items", "ranks", "noRanks" }) do
                 if e[k] or old[k] then e[k] = joinIds(union(ids(e[k]), ids(old[k]))) end
             end
@@ -163,7 +179,7 @@ local function field(k, v)
     return ("%s = %d"):format(k, v)
 end
 
-local ORDER = { "npc", "sub", "skill", "zone", "uiMap", "x", "y", "alliance", "horde", "ver", "build", "ranks", "noRanks", "items" }
+local ORDER = { "npc", "sub", "skill", "zone", "uiMap", "x", "y", "alliance", "horde", "ver", "build", "ranks", "noRanks", "items", "limited", "noLimit" }
 
 local function entryText(e)
     local parts = {}

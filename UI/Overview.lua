@@ -2,7 +2,10 @@ local _, FP = ...
 local L = FP.L
 local UI = FP.UI
 
-local WHITE = "Interface\\Buttons\\WHITE8x8"
+-- The window's pages (Overview or recipes) and the Overview itself: a card per profession, for this character or
+-- another one.
+
+local WHITE = UI.WHITE
 local CARD_H, GAP = 136, 12
 local PAD = 14 -- panel padding on the sides and below the cards
 local TOP = 64 -- space above the cards (title, hint)
@@ -13,10 +16,7 @@ for i, skillLine in ipairs(FP.SECONDARY_SKILLS) do SECONDARY_ORDER[skillLine] = 
 local TIER_GLOBALS = { "APPRENTICE", "JOURNEYMAN", "EXPERT", "ARTISAN" }
 
 -- A character's name, or `text` about it, in its class colour.
-local function ClassName(rec, text)
-    local r, g, b = FP.Alts:ClassColor(rec.class)
-    return ("|cff%02x%02x%02x%s|r"):format(r * 255, g * 255, b * 255, text or rec.name or "?")
-end
+local function ClassName(rec, text) return FP.Alts:Colored(rec.class, text or rec.name or "?") end
 
 function UI:SetPage(page)
     local f = self.frame

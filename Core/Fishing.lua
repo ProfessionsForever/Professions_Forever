@@ -12,6 +12,9 @@ FP.Fishing = Fishing
 -- Before casting, each press does the next thing still missing, one per press since each is its own action: put on the
 -- character's Fishing gear set (FP.chardb.fishSet), equip the best fishing pole (db.fishEquipPole), put the best lure
 -- on it (db.fishApplyLure). Gear can't change in combat, so there a press only casts.
+-- A press with the lure key held (db.fishLureSkipKey) does the opposite of db.fishApplyLure: it leaves the lure off, or
+-- with Automatically Apply Your Best Lure off puts one on. The Fishing Key with that modifier clicks the button as SKIP_CLICK (see
+-- UpdateSkipKeys).
 -- Each slot a press changes first saves what it held (FP.chardb.fishSaved, by item GUID, false for empty), and
 -- Fishing:SwapBack puts that back: on a keybind or /pf swapback, and when you mount, stop fishing for a while or a fight
 -- ends (each an option).
@@ -32,6 +35,14 @@ local LURES = {
     [6811] = 50,  -- Aquadynamic Fish Lens
     [6529] = 25,  -- Shiny Bauble
 }
+
+-- The lure key: the modifier of each choice of db.fishLureSkipKey ("none" has no entry).
+local SKIP = { shift = "SHIFT", ctrl = "CTRL", alt = "ALT" }
+-- The mouse button the lure key's bindings click with. A key binding clicks as an unmodified click (IsAltKeyDown() is
+-- false in the click even with Alt held), so the click itself says the modifier was held. The secure template falls back to
+-- the plain "type" for a button name it has no attribute for, so it casts as usual.
+local SKIP_CLICK = "SkipLure"
+Fishing.SKIP_ORDER = { "none", "shift", "ctrl", "alt" }
 
 local button = CreateFrame("Button", "ProfessionsForeverFishButton", UIParent, "SecureActionButtonTemplate")
 button:RegisterForClicks("AnyDown", "AnyUp")
@@ -175,7 +186,7 @@ end
 
 -- Runs before the secure click: does the next gear step itself, or sets the button to put on a lure; with nothing
 -- left to do the button keeps its Fishing cast. PostClick puts the cast back.
-button:SetScript("PreClick", function(self, _, down)
+button:SetScript("PreClick", function(self, mouseButton, down)
     if down or InCombatLockdown() or not fishingName then return end
     local db = FP.db
     local setID = SetToWear()
@@ -206,7 +217,8 @@ button:SetScript("PreClick", function(self, _, down)
             return
         end
     end
-    if db.fishApplyLure and WornPoleBonus() and not GetWeaponEnchantInfo() then
+    local applyLure = db.fishApplyLure ~= (mouseButton == SKIP_CLICK) -- the lure key flips Automatically Apply Your Best Lure
+    if applyLure and WornPoleBonus() and not GetWeaponEnchantInfo() then
         local lure = BestLure()
         if lure then
             self:SetAttribute("type", "macro")
@@ -218,6 +230,52 @@ button:SetScript("PostClick", function(self, _, down)
     if down or InCombatLockdown() then return end
     self:SetAttribute("type", "spell")
 end)
+
+---------------------------------------------------------------------------
+-- The Fishing Key with the lure key held
+---------------------------------------------------------------------------
+-- Shift with F is the binding SHIFT-F, not F, so the Fishing Key's keys with the lure key added click the button too:
+-- override bindings, only on a combination bound to nothing else. They go when the option or the Fishing Key changes.
+local MODS = { "ALT", "CTRL", "SHIFT" } -- the order binding names put them in
+local skipOwner = CreateFrame("Frame")
+local skipCombos, pendingSkip = {}, false
+
+-- The binding name of `key` with `mod` added (CTRL-F with SHIFT is CTRL-SHIFT-F), or nil when it has it already.
+local function WithModifier(key, mod)
+    local has = { [mod] = true }
+    for _, m in ipairs(MODS) do
+        if key:sub(1, #m + 1) == m .. "-" then
+            if m == mod then return end
+            has[m] = true
+            key = key:sub(#m + 2)
+        end
+    end
+    local name = ""
+    for _, m in ipairs(MODS) do
+        if has[m] then name = name .. m .. "-" end
+    end
+    return name .. key
+end
+
+function Fishing:UpdateSkipKeys()
+    if InCombatLockdown() then pendingSkip = true return end
+    pendingSkip = false
+    local skip, combos = SKIP[FP.db.fishLureSkipKey], {}
+    if skip then
+        for _, key in ipairs({ GetBindingKey(BINDING) }) do
+            local combo = WithModifier(key, skip)
+            if combo and GetBindingAction(combo) == "" then combos[#combos + 1] = combo end
+        end
+    end
+    -- Setting an override fires UPDATE_BINDINGS, which comes back here: only touch them when they differ
+    if table.concat(combos, " ") == table.concat(skipCombos, " ") then return end
+    ClearOverrideBindings(skipOwner)
+    for _, combo in ipairs(combos) do
+        SetOverrideBindingClick(skipOwner, false, combo, "ProfessionsForeverFishButton", SKIP_CLICK)
+    end
+    skipCombos = combos
+end
+FP:RegisterEvent("UPDATE_BINDINGS", function() Fishing:UpdateSkipKeys() end)
 
 ---------------------------------------------------------------------------
 -- Swapping the normal gear back
@@ -393,6 +451,7 @@ end
 local function StartCatch()
     local keys = { GetBindingKey(BINDING) }
     if #keys == 0 then return end
+    for _, combo in ipairs(skipCombos) do keys[#keys + 1] = combo end -- the catch works with the skip key still held
     SetSounds()
     if InCombatLockdown() then return end
     SetForFishing("SoftTargetInteract", "3")
@@ -418,11 +477,13 @@ FP:RegisterEvent("PLAYER_LOGIN", function()
     RestoreCVars() -- left changed by a reload or logout while fishing
     SetSpell()
     UpdateSwapMacro() -- weapons saved before a reload
+    Fishing:UpdateSkipKeys()
 end)
 FP:RegisterEvent("SKILL_LINES_CHANGED", SetSpell) -- Fishing learned or unlearned
 FP:RegisterEvent("PLAYER_REGEN_ENABLED", function()
     if pendingClear then EndCatch() end
     if pendingSwap then Fishing:SwapBack(true) end
+    if pendingSkip then Fishing:UpdateSkipKeys() end
     if not fishingName then SetSpell() end -- Fishing learned in combat
 end)
 

@@ -34,15 +34,7 @@ function Queue:ResetViewUnless(other)
     if not (other and other:IsShown()) then self.viewKey = nil end
 end
 
--- A character's name in its class colour, marked when it is the current one.
-local function CharacterName(key)
-    local rec = FP.db.characters[key]
-    local r, g, b = FP.Alts:ClassColor(rec.class)
-    local name = FP.Alts:Label(rec)
-    if key == FP.Alts:GetCharacterKey() then name = L["%s (you)"]:format(name) end
-    return ("|cff%02x%02x%02x%s|r"):format(r * 255, g * 255, b * 255, name)
-end
-Queue.CharacterName = CharacterName
+local function CharacterName(key) return FP.Alts:CharacterName(key) end
 
 -- The picker in a window's title bar: the current character first, then the others with saved professions or a queue.
 -- Wide enough for a first name, surname and " (you)", so the label isn't cut off (a cut-off label gets a tooltip).

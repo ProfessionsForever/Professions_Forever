@@ -2,6 +2,9 @@ local _, FP = ...
 local R = { list = {}, byID = {}, categories = {} }
 FP.Recipes = R
 
+-- The open profession's recipes (or another character's saved ones): the list and its categories, favourites, what
+-- each makes and needs, whether its materials are at hand, and the recipe list's search, filters and sorting.
+
 local BASIC = Enum.CraftingReagentType.Basic
 local evalCache = {}
 local floor, min, max, huge = math.floor, math.min, math.max, math.huge

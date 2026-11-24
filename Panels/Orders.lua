@@ -517,11 +517,11 @@ function Panel:Create()
             row.icon = row:CreateTexture(nil, "ARTWORK")
             row.icon:SetSize(ROW_H - 4, ROW_H - 4)
             row.icon:SetPoint("LEFT", 14, 0)
-            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            UI.TrimIcon(row.icon)
             row.mark = row:CreateTexture(nil, "ARTWORK")
             row.mark:SetSize(ROW_H - 8, ROW_H - 8)
             row.mark:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
-            row.mark:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            UI.TrimIcon(row.mark)
             row.mark:SetTexture(C_Item.GetItemIconByID(FP.OrderItems.receipt))
             row.action = UI:Button(row, "", 66, ROW_H - 2, ActionClick)
             row.action:SetPoint("RIGHT", -2, 0)
@@ -540,8 +540,14 @@ function Panel:Create()
             row.detail:SetWordWrap(false)
             row.detail:SetTextColor(GREY[1], GREY[2], GREY[3])
             -- Over a crate's fill: a click lists the crate's fills to choose from, cheapest first.
-            row.pick = CreateFrame("Button", nil, row)
-            row.pick:SetAllPoints(row.detail)
+            -- A box around it shows it opens a list; brighter under the mouse.
+            row.pick = CreateFrame("Button", nil, row, "BackdropTemplate")
+            row.pick:SetPoint("TOPLEFT", row.detail, "TOPLEFT", -4, 3)
+            row.pick:SetPoint("BOTTOMRIGHT", row.detail, "BOTTOMRIGHT", 3, -3)
+            row.pick:SetBackdrop({ edgeFile = UI.WHITE, edgeSize = 1 })
+            row.pick:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+            row.pick:SetScript("OnEnter", function(s) s:SetBackdropBorderColor(0.8, 0.8, 0.8, 1) end)
+            row.pick:SetScript("OnLeave", function(s) s:SetBackdropBorderColor(0.4, 0.4, 0.4, 1) end)
             row.pick:SetScript("OnClick", function(s)
                 local e, OT, items = row.entry, FP.OrderTips, {}
                 for i, g in ipairs(e.bundles) do
@@ -587,6 +593,8 @@ function Panel:Create()
         b = UI:Button(f, L["Fill"], 66, ROW_H - 2, function()
             if b.merge then return MergeStacks(b.merge) end
             fills[b.crate] = nil -- a chosen fill is for this one fill
+            -- One crate filled: the number box counts down, so the next click fills the rest.
+            if picked[b.crate] then picked[b.crate] = math.max(1, picked[b.crate] - 1) end
             if SpellIsTargeting() then OpenAllBags() end -- the game still asks which item: it is picked in the bags
         end, true)
         b:SetAttribute("type", "item")

@@ -5,7 +5,7 @@ local O = FP.Options
 
 -- The One-Click Fishing page: the key, what a press gets ready before casting, when the gear goes back, and the sound
 -- while the line is out
--- (UI/Fishing.lua).
+-- (Core/Fishing.lua).
 
 -- The Fishing Gear Set choices: None, then the character's equipment sets.
 local function SetItems()
@@ -28,6 +28,21 @@ local function WaitText(seconds)
     return L["%s min"]:format(("%g"):format(seconds / 60))
 end
 
+local SKIP_LABELS = { none = "None", shift = "Shift", ctrl = "Ctrl", alt = "Alt" }
+
+-- The lure key's choices (Skip the Lure While Holding, or Add a Lure While Holding).
+local function SkipItems()
+    local db, items = FP.db, {}
+    for _, key in ipairs(FP.Fishing.SKIP_ORDER) do
+        items[#items + 1] = { text = L[SKIP_LABELS[key]], checked = db.fishLureSkipKey == key, onSelect = function()
+            db.fishLureSkipKey = key
+            FP.Fishing:UpdateSkipKeys()
+            O:Refresh()
+        end }
+    end
+    return items
+end
+
 function O.BuildFishing(page)
     local db = FP.db
     O.Section(page, L["One-Click Fishing"])
@@ -36,10 +51,24 @@ function O.BuildFishing(page)
         db.fishEquipPole = v
     end)
     UI:Tooltip(pole, "ANCHOR_RIGHT", L["Before casting, a press equips the fishing pole in your bags with the highest Fishing bonus, if it's better than the one you hold."])
-    local lure = O.Check(page, L["Apply Your Best Lure"], function() return db.fishApplyLure end, function(v)
+    -- The lure key does the opposite of Automatically Apply Your Best Lure, so its label follows the box.
+    local skip
+    local function SkipLabel()
+        skip.label:SetText(L[db.fishApplyLure and "Skip the Lure While Holding" or "Add a Lure While Holding"])
+    end
+    local lure = O.Check(page, L["Automatically Apply Your Best Lure"], function() return db.fishApplyLure end, function(v)
         db.fishApplyLure = v
+        SkipLabel()
     end)
     UI:Tooltip(lure, "ANCHOR_RIGHT", L["Before casting, a press puts the strongest lure in your bags that you can use on your pole, when it has none."])
+    skip = O.DropList(page, L["Skip the Lure While Holding"], function() return L[SKIP_LABELS[db.fishLureSkipKey]] end, SkipItems)
+    O.refreshers[#O.refreshers + 1] = SkipLabel -- a reset puts the box back
+    SkipLabel()
+    UI:Tooltip(skip, "ANCHOR_RIGHT", function(tip)
+        tip:AddLine(L[db.fishApplyLure
+            and "Hold this key as you press the Fishing Key to cast without putting a lure on. It works when the Fishing Key with it held is bound to nothing else."
+            or "Hold this key as you press the Fishing Key to put your best lure on first, with Automatically Apply Your Best Lure off. It works when the Fishing Key with it held is bound to nothing else."], 1, 1, 1, true)
+    end)
     local set = O.DropList(page, L["Fishing Gear Set"], function() return FP.chardb.fishSet or L["None"] end, SetItems)
     UI:Tooltip(set, "ANCHOR_RIGHT", L["An equipment set (made in the character window) to put on before casting. For this character only."])
 
@@ -80,7 +109,8 @@ function O.BuildFishing(page)
 end
 
 function O.ResetFishing()
-    O.ResetKeys("fishEquipPole", "fishApplyLure", "fishLoud", "fishVolume", "fishMuteMusic", "fishBackground",
+    O.ResetKeys("fishEquipPole", "fishApplyLure", "fishLureSkipKey", "fishLoud", "fishVolume", "fishMuteMusic", "fishBackground",
         "fishSwapMount", "fishSwapIdle", "fishSwapSeconds", "fishSwapCombat")
     FP.chardb.fishSet = nil
+    FP.Fishing:UpdateSkipKeys()
 end

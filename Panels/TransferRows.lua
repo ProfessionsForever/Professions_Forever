@@ -3,56 +3,16 @@ local L = FP.L
 local Transfer = {}
 FP.Transfer = Transfer
 
--- What this character must have in its bags: per material, what its queue (`plan`, its own) needs plus what it has
--- to send its other characters (Outgoing:SendTotals). Entries are { itemID, need, bags, bank, mail }: the plan's
--- materials in its order, then those it only sends, by item.
-local function Wanted(plan)
-    local sends, out, extra = FP.Outgoing:SendTotals(), {}, {}
-    for _, it in ipairs(plan.items) do
-        out[#out + 1] = { itemID = it.itemID, need = it.need + (sends[it.itemID] or 0), bags = it.bags, bank = it.bank, mail = it.mail }
-        sends[it.itemID] = nil
+-- The rows of what `sender` sends `recipient` by hand, from `c` ({ items, gear, gold }): "mitem" { itemID, qty },
+-- "mgear" { gear } and "mgold" { gold }, each with sender and recipient. The planner lists the money first.
+local function AddManual(rows, c, sender, recipient, goldFirst)
+    local gold = c.gold > 0 and { kind = "mgold", sender = sender, recipient = recipient, gold = c.gold }
+    if goldFirst then rows[#rows + 1] = gold or nil end
+    for _, item in ipairs(c.items) do
+        rows[#rows + 1] = { kind = "mitem", sender = sender, recipient = recipient, itemID = item.itemID, qty = item.qty }
     end
-    for itemID, qty in pairs(sends) do
-        local bags, bank, _, mail = FP.Inv:Owned(itemID)
-        extra[#extra + 1] = { itemID = itemID, need = qty, bags = bags, bank = bank, mail = mail }
-    end
-    table.sort(extra, function(a, b) return a.itemID < b.itemID end)
-    for _, w in ipairs(extra) do out[#out + 1] = w end
-    return out
-end
-
--- What this character's bank must supply for its queue and its sends: for each material, the part bags don't cover
--- that the bank does. `plan` is its own.
-function Transfer.BankNeeds(plan)
-    local out = {}
-    for _, w in ipairs(Wanted(plan)) do
-        local qty = math.min(w.bank, math.max(0, w.need - w.bags))
-        if qty > 0 then out[#out + 1] = { itemID = w.itemID, qty = qty, bank = w.bank } end
-    end
-    return out
-end
-
--- What can be collected from the mailbox. For this character's own plan: for each material its queue and its sends
--- need, the part bags don't cover that the mailbox does. The bank is offered the same part (BankNeeds), so either one
--- can be fetched, whichever is at hand, and fetching it clears the other. For another character's plan (`view`, its
--- key): what its queue needs that its bags and bank don't cover.
-function Transfer.MailNeeds(plan, view)
-    local out = {}
-    if view then
-        for _, it in ipairs(plan.items) do
-            if it.fromMail > 0 then out[#out + 1] = { itemID = it.itemID, qty = it.fromMail, mail = it.mail } end
-        end
-        return out
-    end
-    for _, w in ipairs(Wanted(plan)) do
-        local short = math.max(0, w.need - w.bags)
-        local qty = math.min(w.mail, short)
-        -- `either`: the bank is offered some of the same part, so not both amounts have to be fetched.
-        if qty > 0 then
-            out[#out + 1] = { itemID = w.itemID, qty = qty, mail = w.mail, either = math.min(w.bank, short) + qty > short }
-        end
-    end
-    return out
+    for _, g in ipairs(c.gear) do rows[#rows + 1] = { kind = "mgear", sender = sender, recipient = recipient, gear = g } end
+    if not goldFirst then rows[#rows + 1] = gold or nil end
 end
 
 -- What the plan's character asked others for by hand: per sender, its items and pieces of gear. Your own sender row
@@ -64,9 +24,7 @@ local function AddRequests(rows, target, mailTo)
     rows[#rows + 1] = { kind = "section", text = L["Expected from Other Characters"] }
     for _, r in ipairs(requests) do
         rows[#rows + 1] = { kind = "askfrom", r = r, me = r.key == me, mailTo = r.key == me and mailTo or nil }
-        if r.gold > 0 then rows[#rows + 1] = { kind = "askgold", r = r, gold = r.gold, target = target } end
-        for _, item in ipairs(r.items) do rows[#rows + 1] = { kind = "ask", r = r, item = item, target = target } end
-        for _, g in ipairs(r.gear) do rows[#rows + 1] = { kind = "askgear", r = r, gear = g, target = target } end
+        AddManual(rows, r, r.key, target, true)
     end
 end
 
@@ -82,19 +40,19 @@ function Transfer.BuildRows(plan, view)
         for _, p in ipairs(FP.Outgoing:Pending()) do
             if p.key == view then mailTo = p end
         end
-        local mail = Transfer.MailNeeds(plan, view)
+        local mail = FP.Planner.MailNeeds(plan, view)
         if #mail > 0 then
             rows[#rows + 1] = { kind = "section", text = L["Waiting in %s's Mailbox"]:format(FP.Alts:Label(FP.db.characters[view])) }
             for _, m in ipairs(mail) do rows[#rows + 1] = { kind = "mail", it = m } end
         end
         AddRequests(rows, view, mailTo)
     else
-        local bank = Transfer.BankNeeds(plan)
+        local bank = FP.Planner.BankNeeds(plan)
         if #bank > 0 then
             rows[#rows + 1] = { kind = "section", text = L["Withdraw from Bank"] }
             for _, b in ipairs(bank) do rows[#rows + 1] = { kind = "bank", it = b } end
         end
-        local mail = Transfer.MailNeeds(plan)
+        local mail = FP.Planner.MailNeeds(plan)
         if #mail > 0 then
             rows[#rows + 1] = { kind = "section", text = L["Collect from Your Mailbox"] }
             for _, m in ipairs(mail) do rows[#rows + 1] = { kind = "mail", it = m } end
@@ -104,9 +62,9 @@ function Transfer.BuildRows(plan, view)
             rows[#rows + 1] = { kind = "section", text = L["To Send from This Character"] }
             for _, p in ipairs(sending) do
                 rows[#rows + 1] = { kind = "sendto", p = p }
-                if p.gold > 0 then rows[#rows + 1] = { kind = "sendgold", p = p, gold = p.gold } end
+                if p.gold > 0 then rows[#rows + 1] = { kind = "mgold", sender = me, recipient = p.key, gold = p.gold } end
                 for _, item in ipairs(p.items) do rows[#rows + 1] = { kind = "send", p = p, item = item } end
-                for _, g in ipairs(p.gear) do rows[#rows + 1] = { kind = "sendgear", p = p, gear = g } end
+                for _, g in ipairs(p.gear) do rows[#rows + 1] = { kind = "mgear", sender = me, recipient = p.key, gear = g } end
             end
         end
         AddRequests(rows, me)
@@ -151,18 +109,10 @@ function Transfer.BuildRows(plan, view)
 end
 
 -- The Manual Transfers view's list, for `target` (the plan's character): what it sends by hand, then what it gets by
--- hand, each grouped by the other character. Rows: "mhead" { c, from, mailTo }, and "mitem" { itemID, qty },
--- "mgear" { gear }, "mgold" { gold }, each with sender and recipient.
+-- hand, each grouped by the other character. Rows: "mhead" { c, from, mailTo }, then AddManual's.
 function Transfer.BuildManualRows(target)
     local rows, Outgoing = {}, FP.Outgoing
     local me = FP.Alts:GetCharacterKey()
-    local function Add(c, sender, recipient)
-        for _, item in ipairs(c.items) do
-            rows[#rows + 1] = { kind = "mitem", sender = sender, recipient = recipient, itemID = item.itemID, qty = item.qty }
-        end
-        for _, g in ipairs(c.gear) do rows[#rows + 1] = { kind = "mgear", sender = sender, recipient = recipient, gear = g } end
-        if c.gold > 0 then rows[#rows + 1] = { kind = "mgold", sender = sender, recipient = recipient, gold = c.gold } end
-    end
     local sends = Outgoing:ManualSends(target)
     if #sends > 0 then
         rows[#rows + 1] = { kind = "section", text = target == me and L["To Send from This Character"]
@@ -170,7 +120,7 @@ function Transfer.BuildManualRows(target)
         for _, c in ipairs(sends) do
             -- Only the current character can mail, so only its own sends get the Mail button.
             rows[#rows + 1] = { kind = "mhead", c = c, mailTo = target == me and c or nil }
-            Add(c, target, c.key)
+            AddManual(rows, c, target, c.key)
         end
     end
     local mine = target ~= me and Outgoing:ManualSends(me) or {}
@@ -183,7 +133,7 @@ function Transfer.BuildManualRows(target)
                 for _, c in ipairs(mine) do if c.key == target then mailTo = c end end
             end
             rows[#rows + 1] = { kind = "mhead", c = r, from = true, me = r.key == me, mailTo = mailTo }
-            Add(r, r.key, target)
+            AddManual(rows, r, r.key, target)
         end
     end
     return rows
@@ -215,15 +165,12 @@ function Transfer.RowTooltip(row)
             tip:AddDoubleLine(L["Manual Transfer"], item.asked, 0.8, 0.8, 0.8, 1, 0.82, 0)
             tip:AddLine(L["Click to change the amount. Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
         end
-    elseif e.kind == "sendgear" then
-        tip:SetHyperlink(e.gear.link)
-        tip:AddLine(" ")
-        tip:AddDoubleLine(L["Send %d"]:format(1), Alts:Label(e.p), 1, 1, 1, Alts:ClassColor(e.p.class))
-        tip:AddLine(L["Asked for from Disenchanting Mode."], 0.8, 0.8, 0.8, true)
-        tip:AddLine(L["Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
     elseif e.kind == "mhead" then
         tip:AddLine(Alts:Label(e.c), Alts:ClassColor(e.c.class))
         tip:AddLine(L["Manual transfers, apart from any queue. They show in the sender's Transfer Planner as things to send until they are mailed."], 0.8, 0.8, 0.8, true)
+    elseif e.kind == "askfrom" then
+        tip:AddLine(Alts:Label(e.r), Alts:ClassColor(e.r.class))
+        tip:AddLine(L["Manual transfers, apart from any queue. They show in this character's Transfer Planner as things to send."], 0.8, 0.8, 0.8, true)
     elseif e.kind == "mitem" then
         tip:SetItemByID(e.itemID)
         tip:AddLine(" ")
@@ -233,6 +180,10 @@ function Transfer.RowTooltip(row)
     elseif e.kind == "mgear" then
         tip:SetHyperlink(e.gear.link)
         tip:AddLine(" ")
+        if e.sender == Alts:GetCharacterKey() then
+            local to = FP.db.characters[e.recipient]
+            tip:AddDoubleLine(L["Send %d"]:format(1), Alts:Label(to), 1, 1, 1, Alts:ClassColor(to.class))
+        end
         tip:AddLine(L["Asked for from Disenchanting Mode."], 0.8, 0.8, 0.8, true)
         tip:AddLine(L["Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
     elseif e.kind == "mgold" then
@@ -240,26 +191,6 @@ function Transfer.RowTooltip(row)
         tip:AddDoubleLine(L["Manual Transfer"], FP.Prices:Format(e.gold), 0.8, 0.8, 0.8, 1, 1, 1)
         tip:AddLine(L["Mail puts it on the mail as Send Money, never cash on delivery."], 0.8, 0.8, 0.8, true)
         tip:AddLine(L["Click to change the amount. Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
-    elseif e.kind == "sendgold" or e.kind == "askgold" then
-        tip:AddLine(L["Money"], 1, 1, 1)
-        tip:AddDoubleLine(L["Manual Transfer"], FP.Prices:Format(e.gold), 0.8, 0.8, 0.8, 1, 1, 1)
-        if e.kind == "sendgold" then
-            tip:AddLine(L["Mail puts it on the mail as Send Money, never cash on delivery."], 0.8, 0.8, 0.8, true)
-        end
-        tip:AddLine(L["Click to change the amount. Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
-    elseif e.kind == "askfrom" then
-        tip:AddLine(Alts:Label(e.r), Alts:ClassColor(e.r.class))
-        tip:AddLine(L["Manual transfers, apart from any queue. They show in this character's Transfer Planner as things to send."], 0.8, 0.8, 0.8, true)
-    elseif e.kind == "ask" then
-        tip:SetItemByID(e.item.itemID)
-        tip:AddLine(" ")
-        tip:AddDoubleLine(L["Manual Transfer"], e.item.qty, 0.8, 0.8, 0.8, 1, 0.82, 0)
-        tip:AddDoubleLine(L["Character Owns"], select(3, FP.Planner:Holding(e.r.key, e.item.itemID)), 0.8, 0.8, 0.8, 1, 1, 1)
-        tip:AddLine(L["Click to change the amount. Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
-    elseif e.kind == "askgear" then
-        tip:SetHyperlink(e.gear.link)
-        tip:AddLine(" ")
-        tip:AddLine(L["Click X or right-click to remove the manual transfer."], 0.8, 0.8, 0.8, true)
     elseif e.kind == "item" then
         local o = e.o.opt
         tip:SetItemByID(e.o.it.itemID)

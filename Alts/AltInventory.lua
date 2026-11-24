@@ -562,11 +562,25 @@ function Alts:ClassColor(class)
     return 1, 1, 1
 end
 
+-- `text` in a class's colour.
+function Alts:Colored(class, text)
+    local r, g, b = self:ClassColor(class)
+    return ("|cff%02x%02x%02x%s|r"):format(r * 255, g * 255, b * 255, text)
+end
+
 -- The realm is only worth showing for characters on another one.
 function Alts:Label(entry)
     local name = entry.name or entry.key
     if entry.realm and entry.realm ~= self:Realm() then return name .. "-" .. entry.realm end
     return name
+end
+
+-- A character's label in its class colour, marked when it is the current one.
+function Alts:CharacterName(key)
+    local rec = FP.db.characters[key]
+    local name = self:Label(rec)
+    if key == self:GetCharacterKey() then name = FP.L["%s (you)"]:format(name) end
+    return self:Colored(rec.class, name)
 end
 
 ---------------------------------------------------------------------------

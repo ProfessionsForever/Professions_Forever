@@ -5,6 +5,9 @@ FP.UI = UI
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 UI.WHITE = WHITE
 
+-- Crops the border drawn into the game's icons, so a texture shows only the picture.
+function UI.TrimIcon(texture) texture:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+
 ---------------------------------------------------------------------------
 -- Skins. Every frame is registered with UI:Skin(frame, kind) and styled via SetBackdrop*,
 -- so skin addons can also hook these named frames.
@@ -193,9 +196,14 @@ end
 ---------------------------------------------------------------------------
 -- Fonts
 ---------------------------------------------------------------------------
+-- The Font setting's first choice and default, Game Default, is stored as the Latin game font's path and stands for
+-- the game's font in the client's language: the one with Cyrillic, Korean or Chinese glyphs on those clients.
+UI.GAME_FONT = "Fonts\\FRIZQT__.TTF"
+
 local function SetFontSafe(fs)
     local size = FP.db.fontSize + fs.fpDelta
     local path, flag = FP.db.font, ""
+    if path == UI.GAME_FONT then path = STANDARD_TEXT_FONT end
     local S = EUI()
     if S then path, flag = S.GetFont() end
     if fs:SetFont(path, size, flag or "") == false then fs:SetFont(STANDARD_TEXT_FONT, size, "") end

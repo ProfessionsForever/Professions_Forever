@@ -7,6 +7,8 @@ local PreviewLink, Hex = UI.PreviewLink, UI.Hex -- UI/RecipeInfo.lua, UI/Shared.
 local MAX_ROWS = 60
 local GREY_RGB = { 0.5, 0.5, 0.5 }
 
+-- The recipe list: applying the search and filters, its rows, their tooltips and clicks, and selecting a recipe.
+
 -- Where the recipe last clicked in the shown profession is remembered (FP.db.lastRecipe): by skill line, or for
 -- another character's profession by its key and skill line, so the two don't move each other's selection. nil until the
 -- game says which profession is open: right after a login or reload it reports 0 for a moment (seen 2026-11-13).

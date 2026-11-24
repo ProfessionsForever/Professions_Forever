@@ -16,6 +16,7 @@ for _, k in ipairs({
     "Show Unlearned", "Unlearned Only", "Has Materials", "Do Not Show Category Headers",
     "Pin Position", "Unpin (Dock to Main Window)", "Set as Favorite", "Favorites Only",
     "Track", "Untrack", "Track Location",
+    "Search", "Search the Auction House", "Searches Auctionator's Shopping tab for what this recipe makes and each of its reagents.",
     "Right-click: waypoint to the nearest trainer",
 
     -- Recipe list and detail
@@ -79,12 +80,16 @@ for _, k in ipairs({
     "How many of an item your queues need, how many are still to buy, and which recipes use it.",
     "What disenchanting gear gives: when it shows, how much, and for which characters.",
     -- One-Click Fishing
-    "One-Click Fishing", "Equip Your Best Fishing Pole", "Apply Your Best Lure", "Fishing Gear Set", "None",
+    "One-Click Fishing", "Equip Your Best Fishing Pole", "Automatically Apply Your Best Lure", "Fishing Gear Set", "None",
     "Fishing Key", "Press a key...", "Not Bound", "%s was bound to %s; it now does %s.",
     "Click, then press a key or controller button. Right-click to unbind.",
     "Before casting, a press equips the fishing pole in your bags with the highest Fishing bonus, if it's better than the one you hold.",
     "Before casting, a press puts the strongest lure in your bags that you can use on your pole, when it has none.",
     "An equipment set (made in the character window) to put on before casting. For this character only.",
+    "Skip the Lure While Holding", "Shift", "Ctrl", "Alt",
+    "Hold this key as you press the Fishing Key to cast without putting a lure on. It works when the Fishing Key with it held is bound to nothing else.",
+    "Add a Lure While Holding",
+    "Hold this key as you press the Fishing Key to put your best lure on first, with Automatically Apply Your Best Lure off. It works when the Fishing Key with it held is bound to nothing else.",
     "The bobber isn't targeted. Face it and try again.",
     "Profession %d", "Swap Back to Normal Gear", "Your normal gear is back on.", "Nothing to swap back.",
     "Fishing gear equipped.", "Fishing gear equipped, with %s.", "%s equipped.",
@@ -155,7 +160,7 @@ for _, k in ipairs({
     "Nearest banker: %s (about %d yards)", "Nearest banker: %s (on another continent)",
 
     -- Options, minimap, slash commands
-    "Modern Dark", "Blackout", "Classic", "Minimal", "Skin", "Font", "Font Size", "Scale", "Background Opacity",
+    "Modern Dark", "Blackout", "Classic", "Minimal", "Skin", "Font", "Game Default", "Font Size", "Scale", "Background Opacity",
     "Accent Color", "Replace Default Professions Window", "Shopping List Scope", "Account-Wide",
     "Share one list between all your characters of the same faction, so a different character can do the buying. The other faction has its own, since items can't be mailed across.",
     "Reload your UI to fully remove the EllesmereUI skin.", "Later",
@@ -167,7 +172,7 @@ for _, k in ipairs({
     "Open Options Window", "Version", "Credits", "Author", "Works with these addons when they are installed:",
     "prices and cost totals", "live bank counts and other characters' inventory", "vendor, trainer and banker locations", "waypoints", "window skin",
     "Data", "trainers, vendors and bankers", "trainers added in Forever", "recipe vendors, drops and quest rewards", "recipe, skill and map data",
-    "Left-click: toggle window", "Right-click: options", "Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf camp, /pf crates, /pf route, /pf recipe, /pf reagent, /pf de, /pf track shop, /pf bind, /pf options, /pf reset, /pf clearway, /pf swapback",
+    "Left-click: toggle window", "Right-click: options", "Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf camp, /pf crates, /pf scout, /pf route, /pf recipe, /pf reagent, /pf de, /pf track shop, /pf bind, /pf options, /pf reset, /pf clearway, /pf swapback",
 
     -- Disenchanting Mode
     "(%s more than the next best)", "Auction", "Back to Recipes",
@@ -238,7 +243,7 @@ for _, k in ipairs({
 
     -- Options: Integrations
     "Integrations", "Installed", "Not installed", "Polestar & TomTom",
-    "Prices for recipe profit, crafting costs, the shopping list and disenchant values. Your shopping list as an Auctionator list, kept in sync.",
+    "Prices for recipe profit, crafting costs, the shopping list and disenchant values. Your shopping list as an Auctionator list, kept in sync. A Search button in the recipe panel for its reagents.",
     "Waypoints and the arrow to vendors, trainers and bankers.",
     "More vendor, trainer and banker locations for waypoints.",
     "Your bank and your other characters' bags, bank and mail, as Syndicator records them.",
@@ -333,6 +338,8 @@ for _, k in ipairs({
     "Skill Up Route", "Reagents", "No route steps", "No levelling route yet. Learn a profession.", "Route from SkillUp Forever",
     "Click: waypoint to the nearest trainer or vendor", "SkillUp Forever is not loaded.",
     "Skill Up Chance: %d%%", "Show Skill Up Chance in the Recipe List", "Mark Recipes New or Changed in Forever",
+    "Show the Auctionator Search Button",
+    "While the auction house is open, a Search button in the recipe panel searches Auctionator's Shopping tab for what the recipe makes and each of its reagents.",
 
     -- Reagent search
     "Recipe Search", "By Name", "By Reagent", "Recipe name", "%d recipes found", "No recipe has that name.",
@@ -433,6 +440,26 @@ for _, k in ipairs({
     "Auction Scan: %s Ago", "(1 Day Old)", "(%d Days Old)", "Show How Old Auction Prices Are", "Prices Are Old After",
     "\"Auction Scan: 2h Ago\" in the shopping list, Crates and Writs, Disenchanting Mode and the recipe panel's cost and profit tooltips, from Auctionator's last full scan. A single price Auctionator last saw too long ago is marked \"(3 Days Old)\".",
     "The scan's age turns red once it is older than this, and single prices older than this are marked. A single price's age is known in whole days.",
+
+    -- Recipe Scout (Core/ZoneRecipes.lua, Panels/ZoneRecipes.lua)
+    "Recipe Scout: %s", "Limited Supply", "No recipes to learn in this zone.",
+    "Click: Open", "Right-click: waypoint to %s", "Quest: %s", "Given by: %s",
+    "Recipe Scout", "What It Lists",
+    "The window that lists the recipes you can learn in the zone you enter, and which kinds it lists.",
+    "Open When You Enter a Zone", "Opens the window once per zone each session, when the zone has a recipe you have not learned. Off: only /pf scout opens it.",
+    "Pin the Window", "A pinned window stays open, lists each zone you enter, and does not close when you press Escape. The pin on the window does the same.",
+    "Unpin", "Pin: Keep Open and Follow Me", "A pinned window stays open, lists each zone you enter, and does not close when you press Escape.",
+    "Recipes Sold by Vendors", "Lists the recipes a vendor in the zone sells.",
+    "Recipes in Limited Supply", "Lists the recipes a vendor in the zone sells in a limited supply, which may be sold out.",
+    "Recipes Taught by Trainers", "Lists the recipes a trainer in the zone teaches, once your skill is high enough to learn them.",
+    "Recipes from Quests", "Lists the recipes a quest given in the zone rewards, when you can take the quest and have not done it.",
+    "Dropped by: %s", "Found in: %s",
+    "Shift-click: Ignore", "Shift-click: ignore this recipe in this zone",
+    "Shift-click: Stop Ignoring", "Shift-click: stop ignoring this recipe in this zone",
+    "List the recipes you ignored in this zone, so they can be turned back on.",
+    "All Drops", "Zone Drops Only", "No Drops", "Drops",
+    "Which of the recipes that creatures drop and that chests and other objects hold are listed. Zone Drops Only leaves out the recipes that also drop in other zones or in a dungeon.",
+    "Recipes You Already Have", "Lists the recipes whose item is in your bags, your bank or your mailbox, waiting to be learned.",
 
     -- Crates and Writs (Core/Orders.lua, Panels/Orders.lua, Tooltips/Orders.lua)
     "Quantity not confirmed yet: the cost is for one.", "Checking Quantity",

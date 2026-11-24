@@ -4,6 +4,9 @@ local W = FP.Waypoint
 local Questie, Place, Spawns, Friendly = W.Questie, W.Place, W.Spawns, W.Friendly
 local indexes = W.indexes
 
+-- Vendors: who sells a recipe or an item, from the vendors you have opened, the shipped data and Questie; the
+-- Sold By summaries, and waypoints to the nearest one.
+
 local RECIPE_PREFIXES = W.RECIPE_PREFIXES
 
 local function Label(name, area)
@@ -18,22 +21,54 @@ local function RefreshUI() FP.UI:QueueRefresh() end
 local itemVendors, recipeVendors = {}, nil -- caches, cleared when a merchant is recorded
 
 -- The Darkmoon Faire's merchants stand wherever the faire is, Mulgore or Elwynn Forest in turn, so the one position
--- an entry holds is right half the time. Both sites are offered instead, to either faction.
+-- an entry holds is right half the time. Both sites are offered instead, to either faction. The game's calendar lists
+-- each site's faire as its own holiday (event).
 local DARKMOON_NPCS = { [14828] = true, [14844] = true, [14845] = true, [14846] = true, [14847] = true, [14860] = true }
-local DARKMOON_SITES = { { uiMap = 1412, x = 0.374, y = 0.449 }, { uiMap = 1429, x = 0.412, y = 0.699 } }
+local DARKMOON_SITES = {
+    { event = 264, uiMap = 1412, x = 0.374, y = 0.449 }, -- Mulgore
+    { event = 263, uiMap = 1429, x = 0.412, y = 0.699 }, -- Elwynn Forest
+}
+
+-- [npc id] = the calendar holiday (event) the vendor is only there for. Smokywood Pastures' city vendors come for
+-- the Feast of Winter Veil (141, as Forever's calendar lists it) with the Gingerbread Cookie and Egg Nog recipes.
+local HOLIDAY_NPCS = { [13420] = 141, [13429] = 141, [13432] = 141, [13433] = 141, [13435] = 141 }
 
 local function Serves(id, v)
     return DARKMOON_NPCS[id] or W.Usable(v, "vendors", id)
 end
 
--- Adds the vendor's spot to list: one, or one per faire site.
+-- A calendar time as minutes, to compare two of them.
+local function Minutes(t)
+    return (((t.year * 12 + t.month) * 31 + t.monthDay) * 24 + t.hour) * 60 + t.minute
+end
+
+-- Whether the calendar's holiday (by its event ID) is running right now; false until the calendar's data arrives
+-- after login. The calendar counts months from the one its window shows, which the player may have paged away from
+-- today's.
+function W.HolidayOn(event)
+    local now, shown = C_DateAndTime.GetCurrentCalendarTime(), C_Calendar.GetMonthInfo(0)
+    local offset = (now.year - shown.year) * 12 + now.month - shown.month
+    for i = 1, C_Calendar.GetNumDayEvents(offset, now.monthDay) do
+        local e = C_Calendar.GetDayEvent(offset, now.monthDay, i)
+        if e.eventID == event and Minutes(e.startTime) <= Minutes(now) and Minutes(now) < Minutes(e.endTime) then
+            return true
+        end
+    end
+    return false
+end
+FP:RegisterEvent("PLAYER_LOGIN", function() C_Calendar.OpenCalendar() end) -- asks the server for the calendar's data
+
+-- Adds the vendor's spot to list: one, or one per faire site. `holiday` on a spot is the calendar holiday the vendor
+-- is only there for: the faire at that site, or a seasonal vendor's.
 local function AddSpots(list, id, v)
     if DARKMOON_NPCS[id] then
         for _, site in ipairs(DARKMOON_SITES) do
-            list[#list + 1] = { id = id, name = v.npc or "?", uiMap = site.uiMap, x = site.x, y = site.y, area = L["Darkmoon Faire"] }
+            list[#list + 1] = { id = id, name = v.npc or "?", uiMap = site.uiMap, x = site.x, y = site.y,
+                area = L["Darkmoon Faire"], holiday = site.event }
         end
     else
-        list[#list + 1] = { id = id, name = v.npc or "?", uiMap = v.uiMap, x = v.x, y = v.y, area = v.zone }
+        list[#list + 1] = { id = id, name = v.npc or "?", uiMap = v.uiMap, x = v.x, y = v.y, area = v.zone,
+            holiday = HOLIDAY_NPCS[id] }
     end
 end
 
@@ -76,16 +111,53 @@ local function KnownItemVendors(itemID)
     return out
 end
 
+-- ",id,id," as a set, and back (nil for an empty one).
+local function SupplySet(list)
+    local set = {}
+    for v in (list or ""):gmatch("%d+") do set[tonumber(v)] = true end
+    return set
+end
+
+local function SupplyList(set)
+    local ids = {}
+    for id in pairs(set) do ids[#ids + 1] = id end
+    table.sort(ids)
+    return ids[1] and ("," .. table.concat(ids, ",") .. ",") or nil
+end
+
+-- Whether the vendor's supply of the recipe is limited: as seen at the vendor (your recording or a shipped one), else
+-- as 1.12's data has it.
+function W.LimitedSupply(recipeID, npcId)
+    local entry = W.KnownEntry("vendors", npcId)
+    local seenLimited, seenNoLimit = SupplySet(entry.limited), SupplySet(entry.noLimit)
+    local seen
+    for item, recipe in pairs(FP.RecipeItems) do
+        if recipe == recipeID then
+            if seenLimited[item] then return true end
+            seen = seen or seenNoLimit[item]
+        end
+    end
+    if seen then return false end
+    return ("," .. (W.SourceIds(recipeID, "L") or "") .. ","):find("," .. npcId .. ",", 1, true) ~= nil
+end
+
 -- Stock is stored as ",itemID,itemID," to keep the saved file small and searchable. The recipes a vendor sells are
 -- read from it: a recipe item is in the stock like any other.
 local function RememberVendor()
     local entry = W.Remember("vendors")
     if not entry then return end
+    -- The recipe items seen with a limited supply and with none: Forever's vendors don't always follow 1.12's.
+    local limited, noLimit = SupplySet(entry.limited), SupplySet(entry.noLimit)
     local ids = {}
     for i = 1, GetMerchantNumItems() do
         local id = GetMerchantItemID(i)
         if id then ids[#ids + 1] = id end
+        if id and FP.RecipeItems[id] then
+            local scarce = C_MerchantFrame.GetItemInfo(i).numAvailable >= 0
+            limited[id], noLimit[id] = scarce or nil, not scarce or nil
+        end
     end
+    entry.limited, entry.noLimit = SupplyList(limited), SupplyList(noLimit)
     -- Combined with what earlier visits saw: sold-out limited-supply items drop off the list, and are far more
     -- common than items a patch removes.
     for v in (entry.items or ""):gmatch("%d+") do
@@ -124,7 +196,7 @@ end
 -- One-line vendor summary for tooltips and the recipe detail. Second return is true while Questie's item index is still building.
 function W:Summary(recipeID)
     local e = FP.Recipes.byID[recipeID]
-    if not e then return end
+    local recipeName = e and e.name or C_Spell.GetSpellName(recipeID) -- a recipe of a profession that isn't open
     local db, zoneDB = Questie()
     local parts, seen, loading = {}, {}, false
     local function Add(name, area)
@@ -137,7 +209,7 @@ function W:Summary(recipeID)
     if db then
         local st = indexes.item
         if st and st.map then
-            for _, npcId in ipairs(VendorsForRecipe(db, e.name)) do
+            for _, npcId in ipairs(VendorsForRecipe(db, recipeName)) do
                 local spot = Spawns(db, zoneDB, npcId)[1]
                 Add(db.QueryNPCSingle(npcId, "name"), spot and spot.area)
             end
@@ -157,8 +229,99 @@ local function SetWaypoint(spot, who, recipeName)
     FP:Print(L["Waypoint set: %s"]:format(where))
 end
 
+-- Waypoint to one given source of a recipe: a vendor spot or a trainer entry.
+function W:ForSpot(spot, who, recipeName)
+    if self:CheckNav() then SetWaypoint(spot, who, recipeName) end
+end
+
+-- The quests that reward the recipe and that your faction can take, with a giver placed in the built-in data
+-- (FP.RecipeQuests entries, each with its quest id): { id, quest, level, npc, zone, uiMap, x, y }.
+function W:QuestsFor(recipeID)
+    local out = {}
+    for v in (W.SourceIds(recipeID, "Q") or ""):gmatch("%d+") do
+        local id = tonumber(v)
+        local q = FP.RecipeQuests[id] -- none for a quest an item starts: it has no place
+        if q and W.Usable(q) then
+            q.id = id
+            out[#out + 1] = q
+        end
+    end
+    return out
+end
+
+-- Where the recipe's item drops, from the built-in data (FP.DropCreatures, FP.DropObjects): a spot per zone for each
+-- creature that drops it (kind "D") and each object that holds it ("O"): { id, kind, name, uiMap, x, y, area }.
+-- A creature on your side is left out: it can't be killed for it (a Dun Garok Priest, for the Alliance). The list's
+-- `unplaced` are the ones with no spot on a zone map: { kind, name }, and for each dungeon one stands in (FP.Dungeons)
+-- dungeon (its instance map ID), area (its name) and uiMap, x, y (its entrance; none for a battleground).
+local drops = {} -- [recipe] = spots
+function W:DropsFor(recipeID)
+    if drops[recipeID] then return drops[recipeID] end
+    local out, mine = { unplaced = {} }, UnitFactionGroup("player") == "Alliance" and "A" or "H"
+    for _, kind in ipairs({ "D", "O" }) do
+        local data = kind == "D" and FP.DropCreatures or FP.DropObjects
+        for v in (W.SourceIds(recipeID, kind) or ""):gmatch("%d+") do
+            local id = tonumber(v)
+            local name, side, spots = strsplit("^", data[id])
+            if not side:find(mine) then
+                for map in spots:gmatch("d(%d+)") do
+                    map = tonumber(map)
+                    local d = FP.Dungeons[map]
+                    out.unplaced[#out.unplaced + 1] = { id = id, kind = kind, name = name, dungeon = map, area = d.name,
+                        uiMap = d.uiMap, x = d.x, y = d.y }
+                end
+                if spots == "" then out.unplaced[#out.unplaced + 1] = { id = id, kind = kind, name = name } end
+                for uiMap, x, y in spots:gmatch("(%d+):(%d+):(%d+)") do
+                    uiMap = tonumber(uiMap)
+                    out[#out + 1] = { id = id, kind = kind, name = name, uiMap = uiMap, x = x / 1000, y = y / 1000,
+                        area = C_Map.GetMapInfo(uiMap).name }
+                end
+            end
+        end
+    end
+    drops[recipeID] = out
+    return out
+end
+
+-- "Dropped by: Name (Zone), Name (Zone)" and "Found in: ..." for the recipe, nearest first and then the ones in
+-- dungeons, three each at most; nil for the one it has none of.
+function W:DropSummary(recipeID)
+    local parts, all = { D = {}, O = {} }, self:DropsFor(recipeID)
+    local function Add(s)
+        local list = parts[s.kind]
+        if #list < 3 then list[#list + 1] = Label(s.name, s.area) end
+    end
+    for _, s in ipairs(W.SortNearest({ unpack(all) })) do Add(s) end
+    for _, s in ipairs(all.unplaced) do Add(s) end
+    return parts.D[1] and L["Dropped by: %s"]:format(table.concat(parts.D, ", ")) or nil,
+        parts.O[1] and L["Found in: %s"]:format(table.concat(parts.O, ", ")) or nil
+end
+
+-- Where a waypoint can lead for the recipe's drops: the creatures and objects on a zone map, and the entrance of
+-- each dungeon one of them stands in.
+function W:DropTargets(recipeID)
+    local all = self:DropsFor(recipeID)
+    local out = { unpack(all) }
+    for _, s in ipairs(all.unplaced) do
+        if s.uiMap then out[#out + 1] = s end
+    end
+    return out
+end
+
+-- The nearest known vendor of the recipe, else the nearest giver of a quest that rewards it, else the nearest
+-- creature or object that drops it (for one in a dungeon, the dungeon's entrance).
 local function GoToKnownVendor(e)
     local pick = W.PickNearest(W.KnownRecipeVendors(e.id))
+    if pick then
+        SetWaypoint(pick, pick.name, e.name)
+        return true
+    end
+    pick = W.PickNearest(W:QuestsFor(e.id))
+    if pick then
+        SetWaypoint(pick, pick.npc, e.name)
+        return true
+    end
+    pick = W.PickNearest(W:DropTargets(e.id))
     if pick then SetWaypoint(pick, pick.name, e.name) end
     return pick ~= nil
 end

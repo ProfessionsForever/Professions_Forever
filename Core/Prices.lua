@@ -2,6 +2,9 @@ local _, FP = ...
 local P = {}
 FP.Prices = P
 
+-- Prices: Auctionator's auction prices and how old they are, vendor prices, what a crafted reagent costs to make,
+-- and a recipe's cost and profit from them.
+
 local CALLER = "ProfessionsForever"
 
 local function API() return FP.db.useAuctionator and _G.Auctionator and Auctionator.API and Auctionator.API.v1 end

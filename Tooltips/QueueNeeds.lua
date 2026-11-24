@@ -154,7 +154,8 @@ end
 -- { { name, who } } } per item made, by name. The need is the shopping list's queue part that nobody holds yet.
 local function CraftsInto(itemID)
     local preview = Tips.preview
-    if preview then return preview.queue.craftsInto or {} end
+    -- The previewer's made-up lines are its reagent sample's, not the gear sample's
+    if preview then return itemID == preview.itemID and preview.queue.craftsInto or {} end
     local uses, byOut, out = FP.ReagentUses[itemID], {}, {}
     if not uses then return out end
     for recipe, count in uses:gmatch("(%d+),(%d+),%d+") do

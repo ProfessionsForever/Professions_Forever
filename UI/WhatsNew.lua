@@ -11,6 +11,14 @@ local UI = FP.UI
 
 -- [version] = { { icon (in Interface\\Icons), heading, text }, ... }. A version without an entry shows nothing.
 local NOTES = {
+    ["0.10.6"] = {
+        { "INV_Misc_Map_01", "Recipe Scout", "Enter a zone and a window lists the recipes there you haven't learned: from vendors, trainers, quests, and the creatures and chests that drop them, dungeons included, with the skill each needs. Click one to open it, right-click for a waypoint. Shift-click ignores one, the pin keeps the window open, and /pf scout opens it again. Options, General, Recipe Scout chooses what it lists." },
+        { "INV_Scroll_03", "Where Recipes Come From", "Recipe tooltips and the recipe panel now name the quest and quest giver for 103 quest recipes, and where a recipe drops. Ctrl-click sets a waypoint to the giver, the drop or the dungeon's entrance when no trainer or vendor is known. Limited supply follows what vendors really sell in Forever." },
+        { "INV_Misc_Coin_02", "Search the Auction House", "With the auction house open, a Search button in the recipe panel searches Auctionator's Shopping tab for what the recipe makes and all its reagents." },
+        { "Trade_Fishing", "Lure or No Lure", "One-Click Fishing has a lure key: hold Shift, Ctrl or Alt with the Fishing Key to cast without a lure, or, with Automatically Apply Your Best Lure off, to put one on just this once. Options, One-Click Fishing." },
+        { "INV_Misc_Note_01", "Your Language, Your Font", "The default font is now the game's own for your client's language, so Korean, Chinese and Russian text shows. Options, Theme, Font." },
+        { "INV_Misc_Gift_02", "And More", "Shift-click in the addon's windows only links or searches, as it does everywhere else; Shift-click a recipe to track it. Crates and Writs' Fill counts down, and a pile of fixes. The changelog has every detail." },
+    },
     ["0.10.5"] = {
         { "INV_Crate_01", "Crates and Writs", "A new window (footer, quick button or /pf crates) lists the Waylaid Crates and Craftsman's Writs your characters hold, the cheapest way to fill each, and what that costs per Merchant's Favor or per reputation. Queue, Shop and Waypoint buttons do the rest, and Buy Crates and Buy Writs show which ones are worth buying at the auction house. Crate and writ tooltips show the same." },
         { "INV_Misc_Book_09", "Who Teaches It, Who Sells It", "Trainers are now built in for 465 recipes, up from 32, and vendors for 725, no Questie needed. That includes Forever's own trainers and recipes, the dungeon trainers and the specialization trainers. Recipe tooltips show the skill and cost a trainer asks." },
@@ -95,7 +103,8 @@ local function Create()
     local f = CreateFrame("Frame", "ProfessionsForeverWhatsNew", UIParent, "BackdropTemplate")
     f:SetWidth(W)
     f:SetPoint("CENTER", 0, 40)
-    f:SetFrameStrata("DIALOG")
+    -- Strata: set each time it opens (UI:ShowWhatsNew). Toplevel brings it to the front on a click.
+    f:SetToplevel(true)
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
@@ -178,7 +187,7 @@ function UI:ShowWhatsNew(version)
         if not line then
             line = { head = UI:Text(f, 1), body = UI:Text(f, 0), icon = f:CreateTexture(nil, "ARTWORK") }
             line.icon:SetSize(ICON, ICON)
-            line.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- trims the icon's own border
+            UI.TrimIcon(line.icon)
             line.head:SetTextColor(1, 0.82, 0)
             line.body:SetTextColor(0.85, 0.85, 0.85)
             line.body:SetJustifyH("LEFT")
@@ -201,6 +210,11 @@ function UI:ShowWhatsNew(version)
         for _, t in pairs(f.lines[i]) do t:Hide() end
     end
     f:SetHeight(y + 24 + PAD + 4)
+    -- Opened from the options (About, What's New), it goes on the options window's strata, above it. Otherwise under
+    -- DIALOG, where other addons' own What's New windows and the game's popups come up at login too: sharing a strata
+    -- with them interleaves the two windows' layers.
+    local options = FP.Options.frame
+    f:SetFrameStrata(options and options:IsShown() and options:GetFrameStrata() or "HIGH")
     f:Show()
     f:Raise()
     return true

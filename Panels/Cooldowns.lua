@@ -3,6 +3,8 @@ local L = FP.L
 local Panel = {}
 FP.CooldownPanel = Panel
 
+-- The Cooldowns window: every character's recipe cooldowns (Core/Cooldowns.lua).
+
 local ROWS, ROW_H = 17, 22
 local REFRESH = 30 -- seconds between redraws while the panel is open
 
@@ -135,7 +137,7 @@ function Panel:Create()
             row.icon = row:CreateTexture(nil, "ARTWORK")
             row.icon:SetSize(ROW_H - 4, ROW_H - 4)
             row.icon:SetPoint("LEFT", 14, 0)
-            row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            UI.TrimIcon(row.icon)
             row.time = UI:Text(row, 0, "RIGHT")
             row.time:SetPoint("RIGHT", -6, 0)
             row.time:SetWidth(70)

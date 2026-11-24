@@ -73,12 +73,20 @@ function O.BuildAbout(page)
     O.ActionButton(page, L["What's New"], 160, function() UI:ShowWhatsNew() end)
 
     O.Section(page, L["Links"])
-    for _, link in ipairs(LINKS) do
-        O.Label(page, L[link.label])
-        local box = LinkBox(page, link.url, O.PAGE_W - O.CTRL_X - 8)
-        box:SetPoint("LEFT", page, "TOPLEFT", O.CTRL_X + 6, page.y - O.ROW_H / 2)
-        UI:EUIWidget(box, "editbox")
+    -- The labels are short, so the boxes start just past the widest one rather than at the controls' column, all at
+    -- the same x. The box's left border sits left of its text, hence the extra 6.
+    local rows, labelW = {}, 0
+    for i, link in ipairs(LINKS) do
+        local label = O.Label(page, L[link.label])
+        labelW = math.max(labelW, label:GetStringWidth())
+        rows[i] = page.y - O.ROW_H / 2
         page.y = page.y - O.ROW_H
+    end
+    local boxX = O.LABEL_X + math.ceil(labelW) + 16
+    for i, link in ipairs(LINKS) do
+        local box = LinkBox(page, link.url, O.PAGE_W - boxX - 8)
+        box:SetPoint("LEFT", page, "TOPLEFT", boxX + 6, rows[i])
+        UI:EUIWidget(box, "editbox")
     end
 
     O.Section(page, L["Credits"])

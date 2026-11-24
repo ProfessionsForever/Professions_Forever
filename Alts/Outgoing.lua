@@ -585,7 +585,7 @@ end)
 FP:RegisterEvent("MAIL_FAILED", function() sending = nil end)
 FP:RegisterEvent("MAIL_SHOW", function(self)
     -- Something to send, or something for the queue waiting to be collected.
-    if self.db.mailPrompt and (#self.Outgoing:Pending() > 0 or #self.Transfer.MailNeeds(self.Queue:TransferNeeds()) > 0) then
+    if self.db.mailPrompt and (#self.Outgoing:Pending() > 0 or #self.Planner.MailNeeds(self.Queue:TransferNeeds()) > 0) then
         self.UI:OpenSidePanelFor(self.Transfer, "mail") -- and it closes with the mailbox
     end
     self:Changed("sends") -- the Mail buttons follow the mailbox; the redraw comes a frame later, once it is shown
@@ -662,7 +662,7 @@ local function CollectStep()
     collecting = nil -- nothing more of what is wanted
 end
 
--- needs: { { itemID, qty } } (Transfer.MailNeeds). Returns false when there is nothing to take.
+-- needs: { { itemID, qty } } (FP.Planner.MailNeeds). Returns false when there is nothing to take.
 function Outgoing:Collect(needs)
     if collecting or not MailFrame:IsShown() then return false end
     local want, any = {}, false

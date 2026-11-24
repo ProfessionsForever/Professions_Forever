@@ -10,22 +10,27 @@ UI.CARD_H, UI.TILE_W, UI.TILE_H, UI.TILE_GAP = CARD_H, TILE_W, TILE_H, TILE_GAP
 local function RecipeRowHeight()
     return ROW_DENSITIES[FP.db.recipeDensity] or ROW_DENSITIES.normal
 end
+UI.RecipeRowHeight = RecipeRowHeight
 
 -- Same sound Blizzard's own tabs play.
 function UI.TabSound() PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
-UI.RecipeRowHeight = RecipeRowHeight
 
 -- The colour code for an { r, g, b } colour, from Blizzard's own helper.
 function UI.Hex(c) return RGBToColorCode(unpack(c)) end
 
--- Chat-link click (shift by default): puts the link in the active chat box. True when it did, so the click is spent.
+-- Chat-link click (shift by default): hands the link to the game, which puts it in the active chat box (and
+-- Auctionator's Shopping tab searches it). True whenever the modifier is held, so the click is spent and the row's
+-- own click doesn't run as well. The second result: whether a chat box took it.
 function UI.LinkToChat(link)
     if not (link and IsModifiedClick("CHATLINK")) then return false end
-    return ChatFrameUtil.InsertLink(link) and true or false
+    return true, ChatFrameUtil.InsertLink(link) and true or false
 end
 
 function UI.LinkItemToChat(itemID)
-    return itemID and UI.LinkToChat(select(2, C_Item.GetItemInfo(itemID))) or false
+    if not (itemID and IsModifiedClick("CHATLINK")) then return false end
+    local link = select(2, C_Item.GetItemInfo(itemID))
+    if link then ChatFrameUtil.InsertLink(link) end
+    return true
 end
 
 -- A framed icon beside the game tooltip; it hides whenever the tooltip is cleared so other tooltips never show it.
@@ -41,7 +46,7 @@ function UI:ShowTooltipIcon(texture)
         tipIcon.tex = tipIcon:CreateTexture(nil, "ARTWORK")
         tipIcon.tex:SetPoint("TOPLEFT", 3, -3)
         tipIcon.tex:SetPoint("BOTTOMRIGHT", -3, 3)
-        tipIcon.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(tipIcon.tex)
         GameTooltip:HookScript("OnTooltipCleared", function() tipIcon:Hide() end)
     end
     tipIcon:ClearAllPoints()
@@ -152,6 +157,7 @@ function UI.AddTrainerHint(tip, skillLine, rank, maxRank)
             or quest and L["Right-click: waypoint to the quest giver"] or L["Right-click: waypoint to the nearest trainer"], 0.5, 0.8, 1)
     end
 end
+
 -- Enum.TradeskillRelativeDifficulty: 0 optimal, 1 medium, 2 easy, 3 trivial
 local DIFF_COLORS = { [0] = { 1, 0.5, 0.25 }, [1] = { 1, 1, 0 }, [2] = { 0.25, 0.75, 0.25 }, [3] = { 0.55, 0.55, 0.55 } }
 local DIFF_LABELS = { [0] = "Skill Up: Optimal", [1] = "Skill Up: Medium", [2] = "Skill Up: Easy", [3] = "Skill Up: Trivial" }

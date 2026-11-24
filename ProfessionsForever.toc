@@ -4,7 +4,7 @@
 ## Author: Thorgrim Lightfist - PvE
 ## X-Email: professionsforever@gmail.com
 ## X-License: GPL-3.0-only
-## Version: 0.10.5
+## Version: 0.10.6
 ## Category: Professions
 ## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
 ## SavedVariables: ProfessionsForeverDB
@@ -54,7 +54,7 @@ UI\Common\ItemAutocomplete.lua
 UI\Common\CombatClose.lua
 UI\ExtraSpell.lua
 UI\ProfessionOpener.lua
-UI\Fishing.lua
+Core\Fishing.lua
 UI\Common\SidePanel.lua
 UI\Craft.lua
 UI\Shared.lua
@@ -84,6 +84,7 @@ Panels\Queue.lua
 Panels\QueueDrag.lua
 Panels\TransferRows.lua
 Panels\TransferPanel.lua
+Panels\TransferForm.lua
 Panels\Cooldowns.lua
 Panels\Camp.lua
 Panels\Orders.lua
@@ -97,6 +98,8 @@ Waypoints\WaypointRecord.lua
 Waypoints\WaypointVendors.lua
 Waypoints\WaypointTrainers.lua
 Waypoints\WaypointBankers.lua
+Core\ZoneRecipes.lua
+Panels\ZoneRecipes.lua
 UI\Options\OptionsControls.lua
 UI\Options\OptionsAlts.lua
 UI\Options\OptionsIntegrations.lua

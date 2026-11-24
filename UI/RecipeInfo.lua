@@ -13,6 +13,11 @@ local function TrainerWhere(trainer)
     return trainer.zone and ("%s (%s)"):format(trainer.npc, trainer.zone) or trainer.npc
 end
 
+-- "Quest: Klaven's Tower (Agent Kearnen)" for a quest that rewards a recipe (an FP.RecipeQuests entry).
+function UI.QuestSource(q)
+    return ("%s (%s)"):format(L["Quest: %s"]:format(q.quest), q.npc)
+end
+
 -- What the recipe makes, when it can be worn and so previewed.
 function UI.PreviewLink(recipeID)
     local output = FP.Recipes:OutputInfo(recipeID)
@@ -30,18 +35,28 @@ end
 
 -- A learned recipe is tracked in the game's own objective tracker (shows its reagents as you gather them);
 -- an unlearned one gets a waypoint to where it is learned.
-function UI.TrackRecipe(e)
-    if FP:IsReadOnly() then return end
-    if not e.learned then return FP.Waypoint:ForRecipe(e.id) end
+local function ToggleTracked(e)
     C_TradeSkillUI.SetRecipeTracked(e.id, not C_TradeSkillUI.IsRecipeTracked(e.id, false), false)
     UI:UpdateDetail()
 end
 
--- Chat-link click: link the thing, or track the recipe when no chat box takes it. True when the click was spent.
+function UI.TrackRecipe(e)
+    if FP:IsReadOnly() then return end
+    if not e.learned then return FP.Waypoint:ForRecipe(e.id) end
+    ToggleTracked(e)
+end
+
+-- Chat-link click: link the thing, or, as in Blizzard's window, track the recipe in the objective tracker (learned or
+-- not) when no chat box takes it. Not while the auction house is open: there the click is a search. True when the
+-- click was spent.
 function UI.LinkOrTrack(link, e)
-    if UI.LinkToChat(link) then return true end
-    if e and IsModifiedClick("RECIPEWATCHTOGGLE") then UI.TrackRecipe(e) return true end
-    return false
+    local held, inChat = UI.LinkToChat(link)
+    if inChat or held and AuctionHouseFrame and AuctionHouseFrame:IsShown() then return true end
+    if e and IsModifiedClick("RECIPEWATCHTOGGLE") then
+        if not FP:IsReadOnly() then ToggleTracked(e) end
+        return true
+    end
+    return held
 end
 
 -- Whether to show where a recipe comes from: always while unlearned, and once learned with the Tooltips option on.
@@ -76,12 +91,16 @@ end
 function UI.AddSourceLines(recipeID, learned, tip, pv)
     tip = tip or GameTooltip
     local src, trainers, sold, loading
+    local quests, dropped, found = {}, nil, nil
     if pv then
         trainers = pv.trainers
     else
         src = C_TradeSkillUI.GetRecipeSourceText(recipeID)
         trainers = FP.Waypoint:TrainersFor(recipeID)
         sold, loading = FP.Waypoint:Summary(recipeID)
+        quests = FP.Waypoint:QuestsFor(recipeID)
+        -- The game's own source text names a drop where it has one; the built-in drops are for where it has none.
+        if not (src and src ~= "") then dropped, found = FP.Waypoint:DropSummary(recipeID) end
     end
     local hasSrc = src and src ~= ""
     local trainer = trainers[1]
@@ -107,12 +126,19 @@ function UI.AddSourceLines(recipeID, learned, tip, pv)
     end
     if sold then tip:AddLine(L["Sold by: %s"]:format(sold), 1, 0.82, 0, true) end
     if loading then tip:AddLine(L["Looking up vendors..."], 0.6, 0.6, 0.6) end
-    if not (hasSrc or trainer or sold or loading) then
+    -- A quest that rewards it, and who gives the quest where.
+    for _, q in ipairs(quests) do
+        tip:AddLine(L["Quest: %s"]:format(q.quest), 1, 0.82, 0, true)
+        tip:AddLine(FP.Tooltips:Indent(1) .. L["Given by: %s"]:format(TrainerWhere(q)), 1, 1, 1, true)
+    end
+    if dropped then tip:AddLine(dropped, 1, 0.82, 0, true) end
+    if found then tip:AddLine(found, 1, 0.82, 0, true) end
+    if not (hasSrc or trainer or sold or loading or quests[1] or dropped or found) then
         tip:AddLine(L["Source not discovered yet"], 1, 0.82, 0)
         tip:AddLine(L["Visit a trainer for this profession and ProfessionsForever will remember what they teach."], 0.75, 0.75, 0.75, true)
         tip:AddLine(L["Recipes a trainer doesn't offer are usually sold by a vendor, dropped, or earned from a quest."], 0.6, 0.6, 0.6, true)
     end
-    if not learned and FP.Waypoint:Available(recipeID) and (trainer or sold) and not UI.PreviewLink(recipeID) then
+    if not learned and FP.Waypoint:Available(recipeID) and (trainer or sold or quests[1] or dropped or found) and not UI.PreviewLink(recipeID) then
         tip:AddLine(L["Ctrl-click: set a waypoint"], 0.5, 0.8, 1)
     end
 end
@@ -128,6 +154,10 @@ function UI.SourceSummary(recipeID)
     end
     local sold, loading = FP.Waypoint:Summary(recipeID)
     if sold then return L["Sold by: %s"]:format(sold), true end
+    local quest = FP.Waypoint:QuestsFor(recipeID)[1]
+    if quest then return UI.QuestSource(quest), true end
+    local dropped, found = FP.Waypoint:DropSummary(recipeID)
+    if dropped or found then return dropped or found, true end
     if loading then return L["Looking up vendors..."], false end
     return L["Location not currently known"], false
 end

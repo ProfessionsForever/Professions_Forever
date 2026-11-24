@@ -38,7 +38,8 @@ local function FromLibrary()
     local npc, item = lib.Npc, lib.Item
     -- The id maps are replaced when corrections change, so they are read fresh each time.
     local db = setmetatable({
-        QueryNPCSingle = npc.Get, QueryItemSingle = item.Get, IsFriendlyToPlayer = IsFriendlyToPlayer,
+        QueryNPCSingle = npc.Get, QueryItemSingle = item.Get,
+        IsFriendlyToPlayer = IsFriendlyToPlayer,
     }, { __index = function(_, k)
         if k == "NPCPointers" then return npc.GetAllIds(true) end
         if k == "ItemPointers" then return item.GetAllIds(true) end
@@ -122,7 +123,8 @@ function W:Available(recipeID)
     if not Navigator() then return false end
     if Questie() then return true end
     local e = recipeID and FP.Recipes.byID[recipeID]
-    return e ~= nil and (#W:TrainersFor(recipeID) > 0 or #W.KnownRecipeVendors(recipeID) > 0)
+    return e ~= nil and (#W:TrainersFor(recipeID) > 0 or #W.KnownRecipeVendors(recipeID) > 0 or #W:QuestsFor(recipeID) > 0
+        or #W:DropTargets(recipeID) > 0)
 end
 
 local function WorldPos(uiMap, x, y)

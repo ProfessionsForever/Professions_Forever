@@ -2,7 +2,7 @@
 -- Spawns, trainer spell lists and vendor stock: cmangos/classic-db (GPL-3.0), commit c33f90b8eeb3f8bacb53d5cbfee45075c80b416c.
 -- Forever's own trainers: advocaite/TrinityCore ForeverTDB (GPL-2.0 or later), release forever-tdb-2026-10-14.
 -- Forever's own recipe vendors: foreverfraddons/forever-db (GPL-3.0), commit 7cbe0ad546f82b45cc8849534f829b9ce4e1446c.
--- Spells, skills, factions and maps: wago.tools DB2 tables (product wowf, build 1.60.1.70938).
+-- Spells, skills, factions and maps: wago.tools DB2 tables (product wowf, build 1.60.1.71037).
 local _, FP = ...
 
 FP.ClassicNpcs = {
@@ -833,11 +833,6 @@ FP.ClassicNpcs = {
         [17070] = { npc = "Apothecary Quinard", zone = "Silithus", uiMap = 1451, x = 0.5080, y = 0.6970, horde = true },
         [17598] = { npc = "Renn'az", sub = "Ammunition Vendor", zone = "The Hinterlands", uiMap = 1425, x = 0.7685, y = 0.8140, horde = true, items = ",3030," },
         [32287] = { npc = "Archmage Alvareaux", sub = "Quartermaster", zone = "Alterac Mountains", uiMap = 1416, x = 0.1400, y = 0.6330, alliance = true },
-        [214070] = { npc = "Jornah", sub = "Supply Officer", zone = "Orgrimmar", uiMap = 1454, x = 0.5140, y = 0.6380, horde = true },
-        [214096] = { npc = "Dokimi", sub = "Supply Officer", zone = "Thunder Bluff", uiMap = 1456, x = 0.3940, y = 0.5340, horde = true },
-        [214098] = { npc = "Gishah", sub = "Supply Officer", zone = "Undercity", uiMap = 1458, x = 0.6440, y = 0.3840, horde = true },
-        [214099] = { npc = "Tamelyn Aldridge", sub = "Supply Officer", zone = "Ironforge", uiMap = 1455, x = 0.2440, y = 0.6740, alliance = true },
-        [214101] = { npc = "Marcy Baker", sub = "Supply Officer", zone = "Darnassus", uiMap = 1457, x = 0.5920, y = 0.5660, alliance = true },
         [222261] = { npc = "Maximillian \"The Greaser\"", zone = "Thousand Needles", uiMap = 1441, x = 0.7980, y = 0.7720, alliance = true, horde = true },
         [227853] = { npc = "Pix Xizzix", sub = "Undermine Trader", zone = "Stranglethorn Vale", uiMap = 1434, x = 0.2850, y = 0.7590, alliance = true, horde = true },
         [248196] = { npc = "Apothecary Durelle", sub = "Alchemist", zone = "The Barrens", uiMap = 1413, x = 0.4990, y = 0.2960, horde = true },

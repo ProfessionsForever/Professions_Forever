@@ -25,6 +25,7 @@ QUESTIE_COMMIT = "4f628e8328ed8923ffba169c8b432996e0a7a326"
 QUESTIE_BASE = "data/Forever/foreverItemDB.lua"
 # Applied over the base in this order, as QuestieDB does: its generated Forever delta, its hand-written fixes, traces.
 QUESTIE_DELTAS = ("src/corrections/Forever/generated/foreverBaseItem.lua", "src/corrections/Forever/foreverItemFixes.lua")
+QUESTIE_DUNGEONS = "support/Forever/Zones/dungeons.lua"  # where each dungeon's entrance is, in Forever percentages
 QUESTIE_TRACES = "src/corrections/Forever/traces/foreverItemTraces.lua"
 # QuestieDB.itemKeys: the field of an item's entry -> the kind of source it lists.
 QUESTIE_FIELDS = {"npcDrops": "D", "objectDrops": "O", "questRewards": "Q", "vendors": "V"}
@@ -36,8 +37,12 @@ FOREVER_DB_FILES = ("ForeverDB/ForeverDB.lua", "ForeverDB/ForeverDB_3.lua", "For
                     "ForeverDB_Full/ForeverDB_Full_2.lua", "ForeverDB_Full/ForeverDB_Full_3.lua",
                     "ForeverDB_Full/ForeverDB_Full_4.lua", "ForeverDB_Full/ForeverDB_Full_5.lua")
 # Its tables read here: vendors, creature drops, object drops and quest rewards per item; an NPC's name, the side it is
-# friendly to and its spots on Forever's maps (uiMap -> x, y, ... in thousandths).
-FOREVER_DB_TABLES = {"vend": "V", "drop": "D", "odrop": "O", "rew": "Q", "npc": None, "nfac": None, "spz": None}
+# friendly to and its spots on Forever's maps (uiMap -> x, y, ... in thousandths); a quest's name and levels, who gives
+# it ("c" creature or "o" object, then the id) and who may take it; an object's name.
+FOREVER_DB_TABLES = {"vend": "V", "drop": "D", "odrop": "O", "rew": "Q", "npc": None, "nfac": None, "spz": None,
+                     "quest": None, "qg": None, "qx": None, "obj": None}
+# A quest's first qx value: the side in the high 32 bits (1 Alliance, 2 Horde, 0 by race), the races in the low ones.
+ALLIANCE_RACES, HORDE_RACES = 77, 178
 
 TABLES = ("SkillLineAbility", "SpellReagents", "SpellEffect", "ItemEffect", "ItemXItemEffect")
 LEARN_TRIGGER = "6"  # ItemEffect.TriggerType of a recipe item's "learn" effect
@@ -105,6 +110,12 @@ def recipe_items(tables, recipe_spells):
     return {int(r["ItemID"]): effects[r["ItemEffectID"]] for r in rows(tables["ItemXItemEffect"]) if r["ItemEffectID"] in effects}
 
 
+# Season of Discovery's Supply Officers, carried over in QuestieDB's base and forever-db with the recipes they sold
+# there. Forever's own Supply Officers have their own ids (256384, 256389), stand elsewhere and sell no recipes
+# (Tamelyn Aldridge seen in game, 2026-11-21: Redridge Mountains, three Merchant's Favor items).
+SOD_SUPPLY_OFFICERS = {213077, 214070, 214096, 214098, 214099, 214101}
+
+
 class Sources:
     """{recipe spell: {kind: {id: source code}}}: each source keeps the code of the best source that has it."""
 
@@ -114,6 +125,8 @@ class Sources:
         self.limited = set()  # (spell, vendor) whose supply of the recipe is limited
 
     def add(self, spell, kind, source_id, code, chance=0):
+        if kind in "VLD" and source_id in SOD_SUPPLY_OFFICERS:
+            return
         if kind == "L":
             kind = "V"
             self.limited.add((spell, source_id))
@@ -178,6 +191,15 @@ def questie(item_spell, sources):
     return count
 
 
+def dungeon_doors():
+    """QuestieDB's dungeon entrances: [(the dungeon's area ID, its name, its other area IDs, the zone's area ID, x, y)],
+    x and y in hundredths of the zone's map. The first entrance of each; a battleground's depends on the side and is left out."""
+    text = open(cached_file(QUESTIE, QUESTIE_COMMIT, QUESTIE_DUNGEONS), encoding="utf-8").read()
+    entry = re.compile(r'^\s*\[(\d+)\] = \{"([^"]*)",(?:nil|\{([\d,]*)\}),\d+,\{\{(\d+), ?([\d.]+), ?([\d.]+)\}', re.M)
+    return [(int(m[1]), m[2], [int(a) for a in (m[3] or "").split(",") if a], int(m[4]), float(m[5]), float(m[6]))
+            for m in entry.finditer(text)]
+
+
 class ForeverDB:
     """forever-db's tables as { table: { key: the Lua text of its value } }, parsed when asked for."""
 
@@ -215,6 +237,30 @@ class ForeverDB:
             if name and side and ui in zones:
                 return {"npc": name[0], "sub": name[1], "zone": zones[ui], "uiMap": ui, "x": spots[ui][0] / 1000,
                         "y": spots[ui][1] / 1000, "alliance": "A" in side, "horde": "H" in side}
+
+    def dropper(self, source_id, is_object, zones):
+        """A creature that drops a recipe or an object that holds one: its name, the sides it is friendly to ("A",
+        "H", "AH" or ""), and a spot (ui map, x, y in thousandths) on each zone map it stands on. No spot in a dungeon."""
+        name = self.get("obj" if is_object else "npc", source_id)
+        side = "" if is_object else self.get("nfac", source_id) or ""
+        spots = self.get("spz", f"{'o' if is_object else 'c'}{source_id}") or {}
+        return name[0], side, [(ui, spots[ui][0], spots[ui][1]) for ui in sorted(spots) if ui in zones and spots[ui]]
+
+    def quest(self, quest_id, zones):
+        """A quest's entry for FP.RecipeQuests on the first zone map a giver of it has a spot on, or None: its name,
+        the level it asks, the sides that may take it, and who gives it where. A quest an item starts has no place."""
+        info, extra = self.get("quest", quest_id), self.get("qx", quest_id)
+        who = extra[0] if extra and isinstance(extra[0], int) else 0
+        side, races = who >> 32, who & 0xffffffff
+        for giver in self.get("qg", quest_id) or ():
+            name = giver[0] in "co" and self.get("npc" if giver[0] == "c" else "obj", giver[1:])
+            spots = self.get("spz", giver) or {}
+            for ui in sorted(spots):
+                if info and name and ui in zones:
+                    return {"quest": info[0], "level": info[2], "npc": name[0], "zone": zones[ui], "uiMap": ui,
+                            "x": spots[ui][0] / 1000, "y": spots[ui][1] / 1000,
+                            "alliance": side == 1 or side == 0 and (not races or bool(races & ALLIANCE_RACES)),
+                            "horde": side == 2 or side == 0 and (not races or bool(races & HORDE_RACES))}
 
 
 def tags(tables, recipe_spells, classic_spells, classic_learn, forever_learn):

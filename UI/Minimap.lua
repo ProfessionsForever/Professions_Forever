@@ -3,6 +3,8 @@ local L = FP.L
 local M = {}
 FP.Minimap = M
 
+-- The minimap button.
+
 function M:Position()
     local a = math.rad(FP.db.minimap.angle)
     local r = Minimap:GetWidth() / 2 + 5

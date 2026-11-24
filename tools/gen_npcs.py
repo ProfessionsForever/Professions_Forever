@@ -46,12 +46,12 @@ TARGET = ROOT / "Data" / "ClassicNpcs.lua"
 SOURCES = ROOT / "Data" / "RecipeSources.lua"
 RECIPES = ROOT / "Data" / "Recipes.lua"
 
-WAGO_TABLES = ("UiMap", "UiMapAssignment", "FactionTemplate", "SkillLine", "SkillLineAbility", "SpellName", "AreaTable",
+WAGO_TABLES = ("UiMap", "UiMapAssignment", "FactionTemplate", "SkillLine", "SkillLineAbility", "SpellName", "AreaTable", "Map",
                *recipe_sources.TABLES)
 SQL_TABLES = ("creature", "creature_template", "npc_trainer", "npc_trainer_template", "npc_vendor",
-              "npc_vendor_template", "item_template", "disenchant_loot_template", "spell_template", "areatrigger_teleport")
+              "npc_vendor_template", "item_template", "disenchant_loot_template", "spell_template", "areatrigger_teleport", "gameobject")
 
-TDB_TABLES = ("trainer_spell", "creature_trainer", "creature", "creature_template")
+TDB_TABLES = ("trainer_spell", "creature_trainer", "creature", "creature_template", "gameobject")
 FOREVER_BUILDS = 70000  # a ForeverTDB row's VerifiedBuild from here up was seen on a Forever client (1.60.1.70124, ...)
 
 FLAG_VENDOR, FLAG_TRAINER, FLAG_BANKER = 0x4, 0x10, 0x100  # UNIT_NPC_FLAG_* of the 1.12 client
@@ -259,6 +259,8 @@ def generate(tables, sql, tdb):
         npc = templates.get(str(faction))
         return {side: not (npc and hostile_to(p, npc)) for side, p in players.items()}
 
+    # recipe spell -> the spell each of its 1.12 trainers only teaches to those who know it (0: to anyone)
+    classic_spec = {}
     out = {"trainers": {}, "bankers": {}, "vendors": {}, "artisan": {}}
     for t in records(sql["creature_template"]):
         flags = t["NpcFlags"]
@@ -296,6 +298,7 @@ def generate(tables, sql, tdb):
                 out["trainers"][t["Entry"]] = entry
                 for s in taught & recipes.keys():
                     sources.add(s, "T", t["Entry"], "c")
+                    classic_spec.setdefault(s, set()).add(t["TrainerSpell"])
         if flags & FLAG_BANKER:
             out["bankers"][t["Entry"]] = dict(entry)
         if flags & FLAG_VENDOR:
@@ -311,8 +314,14 @@ def generate(tables, sql, tdb):
 
     # ForeverTDB: trainer list -> {recipe spell: (skill, cost)} of the rows seen on a Forever build.
     forever, forever_learn = {}, {}
+    # recipe spell -> the specialization a trainer asks for it (Goblin Engineer): every 1.12 trainer of the recipe
+    # teaches only its specialists, or a trainer list asks for the ability.
+    known_specs = specializations()
+    specs = {spell: next(iter(asked)) for spell, asked in classic_spec.items() if len(asked) == 1 and 0 not in asked}
     for r in records(tdb["trainer_spell"]):
         spell = r["SpellId"]
+        if spell in recipes:
+            specs.update({spell: r[f"ReqAbility{i}"] for i in "123" if r[f"ReqAbility{i}"] in known_specs})
         if r["VerifiedBuild"] >= FOREVER_BUILDS and spell in recipes:
             learn = forever.setdefault(r["TrainerId"], {})[spell] = (r["ReqSkillRank"], r["MoneyCost"])
             forever_learn[spell] = min(learn, forever_learn.get(spell, learn))
@@ -355,12 +364,57 @@ def generate(tables, sql, tdb):
             entry = npc_id not in out["vendors"] and forever_db.npc(npc_id, maps.zones)
             if entry:
                 out["vendors"][npc_id] = entry
+    # Where each quest that rewards a recipe is given, from forever-db.
+    quests = {}
+    for by_kind in sources.by_spell.values():
+        for quest_id in by_kind.get("Q", ()):
+            entry = quest_id not in quests and forever_db.quest(quest_id, maps.zones)
+            if entry:
+                quests[quest_id] = entry
+    stats["recipe quests placed"] = len(quests)
+    # Who drops or holds each recipe, for the sources the file lists, from forever-db.
+    # The dungeons, raids and battlegrounds each of them stands in, from the spawns of classic-db and ForeverTDB.
+    instances = {int(r["ID"]): r["MapName_lang"] for r in rows(tables["Map"]) if r["InstanceType"] != "0"}
+    inside = {"D": {}, "O": {}}
+    for kind, table in (("D", "creature"), ("O", "gameobject")):
+        for dump in (sql, tdb):
+            for r in records(dump[table]):
+                if r["map"] in instances:
+                    inside[kind].setdefault(r["id"], set()).add(r["map"])
+    droppers = {"D": {}, "O": {}}
+    for spell in sources.by_spell:
+        for part in sources.text(spell).split(";"):
+            if part[:1] in droppers and ":" in part:
+                for source_id in map(int, part.split(":")[1].split(",")):
+                    if source_id not in droppers[part[0]]:
+                        droppers[part[0]][source_id] = (*forever_db.dropper(source_id, part[0] == "O", maps.zones),
+                                                         sorted(inside[part[0]].get(source_id, ())))
+    stats["droppers"] = sum(len(d) for d in droppers.values())
+    stats["droppers placed"] = sum(1 for d in droppers.values() for e in d.values() if e[2])
+    stats["droppers in a dungeon"] = sum(1 for d in droppers.values() for e in d.values() if e[3])
+    # Each of those dungeons, and its entrance on a zone map from QuestieDB: matched by the areas the client puts on
+    # the instance's map, else by name.
+    areas_on = {}
+    for r in rows(tables["AreaTable"]):
+        areas_on.setdefault(int(r["ContinentID"]), set()).add(int(r["ID"]))
+    area_ui = {}
+    for r in rows(tables["UiMapAssignment"]):
+        if int(r["UiMapID"]) in maps.zones and r["AreaID"] != "0":
+            area_ui.setdefault(int(r["AreaID"]), int(r["UiMapID"]))
+    doors = [d for d in recipe_sources.dungeon_doors() if d[3] in area_ui]
+    dungeons = {}
+    for m in sorted({m for d in droppers.values() for e in d.values() for m in e[3]}):
+        here = areas_on.get(m, set())
+        door = next((d for d in doors if here & {d[0], *d[2]}), None) or next((d for d in doors if d[1] == instances[m]), None)
+        dungeons[m] = {"name": instances[m], **({"uiMap": area_ui[door[3]], "x": door[4] / 100, "y": door[5] / 100} if door else {})}
+    stats["dungeons with an entrance"] = sum(1 for d in dungeons.values() if "uiMap" in d)
     tagged = recipe_sources.tags(tables, recipes, classic_spells, classic_learn, forever_learn)
     stats.update({"recipes": len(recipes), "in 1.12": len(classic_spells), "with a source": len(sources.by_spell)})
     for kind in "TVDOQ":
         stats[f"with {kind}"] = sum(1 for by_kind in sources.by_spell.values() if by_kind.get(kind))
     stats.update({"new in Forever": sum(1 for t in tagged.values() if t == "N"), "changed in Forever": sum(1 for t in tagged.values() if t != "N")})
-    return out, sources, trainer_learn, tagged, item_spell, stats
+    stats["recipes asking a specialization"] = len(specs)
+    return out, sources, trainer_learn, tagged, item_spell, quests, specs, (droppers, dungeons), stats
 
 
 def lua_string(text):
@@ -390,7 +444,7 @@ def credits():
         f"-- Trainers, vendors and their limited supplies: {CLASSIC_DB} (GPL-3.0), commit {COMMIT}.",
         f"-- Forever's own trainers, and the skill and cost to learn a recipe seen on a Forever build: {TDB} ForeverTDB (GPL-2.0 or later), release {TDB_TAG}.",
         f"-- Vendors, drops, objects and quest rewards: {recipe_sources.FOREVER_DB} (GPL-3.0), commit {recipe_sources.FOREVER_DB_COMMIT},",
-        f"-- and QuestieDB ({recipe_sources.QUESTIE}, commit {recipe_sources.QUESTIE_COMMIT}), whose team allows copying under the",
+        f"-- and QuestieDB ({recipe_sources.QUESTIE}, commit {recipe_sources.QUESTIE_COMMIT}; also the dungeon entrances), whose team allows copying under the",
         "-- GPLv3 terms. QuestieDB's data will be removed from this file on request.",
     ]
 
@@ -404,6 +458,59 @@ def render_learn(trainer_learn):
     for spell in sorted(trainer_learn):
         skill, cost, seen = trainer_learn[spell]
         lines.append(f"    [{spell}] = {{ {skill}, {cost}{', true' if seen else ''} }},")
+    return "\n".join(lines + ["}"]) + "\n"
+
+
+def render_quests(quests):
+    lines = [
+        "",
+        "-- [quest ID] = the quest that rewards a recipe (a \"Q\" source above) and who gives it where: its name in English,",
+        "-- the level it asks, the giver (npc, an NPC or an object) and the sides that may take it.",
+        "FP.RecipeQuests = {",
+    ]
+    for quest_id in sorted(quests):
+        e = quests[quest_id]
+        lines.append(f"    [{quest_id}] = {{ quest = {lua_string(e['quest'])}, level = {e['level']}, {entry_text(e)[2:]},")
+    return "\n".join(lines + ["}"]) + "\n"
+
+
+def render_droppers(droppers, dungeons):
+    lines = [
+        "",
+        "-- Who drops or holds the recipes above (their \"D\" and \"O\" sources): [ID] = \"name^the sides it is friendly to",
+        "-- (A, H)^ui map:x:y;...;d36;...\": a spot on each zone map it stands on, in thousandths of the map, and each",
+        "-- dungeon, raid or battleground it stands in (d and the instance's map ID, as GetInstanceInfo gives it).",
+    ]
+    for kind, table in (("D", "FP.DropCreatures"), ("O", "FP.DropObjects")):
+        lines.append(f"{table} = {{")
+        for source_id in sorted(droppers[kind]):
+            name, side, spots, maps = droppers[kind][source_id]
+            text = f"{name}^{side}^" + ";".join([f"{ui}:{x}:{y}" for ui, x, y in spots] + [f"d{m}" for m in maps])
+            lines.append(f"    [{source_id}] = {lua_string(text)},")
+        lines.append("}")
+    lines += ["", "-- [instance map ID] = a dungeon, raid or battleground named above: its name in English, and where its entrance",
+              "-- is on a zone map (none for a battleground)", "FP.Dungeons = {"]
+    for m in sorted(dungeons):
+        d = dungeons[m]
+        door = f", uiMap = {d['uiMap']}, x = {d['x']:.4f}, y = {d['y']:.4f}" if "uiMap" in d else ""
+        lines.append(f"    [{m}] = {{ name = {lua_string(d['name'])}{door} }},")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def specializations():
+    """The specialization spells of every profession, from Data/Recipes.lua (FP.Specializations)."""
+    block = RECIPES.read_text(encoding="utf-8").split("FP.Specializations = {")[1].split("\n}")[0]
+    return {int(v) for line in block.splitlines() for v in re.findall(r"\d+", line.split("=", 1)[-1].split("--")[0])}
+
+
+def render_specs(specs):
+    lines = [
+        "",
+        "-- [recipe spell ID] = the specialization spell a character must know to learn the recipe (Goblin Engineer)",
+        "FP.RecipeSpecialization = {",
+    ]
+    lines += [f"    [{spell}] = {specs[spell]}," for spell in sorted(specs)]
     return "\n".join(lines + ["}"]) + "\n"
 
 
@@ -439,10 +546,11 @@ def main():
     tables = {t: cached_table(build, t, args.refresh) for t in WAGO_TABLES}
     download_dump(args.refresh)
     download_tdb()
-    out, sources, trainer_learn, tagged, item_spell, stats = generate(tables, load_dump(DUMP_CACHE, SQL_TABLES), load_dump(TDB_CACHE, TDB_TABLES))
+    out, sources, trainer_learn, tagged, item_spell, quests, specs, droppers, stats = generate(tables, load_dump(DUMP_CACHE, SQL_TABLES), load_dump(TDB_CACHE, TDB_TABLES))
     print(f"build {build}: " + ", ".join(f"{v} {k}" for k, v in stats.items()))
     texts = {TARGET: render(out, build),
-             SOURCES: recipe_sources.render(sources, tagged, item_spell, build, credits()) + render_learn(trainer_learn)}
+             SOURCES: recipe_sources.render(sources, tagged, item_spell, build, credits()) + render_learn(trainer_learn)
+                      + render_quests(quests) + render_specs(specs) + render_droppers(*droppers)}
     for target, text in texts.items():
         old = target.read_text(encoding="utf-8") if target.exists() else ""
         target.write_text(text, encoding="utf-8")

@@ -4,6 +4,8 @@ local UI = FP.UI
 local CARD_H, TILE_W, TILE_H, TILE_GAP = UI.CARD_H, UI.TILE_W, UI.TILE_H, UI.TILE_GAP
 local PreviewLink, FillCostTip, FillProfitTip = UI.PreviewLink, UI.FillCostTip, UI.FillProfitTip
 
+-- Building the recipe panel: its header, tiles, reagent area and action buttons. UI/Detail.lua fills it.
+
 local function SelectedRecipe()
     return FP.selected and FP.Recipes.byID[FP.selected]
 end
@@ -217,7 +219,8 @@ function UI:CreateDetailActions(d, c)
     d.qtyLabel = ql
     ql:SetPoint("BOTTOMLEFT", 12, 18)
     ql:SetText(L["Qty:"])
-    d.qty = CreateFrame("EditBox", "ProfessionsForeverQty", c, "InputBoxTemplate")
+    -- Unnamed, like the addon's other boxes: Auctionator skips its Shift-click search while a named box has the focus.
+    d.qty = CreateFrame("EditBox", nil, c, "InputBoxTemplate")
     d.qty:SetSize(36, 20)
     d.qty:SetPoint("LEFT", ql, "RIGHT", 34, 0)
     self:EUIWidget(d.qty, "numbox")
@@ -326,6 +329,49 @@ function UI:CreateDetailActions(d, c)
         if not FP.Waypoint:NavAvailable() then tip:AddLine(L["Polestar or TomTom is needed for waypoints."], 0.6, 0.6, 0.6, true) end
     end)
     self:CreateEnchantTarget(d, c)
+
+    -- Search: Auctionator's own button on Blizzard's profession window, which this window replaces. While the auction
+    -- house is open it fills Auctionator's Shopping tab with what the recipe makes and each of its reagents.
+    d.search = self:Button(c, L["Search"], 80, 24, function() UI.SearchReagents(FP.selected) end)
+    d.search:SetPoint("BOTTOMRIGHT", -12, 18)
+    self:Tooltip(d.search, "ANCHOR_TOP", function(tip)
+        tip:AddLine(L["Search the Auction House"], 1, 1, 1)
+        tip:AddLine(L["Searches Auctionator's Shopping tab for what this recipe makes and each of its reagents."], 0.8, 0.8, 0.8, true)
+    end)
+    d.search:Hide()
+end
+
+local function AuctionHouseOpen() return AuctionHouseFrame and AuctionHouseFrame:IsShown() end
+
+-- Shown while the auction house is open, Auctionator is loaded, the option is on and the recipe has reagents.
+function UI:UpdateSearchButton()
+    local d = self.frame and self.frame.detail
+    if not d then return end
+    local A = _G.Auctionator
+    local shown = FP.db.ahSearchButton and AuctionHouseOpen() and A and A.API and A.API.v1 and FP.selected
+        and #FP.Recipes:GetReagents(FP.selected) > 0 and true or false
+    d.search:SetShown(shown)
+    -- Why another character's recipe can't be crafted here: the line along the bottom stops short of the button.
+    if shown then d.readOnly:SetPoint("RIGHT", d.search, "LEFT", -8, 0) else d.readOnly:SetPoint("RIGHT", d.content, "RIGHT", -12, 0) end
+end
+FP:RegisterEvent("AUCTION_HOUSE_SHOW", function() UI:UpdateSearchButton() end)
+FP:RegisterEvent("AUCTION_HOUSE_CLOSED", function() UI:UpdateSearchButton() end)
+
+-- Searches Auctionator's Shopping tab for the recipe's item and reagents, once the game has loaded their names.
+function UI.SearchReagents(recipeID)
+    if not (recipeID and AuctionHouseOpen()) then return end
+    local ids = {}
+    local made = FP.Recipes:OutputItemID(recipeID)
+    if made then ids[1] = made end
+    for _, r in ipairs(FP.Recipes:GetReagents(recipeID)) do ids[#ids + 1] = r.itemID end
+    local items = ContinuableContainer:Create()
+    for _, id in ipairs(ids) do items:AddContinuable(Item:CreateFromItemID(id)) end
+    items:ContinueOnLoad(function()
+        if not AuctionHouseOpen() then return end
+        local terms = {}
+        for _, id in ipairs(ids) do terms[#terms + 1] = C_Item.GetItemNameByID(id) end
+        Auctionator.API.v1.MultiSearchExact("ProfessionsForever", terms)
+    end)
 end
 
 -- The enchant target picker, shown only for enchants.
@@ -338,7 +384,7 @@ function UI:CreateEnchantTarget(d, c)
     d.target.icon = d.target:CreateTexture(nil, "ARTWORK")
     d.target.icon:SetPoint("TOPLEFT", 3, -3)
     d.target.icon:SetPoint("BOTTOMRIGHT", -3, 3)
-    d.target.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    UI.TrimIcon(d.target.icon)
     d.target.plus = self:Text(d.target, 8, "CENTER")
     d.target.plus:SetPoint("CENTER")
     d.target.plus:SetText("+")

@@ -206,7 +206,6 @@ end
 
 -- Resize grip, and the re-layout while resizing.
 function UI:CreateResizeGrip(f)
-    -- Resize grip
     local grip = CreateFrame("Button", "ProfessionsForeverResizeGrip", f)
     grip:SetSize(16, 16)
     grip:SetPoint("BOTTOMRIGHT", -2, 2)

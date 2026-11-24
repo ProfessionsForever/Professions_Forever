@@ -28,9 +28,10 @@ Recipe browser
 - Row spacing drop-down: compact, normal, roomy or spacious rows.
 - Recipes are coloured by skill up difficulty, with a status stripe for materials: bags, bank, partial or none. Learned recipes show their skill up chance (such as 75%). A glowing infinity marks recipes that are new in Forever (gold) or changed in Forever (blue).
 - The recipe you last clicked in each profession is selected again when you come back to it.
-- Hover a recipe to see where it comes from: every trainer of your faction known to teach it, nearest first (up to 5, then "+N more"), or the vendors that sell it. The recipe panel names the nearest trainer, with how many others. Trainers are matched by the recipe's name or by the item it makes (Smelt Steel is listed as "Steel Bar").
+- Hover a recipe to see where it comes from: every trainer of your faction known to teach it, nearest first (up to 5, then "+N more"), the vendors that sell it, the quest that rewards it and who gives it, or the creatures, chests and dungeons it drops in. The recipe panel names the nearest trainer, with how many others. Trainers are matched by the recipe's name or by the item it makes (Smelt Steel is listed as "Steel Bar").
 - Unlearned recipes show the skill they need ("Requires skill 150"). The recipe icon in the panel shows how many items one craft makes ("2", or "2-4").
 - Ctrl-click a recipe, or its icon in the detail panel, to preview what it makes in the dressing room when it can be worn.
+- Shift-click a recipe to link it in chat, or with no chat box open to track it in the objective tracker, learned or not, as Blizzard's window does. At the auction house it searches Auctionator's Shopping tab. Everywhere in the addon's windows, Shift-click only links or searches.
 
 Reagent cards
 - Every reagent shows have / need, plus how much sits in your bank.
@@ -118,9 +119,18 @@ Crates and Writs
 - Crate and writ tooltips in your bags show the same pay and fills (Options, Tooltips, Crates and Writs).
 - The crates and writs come from Data/Orders.lua, generated from the game's data and forever-db by tools/gen_orders.py. 29 writs have no customer on record; yours is remembered when you hand one in.
 
+Recipe Scout
+- Entering a zone opens the Recipe Scout window, once per zone each session, listing the recipes you have not learned that you can get there: sold by a vendor (marked Limited Supply when the vendor's stock runs out), taught by a trainer once your skill is high enough, rewarded by a quest you can take, or dropped by a creature or held by a chest or other object. Inside a dungeon or raid it lists what its creatures and chests drop. /pf scout opens it again.
+- Each recipe shows the skill it needs and where it comes from. Click one to open it, right-click for a waypoint to its vendor, trainer, quest giver or drop. Shift-click ignores a recipe in that zone for this character; Show Ignored lists them again.
+- A recipe you already bought and have not learned says whether it is in your bags, bank or mailbox, and does not open the window on its own. Recipes of a specialization you do not have (Goblin Engineer, Weaponsmith and the like) and creatures friendly to your side are left out. Darkmoon Faire merchants are listed only while the faire is in that zone, and Winter Veil vendors only during the Feast of Winter Veil.
+- The Drops dropdown lists all drops, only the recipes that drop nowhere but in this zone, or none. The window reopens where you dragged it, and its pin keeps it open and lists each zone you enter.
+- Opening a vendor records which recipes it sells in a limited supply, and the window follows that over the built-in data.
+- Options, General, Recipe Scout turns off opening on its own and chooses what it lists: vendors, limited supply, trainers, quests, drops, and recipes you already have.
+
 One-Click Fishing
 - Bind a key under Options, One-Click Fishing (or the game's Key Bindings). Press it to cast, and again to catch when the fish bites. It only catches your bobber, never a nearby NPC.
 - A press gets you ready first: it puts on your fishing gear set (picked per character), your best pole and your best lure, then casts. Each step can be turned off, and chat says what was equipped.
+- Skip the Lure While Holding (Shift, Ctrl or Alt): that key held with the Fishing Key casts without putting a lure on. With Automatically Apply Your Best Lure off it becomes Add a Lure While Holding, putting your best lure on just for that press. It works when the Fishing Key with that modifier is bound to nothing else.
 - Your normal gear goes back on when you mount, after a while without fishing (2 minutes by default) or when combat ends, each an option; or press the Swap Back key or type /pf swapback.
 - Louder Fishing Sounds turns sound effects up while your line is out and puts your settings back after. It can also mute music and ambience, and keep sound on in the background.
 
@@ -146,7 +156,7 @@ Navigation (optional)
 
 Look and feel
 - Four skins: Modern Dark, Blackout, Classic and Minimal, plus an EllesmereUI skin when EllesmereUI is installed. Pick them from the Skin drop-down on the Appearance page.
-- Adjustable font, font size, scale, background opacity and accent colour.
+- Adjustable font (by default Game Default, the game's own font for your client's language, so Korean, Chinese and Russian text shows), font size, scale, background opacity and accent colour.
 - Blizzard's own sounds for opening and closing the window, the crafting queue, the shopping list and the settings, and for switching tabs.
 - The default professions keybind and the micro-menu Professions button open this window.
 
@@ -176,7 +186,7 @@ USAGE
 OPTIONAL INTEGRATIONS
 ---------------------
 
-- Auctionator: Prices, crafting costs and profit, cost totals, an Auctionator shopping list kept in sync, disenchant values; prices update as soon as a scan or search finishes. "Auction Scan: 2h Ago" in the shopping list, Crates and Writs, Disenchanting Mode and the cost and profit tooltips, red once older than Prices Are Old After (24 hours by default), and "(3 Days Old)" on a single price last seen too long ago
+- Auctionator: Prices, crafting costs and profit, cost totals, an Auctionator shopping list kept in sync, disenchant values; prices update as soon as a scan or search finishes. "Auction Scan: 2h Ago" in the shopping list, Crates and Writs, Disenchanting Mode and the cost and profit tooltips, red once older than Prices Are Old After (24 hours by default), and "(3 Days Old)" on a single price last seen too long ago. While the auction house is open, a Search button in the recipe panel searches the Shopping tab for what the recipe makes and its reagents
 - Syndicator: Live bank counts, and the inventory of your other characters for the alt features
 - Questie: Vendor, trainer and banker locations. Current Questie releases keep their database in the separate QuestieDB addon, which is read directly, so QuestieDB alone is enough; older Questie releases that bundle the database work too
 - TomTom or Polestar: Waypoints and the navigation arrow; with Polestar, multi-step routes are printed to chat
@@ -196,6 +206,7 @@ SLASH COMMANDS
 /pf cooldowns, /pf cd                    Toggle the cooldowns window
 /pf camp                                 Toggle the Camp window
 /pf crates, /pf writs                    Toggle the Crates and Writs window
+/pf scout                                Show the Recipe Scout window for this zone
 /pf recipe                               Toggle Recipe Search, searching by recipe name
 /pf reagent                              Toggle Recipe Search, searching by reagent
 /pf de, /pf disenchant                   Toggle Disenchanting Mode: on your own Enchanting, or without Enchanting, the gear you could send your main enchanter. It can't open Enchanting itself; use a macro with /cast Enchanting and then /pf de
@@ -217,12 +228,12 @@ SETTINGS
 
 Open them with /pf options or the Options button in the title bar. Each category page links to its pages.
 
-- General: Main Window (replace the default professions window, skill up chance in the recipe list, the mark on recipes new or changed in Forever, minimap button), Shopping List (shared by your characters of the same faction, or per character), Alt Inventory (Never, Show only, Include in planning, and which characters may supply materials) and Notifications (the version at login, the newer-version note, ready cooldowns at login, opening the Transfer Planner at your bank or a mailbox)
+- General: Main Window (replace the default professions window, skill up chance in the recipe list, the mark on recipes new or changed in Forever, minimap button), Shopping List (shared by your characters of the same faction, or per character), Alt Inventory (Never, Show only, Include in planning, and which characters may supply materials) and Notifications (the version at login, the newer-version note, ready cooldowns at login, opening the Transfer Planner at your bank or a mailbox) and Recipe Scout (open when you enter a zone, pin the window, and which kinds of recipes it lists)
 - Appearance: Theme (skin, font, accent colour) and Size and Window (scale, font size, background opacity, locking and resetting the window's position and size)
 - Quick Buttons: Buttons (show, lock, which buttons, fixed columns or fixed rows and how many, the corner they grow from, keys shown on the buttons) and Key Bindings (a key for each quick button and profession, and Mouseover Keybinding)
 - Disenchanting: record your results, show seen rates, main enchanter, Auction Deposit
 - Tooltips: a page for each part of what the addon adds to tooltips (General, Queues & Shopping, Alts and Transfers, Prices and Hints, Recipes, Disenchant Results), with a live preview beside them
-- One-Click Fishing: the Fishing key, getting ready (best pole, best lure, a gear set for this character), swapping back (Swap Back key, when you mount, when you stop fishing, after combat) and Louder Fishing Sounds
+- One-Click Fishing: the Fishing key, getting ready (best pole, best lure, a key to skip or add the lure, a gear set for this character), swapping back (Swap Back key, when you mount, when you stop fishing, after combat) and Louder Fishing Sounds
 - Integrations: an overview of the supported addons; under it, a page for each: Auctionator, Polestar & TomTom, Questie, Syndicator, SkillUp Forever and EllesmereUI
 - About: version, What's New, links and credits
 - Each page and category has its own reset, and Reset all options resets everything (click twice to confirm)
@@ -233,7 +244,7 @@ NOTES AND LIMITS
 
 - Recipe data comes from the client, so the recipe list only exists for a profession while it is open. Queued recipes keep their own copy of their reagents.
 - Crafting automation: the game only lets an addon start a craft from a click. Between recipes the queue waits, then crafts the next one when you click the game world; switching to another profession needs a click on Craft Queue. Stop Craft uses a secure button to cancel the current cast.
-- Source information for unlearned recipes is limited: Blizzard supplies none on this client, so it comes from the shipped NPC data, Questie and the trainers you have visited.
+- Source information for unlearned recipes is limited: Blizzard supplies none on this client, so it comes from the shipped recipe sources (trainers, vendors, quests, drops and objects), Questie and the trainers and vendors you have visited.
 - Navigation features depend on third-party data and have not been verified against every vendor or trainer.
 
 

@@ -10,6 +10,7 @@ AuctionHouseFrameDisplayMode
 bit
 BuyMerchantItem
 C_AddOns
+C_Calendar
 C_ChatInfo
 C_Container
 C_CurrencyInfo
@@ -36,6 +37,7 @@ ClearOverrideBindings
 ClickSendMailItemButton
 ColorPickerFrame
 Constants
+ContinuableContainer
 CreateFrame
 CreateVector2D
 date
@@ -214,6 +216,7 @@ UnitCastingInfo
 UnitClass
 UnitExists
 UnitFactionGroup
+UnitLevel
 UnitGUID
 UnitName
 unpack
@@ -221,3 +224,7 @@ UpdateUIPanelPositions
 wipe
 WorldFrame
 xpcall
+GetSubZoneText
+tDeleteItem
+GetInstanceInfo
+IsInInstance

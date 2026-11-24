@@ -13,6 +13,8 @@ local COMMANDS = {
     cooldowns = function() FP.CooldownPanel:Toggle() end,
     cd = function() FP.CooldownPanel:Toggle() end,
     camp = function() FP.CampPanel:Toggle() end,
+    scout = function() FP.ZoneRecipes:Show() end,
+    zone = function() FP.ZoneRecipes:Show() end, -- its first name
     crates = function() FP.OrdersPanel:Toggle() end,
     writs = function() FP.OrdersPanel:Toggle() end,
     route = function() if FP.SkillUpPanel:Available() then FP.SkillUpPanel:Toggle() else FP:Print(L["SkillUp Forever is not loaded."]) end end,
@@ -41,7 +43,7 @@ SlashCmdList.PROFESSIONSFOREVER = function(msg)
     local cmd = strlower(strtrim(msg))
     local run = COMMANDS[cmd]
     if run then return run() end
-    FP:Print(L["Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf camp, /pf crates, /pf route, /pf recipe, /pf reagent, /pf de, /pf track shop, /pf bind, /pf options, /pf reset, /pf clearway, /pf swapback"])
+    FP:Print(L["Slash commands: /pf, /pf queue, /pf shop, /pf transfer, /pf cooldowns (or /pf cd), /pf camp, /pf crates, /pf scout, /pf route, /pf recipe, /pf reagent, /pf de, /pf track shop, /pf bind, /pf options, /pf reset, /pf clearway, /pf swapback"])
 end
 
 ---------------------------------------------------------------------------

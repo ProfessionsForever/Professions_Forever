@@ -114,16 +114,26 @@ local defaults = {
     updateNotice = true, -- say so when another player has a newer version
     bankPrompt = true, -- open the transfer planner at the bank when the queue needs something from it
     mailPrompt = true, -- open the transfer planner at a mailbox when this character has something to send or collect
+    zoneRecipes = true, -- entering a zone opens the window of recipes to learn there (Core/ZoneRecipes.lua)
+    zonePinned = false, -- that window stays open and follows you from zone to zone; its place is db.zonePos
+    zoneVendors = true, -- that window lists vendors' recipes,
+    zoneLimited = true, -- vendors' recipes in a limited supply,
+    zoneTrainers = true, -- trainers' recipes,
+    zoneQuests = true, -- quest rewards,
+    zoneShowIgnored = false, -- list the recipes ignored in the zone (chardb.zoneIgnored[uiMap][recipe])
+    zoneDropScope = "zone", -- the recipes creatures drop and objects hold in the zone: "all", "zone" (not the ones that also drop in other zones) or "none"
+    zoneHeld = true, -- and recipes whose item the character already holds
     showIgnoredCooldowns = false, -- list the cooldowns turned off in the Cooldowns window
     showSkillChance = true, -- the skill up chance beside each learned recipe in the list
     foreverIcon = true, -- the infinity on a recipe new or changed in Forever, in the list and the detail panel
-    fishEquipPole = true, -- One-Click Fishing equips the best fishing pole in the bags first (UI/Fishing.lua)
+    fishEquipPole = true, -- One-Click Fishing equips the best fishing pole in the bags first (Core/Fishing.lua)
     fishApplyLure = true, -- One-Click Fishing puts the best lure in the bags on the pole first
+    fishLureSkipKey = "none", -- held with the Fishing Key, the press leaves the lure off: none | shift | ctrl | alt
     fishLoud = true, -- sound effects louder while the line is out
     fishVolume = 100, -- the sound effects volume then, in percent
     fishMuteMusic = false, -- music and ambience off while the line is out
     fishBackground = false, -- sound on while the game is in the background, while the line is out
-    fishCVars = {}, -- [CVar] = the player's own value, while fishing has it changed (UI/Fishing.lua)
+    fishCVars = {}, -- [CVar] = the player's own value, while fishing has it changed (Core/Fishing.lua)
     fishSwapMount = true, -- swap the gear One-Click Fishing replaced back on when you mount
     fishSwapIdle = true, -- ... when you haven't fished for fishSwapSeconds
     fishSwapSeconds = 120,
@@ -139,6 +149,7 @@ local defaults = {
     useQuestie = true, -- Questie's NPC database for vendor, trainer and banker waypoints
     useSyndicator = true, -- Syndicator's bank and other characters' inventory (read at login)
     footerSkillUp = true, -- SkillUp Forever's Skill Up Route cell in the footer
+    ahSearchButton = true, -- the recipe panel's Search button while the auction house is open, with Auctionator
     footerOrders = true, -- the Crates and Writs cell in the footer
     footerCamp = true, -- the Camp cell in the footer
     quickSkillUp = true, -- SkillUp Forever's Skill Up Route button on the quick buttons
@@ -223,7 +234,7 @@ function FP:LoadSettings()
     Merge(ProfessionsForeverDB, FP.filterDefaults)
     Merge(ProfessionsForeverDB, FP.deFilterDefaults)
     Merge(ProfessionsForeverDB, defaults)
-    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {}, fishSaved = {}, fishWeapons = {}, writsDone = {} })
+    Merge(ProfessionsForeverCharDB, { shopping = {}, makes = {}, fishSaved = {}, fishWeapons = {}, writsDone = {}, zoneIgnored = {} })
     self.db, self.chardb = ProfessionsForeverDB, ProfessionsForeverCharDB
 end
 
@@ -363,7 +374,7 @@ FP:RegisterEvent("BANKFRAME_OPENED", function(self)
         if not (self.Inv.bankOpen and self.db.bankPrompt) then return end
         self.Planner:Invalidate()
         self:Changed("inventory")
-        if #self.Transfer.BankNeeds(self.Queue:TransferNeeds()) > 0 then self.UI:OpenSidePanelFor(self.Transfer, "bank") end
+        if #self.Planner.BankNeeds(self.Queue:TransferNeeds()) > 0 then self.UI:OpenSidePanelFor(self.Transfer, "bank") end
     end)
 end)
 FP:RegisterEvent("BANKFRAME_CLOSED", function(self)

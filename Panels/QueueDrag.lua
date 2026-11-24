@@ -1,6 +1,8 @@
 local _, FP = ...
 local Queue, UI = FP.Queue, FP.UI
 
+-- Dragging a crafting queue row to a new place: the ghost row, the insertion line, and scrolling at the edges.
+
 local ROWS, ROW_H = Queue.ROWS, Queue.ROW_H
 local EDGE, SCROLL_SPEED = ROW_H / 2, ROW_H * 8
 

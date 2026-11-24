@@ -1,4 +1,25 @@
 # Changelog
+## 0.10.6
+
+### Added
+- **Recipe Scout:** entering a zone opens a window listing the recipes you have not learned that you can get there: sold by a vendor (marked Limited Supply), taught by a trainer, rewarded by a quest, or dropped by a creature or held by a chest or other object, with the skill each needs. Inside a dungeon or raid it lists what its creatures and chests drop. It opens once per zone each session, and `/pf scout` opens it again. Click a recipe to open it, right-click for a waypoint to its vendor, trainer, quest giver or drop, Shift-click to ignore it in that zone for this character (Show Ignored lists them again). A recipe you already bought says whether it is in your bags, bank or mailbox. Recipes of a specialization you do not have, creatures friendly to your side, Darkmoon Faire merchants while the faire is elsewhere and Winter Veil vendors outside the Feast of Winter Veil are left out. The Drops dropdown lists all drops, only the recipes that drop nowhere but in the zone, or none. The window reopens where you dragged it, and its pin keeps it open and lists each zone you enter. Opening a vendor records which recipes it sells in a limited supply, and the window follows that. Options, General, Recipe Scout turns off opening on its own, pins the window and chooses what it lists.
+- **Quest and drop sources:** the recipe tooltip and the recipe panel name the quest and quest giver for 103 quest recipes, and the creatures, objects and dungeons a recipe drops in. Ctrl-click sets a waypoint to the giver, the drop or the dungeon's entrance when no trainer or vendor is known.
+- **Auctionator Search button:** while the auction house is open, a Search button in the recipe panel searches Auctionator's Shopping tab for what the recipe makes and each of its reagents, as Auctionator's own button does on Blizzard's window. Options, Integrations, Auctionator turns it off.
+- **One-Click Fishing, lure key:** under Options, One-Click Fishing, hold Shift, Ctrl or Alt with the Fishing Key to do the opposite of Automatically Apply Your Best Lure: Skip the Lure While Holding casts without putting a lure on, or, with Automatically Apply Your Best Lure off, Add a Lure While Holding puts your best lure on first.
+
+### Changed
+- **Font:** the default font is now Game Default, the game's own font for your client's language, so Korean, Chinese and Russian text shows. Options, Theme, Font.
+- **Vendors:** 52 more vendors, 7 trainers and 3 bankers recorded in Forever are built in, and the vendors' limited supplies follow what Forever's vendors really sell.
+- General fixes and performance refactors.
+
+### Fixed
+- **Crates and Writs, Held:** a crate's fill has a box around it, showing it opens a list of fills. With the number box set to more than one, Fill counts it down by one.
+- **Shift-click:** in the addon's windows, Shift-click only links the item or recipe (or searches it in Auctionator's Shopping tab), and no longer also adds a reagent to the shopping list, opens a recipe or a shopping list item, fills the Transfer Planner's request row, or tracks a recipe while the auction house is open.
+- **Shift-click a recipe:** with no chat box open, it tracks the recipe in the objective tracker, as Blizzard's window does, an unlearned one too, instead of setting a waypoint. Ctrl-click still sets the waypoint.
+- **Auctionator search with a box selected:** Shift-clicking an item searches it in Auctionator's Shopping tab even while the cursor is in the recipe panel's Qty box, the shopping list's boxes, Recipe Search or the Transfer form.
+- **Supply Officers:** Tamelyn Aldridge and the other Supply Officers are no longer named as selling recipes on recipe tooltips, the recipe panel and its waypoint.
+- **Tooltip preview:** the Disenchantable Gear sample in Options, Tooltips no longer shows the Linen Cloth sample's Crafts Into lines.
+
 ## 0.10.5
 
 ### Added

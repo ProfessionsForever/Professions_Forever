@@ -30,6 +30,13 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Package release",
+			"detail": "dist/ProfessionsForever-<tag>.zip from the newest tag, built the way CurseForge packages it, for the GitHub release",
+			"type": "shell",
+			"command": "python3 ${workspaceFolder}/tools/package.py",
+			"problemMatcher": []
+		},
+		{
 			"label": "Update all data",
 			"detail": "Runs every wago.tools / classic-db generator in turn, so all the data files come from the same Forever build",
 			"dependsOrder": "sequence",

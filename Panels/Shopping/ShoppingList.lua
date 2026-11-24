@@ -2,6 +2,8 @@ local _, FP = ...
 local L = FP.L
 local Shop = FP.Shop -- created in Core/Shopping.lua
 
+-- The shopping list window: its rows and their tooltips, the add box, and the totals.
+
 local ROWS, ROW_H = 11, 24
 local ACTION_BUTTON_H = 20
 local ICON_SLOT = 20 -- the icon of the item typed in the add box, as tall as the box
@@ -267,7 +269,7 @@ end
 -- Manual add: accepts an item ID, pasted item link, or a (cached) item name.
 local function BuildManualAdd(f)
     local UI = FP.UI
-    local item = CreateFrame("EditBox", "ProfessionsForeverShopItem", f, "InputBoxTemplate")
+    local item = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
     item:SetSize(200 - ICON_SLOT - 4, 20)
     -- Above the window buttons, after the icon. InputBoxTemplate draws its left cap about 5px outside the box;
     -- EllesmereUI's square box has no cap.
@@ -275,7 +277,7 @@ local function BuildManualAdd(f)
     item.fpEUILayout()
     item:SetAutoFocus(false)
     UI:EUIWidget(item, "editbox")
-    local qty = CreateFrame("EditBox", "ProfessionsForeverShopQty", f, "InputBoxTemplate")
+    local qty = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
     qty:SetSize(40, 20)
     qty:SetPoint("LEFT", item, "RIGHT", 32, 0)
     UI:EUIWidget(qty, "numbox")

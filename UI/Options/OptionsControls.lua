@@ -9,7 +9,7 @@ local refreshers = {}
 O.refreshers = refreshers
 
 local LABEL_X, CTRL_X, ROW_H, CTRL_W = 8, 176, 28, 200
-O.CTRL_X, O.ROW_H, O.CTRL_W = CTRL_X, ROW_H, CTRL_W
+O.LABEL_X, O.CTRL_X, O.ROW_H, O.CTRL_W = LABEL_X, CTRL_X, ROW_H, CTRL_W
 
 -- Controls are stacked down a page: page.y is the offset of the next row from the page's top.
 local function RowCenter(page) return page.y - ROW_H / 2 end
@@ -84,9 +84,11 @@ function O.Check(page, label, get, set)
 end
 
 -- Label, then a drop list of choices: getLabel() names the current one, getItems() lists them for UI:OpenMenu.
+-- The label is dd.label.
 function O.DropList(page, label, getLabel, getItems)
-    O.Label(page, label)
+    local labelText = O.Label(page, label)
     local dd = UI:Dropdown(page, CTRL_W, 24, getLabel, getItems)
+    dd.label = labelText
     dd:SetPoint("LEFT", page, "TOPLEFT", CTRL_X, RowCenter(page))
     refreshers[#refreshers + 1] = function() dd:Sync() end
     dd:Sync()

@@ -6,6 +6,9 @@ local STATUS_COLORS, DIFF_COLORS, DIFF_LABELS, WHITE_RGB = UI.STATUS_COLORS, UI.
 local ItemName, SourceSummary = FP.ItemName, UI.SourceSummary
 local UpdateProfit, UpdateReagentCards, LayoutReagentCards = UI.UpdateProfit, UI.UpdateReagentCards, UI.LayoutReagentCards
 
+-- Filling the recipe panel for the selected recipe: its header, craftable tiles, banner and reagents. The panel's
+-- frames are built in UI/DetailPanel.lua.
+
 local BANNER_MSGS = { full = "All materials are in your bags.", bank = "Materials complete, but some are in the bank.",
     none = "This recipe has no reagents." }
 
@@ -342,7 +345,7 @@ function UpdateDetailActions(d, e, ev, one, count, sourceKnown)
     d.readOnly:SetShown(linked)
     d.readOnly:ClearAllPoints()
     if queueFor then d.readOnly:SetPoint("LEFT", d.qty.plus, "RIGHT", 12, 0) else d.readOnly:SetPoint("BOTTOMLEFT", 12, 23) end
-    d.readOnly:SetPoint("RIGHT", -12, 0)
+    UI:UpdateSearchButton() -- sets the line's right edge, clear of the button
     if linked then d.readOnly:SetText(d.craftBlock) end
 
     local a = d.actions or {}

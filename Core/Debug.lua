@@ -504,3 +504,66 @@ commands["debug verclear"] = function()
     FP.db.newestSeenVersion, FP.db.newestSeenAt = nil, nil
     FP:Print("newest heard version forgotten; /reload to hear the alert again this session")
 end
+
+---------------------------------------------------------------------------
+-- /pf debug zone: why the zone popup lists what it does. The map the game puts you on, your professions, and every
+-- unlearned recipe with a vendor placed on this map or named for this zone, with where the vendor's entry comes from.
+---------------------------------------------------------------------------
+commands["debug zone"] = function()
+    local W = FP.Waypoint
+    local uiMap = C_Map.GetBestMapForUnit("player")
+    local mapName = uiMap and C_Map.GetMapInfo(uiMap).name
+    FP:Print(("map %s %s | zone text %s | subzone %s"):format(tostring(uiMap), tostring(mapName), GetRealZoneText(), GetSubZoneText()))
+    for _, p in ipairs(FP:GetProfessions()) do
+        local n, unlearned = 0, 0
+        for v in (FP.RecipeLines[p.skillLine] or ""):gmatch("%d+") do
+            local id = tonumber(v)
+            n = n + 1
+            if not IsPlayerSpell(id) then
+                unlearned = unlearned + 1
+                for _, s in ipairs(W.KnownRecipeVendors(id)) do
+                    if s.uiMap == uiMap or s.area == mapName or s.area == GetRealZoneText() then
+                        FP:Print(("  %d %s: vendor %d %s on map %s (%s) %.3f %.3f, %s, holiday %s"):format(id,
+                            C_Spell.GetSpellName(id) or "?", s.id, s.name, tostring(s.uiMap), tostring(s.area), s.x, s.y,
+                            FP.db.vendors[s.id] and "recorded" or "shipped", tostring(s.holiday)))
+                    end
+                end
+            end
+        end
+        FP:Print(("%s (%d) rank %d: %d recipes, %d unlearned"):format(p.name, p.skillLine, p.rank, n, unlearned))
+    end
+    local here = FP.ZoneRecipes:Here()
+    FP:Print(("here %s (%s) | popup would list %d"):format(tostring(here and here.key), tostring(here and here.name), here and #FP.ZoneRecipes:Find(here) or 0))
+end
+
+---------------------------------------------------------------------------
+-- /pf debug fish: prints what the One-Click Fishing button sees on each press, to see why the Skip the Lure key is
+-- not taken (the modifiers, the bindings on the Fishing Key with each modifier, and what the press is set to do).
+---------------------------------------------------------------------------
+local fishTracing, fishHooked
+
+commands["debug fish"] = function()
+    fishTracing = not fishTracing
+    local button = _G.ProfessionsForeverFishButton
+    if fishTracing and not fishHooked then
+        fishHooked = true
+        button:HookScript("PreClick", function(self, mouse, down)
+            if not fishTracing then return end
+            local db = FP.db
+            FP:Print(("%.2f %s %s | shift=%s ctrl=%s alt=%s | skipKey=%s applyLure=%s | type=%s macro=%s"):format(
+                GetTime() % 1000, tostring(mouse), down and "down" or "up", tostring(IsShiftKeyDown()),
+                tostring(IsControlKeyDown()), tostring(IsAltKeyDown()), tostring(db.fishLureSkipKey),
+                tostring(db.fishApplyLure), tostring(self:GetAttribute("type")),
+                tostring(self:GetAttribute("macrotext")):gsub("\n", " ; ")))
+        end)
+    end
+    if fishTracing then
+        for _, key in ipairs({ GetBindingKey(FP.UI.FISH_BINDING) }) do
+            for _, mod in ipairs({ "", "SHIFT-", "CTRL-", "ALT-" }) do
+                FP:Print(("%s%s: bound=%q override=%q"):format(mod, key, GetBindingAction(mod .. key),
+                    GetBindingAction(mod .. key, true)))
+            end
+        end
+    end
+    FP:Print(fishTracing and "Fishing tracing on. Press the Fishing Key and copy the lines." or "Fishing tracing off.")
+end

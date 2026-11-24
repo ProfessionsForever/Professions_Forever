@@ -330,7 +330,7 @@ local function CreateRow(p)
     row.hl:SetColorTexture(1, 1, 1, 0.08)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetPoint("LEFT", 6, 0)
-    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    UI.TrimIcon(row.icon)
     row.right = UI:Text(row, -1, "RIGHT")
     row.right:SetPoint("RIGHT", -4, 0)
     row.warn = row:CreateTexture(nil, "OVERLAY")
@@ -578,7 +578,7 @@ local function Section(parent, title, cols, count, seenKeys)
         local card = UI:CreateCard(sec, CARD_H)
         card:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -2 - (i - 1) * (CARD_H + CARD_GAP))
         card:SetPoint("RIGHT", sec, "RIGHT")
-        card.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(card.icon)
         local left = Columns(card, cols)
         card.left = left
         card.seen = {}
@@ -884,7 +884,7 @@ local function CreateRight(f)
     p.icon = c:CreateTexture(nil, "ARTWORK")
     p.icon:SetSize(40, 40)
     p.icon:SetPoint("TOPLEFT", 12, -12)
-    p.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    UI.TrimIcon(p.icon)
     local iconHit = CreateFrame("Frame", nil, c)
     iconHit:SetAllPoints(p.icon)
     iconHit:EnableMouse(true)
@@ -1087,7 +1087,7 @@ function UI:SyncDisenchantCardButton(card, p, last)
         b.icon = b:CreateTexture(nil, "ARTWORK")
         b.icon:SetPoint("TOPLEFT", 2, -2)
         b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
-        b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(b.icon)
         b.icon:SetTexture(MODE_ICON)
         self:Tooltip(b, "ANCHOR_RIGHT", function(tip, s)
             tip:AddLine(L["Disenchanting Mode"], 1, 1, 1)
@@ -1111,56 +1111,11 @@ function UI:DisenchantPending()
     return pendingAt ~= nil and GetTime() - pendingAt < 5
 end
 
--- The quick button: switches the mode while your Enchanting is shown in the window. Otherwise it opens Enchanting with
--- the mode on: its secure cast (set by SetProfessionOpener) opens the window, or, when Enchanting is already open
--- behind another page or with the window closed, the window is shown on it.
--- Every character of yours with Enchanting, by name: { key, rec, rank }. `others`: leave out the current one.
-function UI:Enchanters(others)
-    local me, out = FP.Alts:GetCharacterKey(), {}
-    for key, rec in pairs(FP.db.characters) do
-        local p = not (others and key == me) and rec.professions and rec.professions[ENCHANTING]
-        if p then out[#out + 1] = { key = key, rec = rec, rank = p.rank or 0 } end
-    end
-    table.sort(out, function(a, b) return FP.Alts:Label(a.rec) < FP.Alts:Label(b.rec) end)
-    return out
-end
-
--- Your main enchanter (FP.db.mainEnchanter, chosen in Options or the enchanter menu) comes first wherever your
--- enchanter is picked for you; nil is Automatic. One who no longer has Enchanting is simply not listed.
-function UI:SetMainEnchanter(key)
-    FP.db.mainEnchanter = key
-    FP.Launcher:Update() -- the quick button's enchanter
-    FP.Options:Refresh()
-end
-
--- The main enchanter's name, or Automatic.
-function UI:MainEnchanterLabel()
-    for _, e in ipairs(self:Enchanters()) do
-        if e.key == FP.db.mainEnchanter then return FP.Alts:Label(e.rec) end
-    end
-    return L["Automatic (Highest Skill)"]
-end
-
--- Your other characters with Enchanting, for a character without it, best first: the ones gear can be mailed to,
--- then your main enchanter, then the highest skill (higher-level gear needs more), then by name.
--- { key, rec, rank, otherFaction }
-function UI:DisenchantRecipients()
-    local main, out = FP.db.mainEnchanter, self:Enchanters(true)
-    for _, e in ipairs(out) do e.otherFaction = FP.Alts:IsOtherFaction(e.rec) end
-    table.sort(out, function(a, b)
-        if a.otherFaction ~= b.otherFaction then return b.otherFaction end
-        if (a.key == main) ~= (b.key == main) then return a.key == main end
-        if a.rank ~= b.rank then return a.rank > b.rank end
-        return FP.Alts:Label(a.rec) < FP.Alts:Label(b.rec)
-    end)
-    return out
-end
-
 -- Disenchanting Mode for a character without Enchanting: the gear in your bags you could send `key`, by default your
 -- best enchanter.
 function UI:OpenDisenchantFor(key)
     if InCombatLockdown() then return FP:Print(L["Cannot do that in combat."]) end
-    key = key or (self:DisenchantRecipients()[1] or {}).key
+    key = key or (FP.Disenchant:Recipients()[1] or {}).key
     if not key then return FP:Print(L["None of your characters has Enchanting."]) end
     local back = returnTo
     if not (self.deMode and Recipient()) then
@@ -1188,11 +1143,8 @@ end
 -- A menu of your enchanters under `anchor`, each opening Disenchanting Mode for them, then the main enchanter choice.
 function UI:OpenDisenchantRecipientMenu(anchor)
     local items, to = {}, self.deMode and Recipient()
-    local recipients = self:DisenchantRecipients()
-    local function Name(r)
-        local cr, cg, cb = FP.Alts:ClassColor(r.rec.class)
-        return ("|cff%02x%02x%02x%s|r (%d)"):format(cr * 255, cg * 255, cb * 255, FP.Alts:Label(r.rec), r.rank)
-    end
+    local recipients = FP.Disenchant:Recipients()
+    local function Name(r) return ("%s (%d)"):format(FP.Alts:Colored(r.rec.class, FP.Alts:Label(r.rec)), r.rank) end
     for _, r in ipairs(recipients) do
         items[#items + 1] = { text = Name(r), checked = to and to.key == r.key, dim = r.otherFaction,
             onSelect = function() UI:OpenDisenchantFor(r.key) end }
@@ -1203,24 +1155,15 @@ function UI:OpenDisenchantRecipientMenu(anchor)
     local function Choice(text, key)
         local item = { text = text, indent = 1, checked = FP.db.mainEnchanter == key, keepOpen = true }
         item.onSelect = function()
-            UI:SetMainEnchanter(key)
+            FP.Disenchant:SetMainEnchanter(key)
             for _, c in ipairs(choices) do c.checked = c == item end
         end
         choices[#choices + 1] = item
         items[#items + 1] = item
     end
     Choice(L["Automatic (Highest Skill)"], nil)
-    for _, r in ipairs(self:Enchanters(true)) do Choice(Name(r), r.key) end
+    for _, r in ipairs(FP.Disenchant:Enchanters(true)) do Choice(Name(r), r.key) end
     self:OpenMenu(anchor, items, 220)
-end
-
--- Your Enchanting from the profession list, once you know Disenchant; nil otherwise. The footer cell and the quick
--- button cast it to open Enchanting in Disenchanting Mode.
-function UI:OwnEnchanting()
-    if not IsPlayerSpell(FP.Disenchant.SPELL) then return end
-    for _, p in ipairs(FP:GetProfessions()) do
-        if p.skillLine == ENCHANTING then return p end
-    end
 end
 
 -- The quick button and /pf de. Without Enchanting: the gear to send your best enchanter, or back from it. With
@@ -1278,7 +1221,7 @@ function UI:UpdateDisenchantModeButton(skillLine, leftmost)
         local icon = f.deModeBtn:CreateTexture(nil, "ARTWORK")
         icon:SetPoint("TOPLEFT", 3, -3)
         icon:SetPoint("BOTTOMRIGHT", -3, 3)
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.TrimIcon(icon)
         icon:SetTexture(MODE_ICON)
         self:Tooltip(f.deModeBtn, "ANCHOR_BOTTOM", function(tip)
             tip:AddLine(L["Disenchanting Mode"], 1, 1, 1)
