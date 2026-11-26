@@ -228,7 +228,7 @@ local function LootText(loot)
 end
 
 -- While the log is on, the raw data Core/DisenchantRecord.lua works from, to see why something isn't recorded: where
--- each loot slot says it came from, and whether that source is a weapon or armour piece remembered from your bags.
+-- each loot slot says it came from, and whether that source is a weapon or armor piece remembered from your bags.
 local function TraceLoot()
     if not deLogging then return end
     FP:Print(("trace LOOT_READY: %d slots%s"):format(GetNumLootItems(),
@@ -425,7 +425,7 @@ commands["debug camp"] = function()
 end
 
 ---------------------------------------------------------------------------
--- /pf debug footer: adds grey test cells until the footer has six (two rows), or removes them again.
+-- /pf debug footer: adds gray test cells until the footer has six (two rows), or removes them again.
 ---------------------------------------------------------------------------
 commands["debug footer"] = function()
     local UI = FP.UI
@@ -441,7 +441,7 @@ commands["debug footer"] = function()
         for i = 1, math.max(1, 6 - shown) do
             local c = UI.MakeFooterCell(f, "cooldowns", "Test Cell " .. i, function() end)
             c.line:SetText("A long line to see where the text gets cut off")
-            c.sub:SetText("and a second, grey line under it")
+            c.sub:SetText("and a second, gray line under it")
             footer.extra[i] = c
         end
     end
@@ -450,7 +450,7 @@ commands["debug footer"] = function()
 end
 
 ---------------------------------------------------------------------------
--- /pf debug pins: shows the pictures that could replace the word "Pin" on the side panels' pin button, labelled, to
+-- /pf debug pins: shows the pictures that could replace the word "Pin" on the side panels' pin button, labeled, to
 -- see which this client has. Atlases the client lacks say so; a missing file texture shows as a blank square.
 ---------------------------------------------------------------------------
 local pinPreview
@@ -503,6 +503,13 @@ commands["debug verold"] = function() HearVersion("0.0.1") end
 commands["debug verclear"] = function()
     FP.db.newestSeenVersion, FP.db.newestSeenAt = nil, nil
     FP:Print("newest heard version forgotten; /reload to hear the alert again this session")
+end
+
+-- /pf debug wnold: What's New (UI/WhatsNew.lua) as if last logged in with 0.10.2, so /reload steps through every
+-- version's notes since.
+commands["debug wnold"] = function()
+    FP.db.whatsNewSeen = "0.10.2"
+    FP:Print("What's New last seen set to 0.10.2; /reload to step through the notes since")
 end
 
 ---------------------------------------------------------------------------

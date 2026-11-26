@@ -66,7 +66,7 @@ function Panel:Update()
 
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #list, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #list - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #list - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     f.empty:SetShown(#list == 0)
 
@@ -166,7 +166,7 @@ function Panel:Create()
         FP.db.showIgnoredCooldowns = s:GetChecked() and true or false
         Panel:Update()
     end)
-    UI:Tooltip(showIgnored, "ANCHOR_TOP", L["List the cooldowns you ignored, so they can be turned back on."])
+    UI:Tooltip(showIgnored, L["List the cooldowns you ignored, so they can be turned back on."], "ANCHOR_TOP")
     f.showIgnored = showIgnored
     local label = UI:Text(f, 0)
     label:SetPoint("LEFT", showIgnored, "RIGHT", 2, 0)

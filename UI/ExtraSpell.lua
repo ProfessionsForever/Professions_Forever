@@ -40,7 +40,7 @@ local function CreateButton(parent, size)
     button.icon:SetPoint("TOPLEFT", 3, -3)
     button.icon:SetPoint("BOTTOMRIGHT", -3, 3)
     UI.TrimIcon(button.icon)
-    UI:Tooltip(button, "ANCHOR_RIGHT", function(tip)
+    UI:Tooltip(button, function(tip)
         local name = button.spellName
         if not name then return end
         tip:AddLine(name)

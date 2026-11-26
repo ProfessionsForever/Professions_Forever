@@ -1,72 +1,113 @@
 #!/usr/bin/env python3
-"""Writes Data/Items.lua: the names and IDs of the items that can be traded, for the shopping list's search box.
+"""Writes the addon's item list (Data/Items.lua by default): the names, IDs and qualities of the items its item picker
+(UI:ItemSuggest) offers.
 
 Downloads the ItemSparse table from wago.tools for the WoW: Forever build (product wowf) into the cache folder
-(~/.cache/professionsforever/wago/<build>), keeps the items that aren't bound when picked up, and writes them as one
-sorted string. Run it by hand when Forever patches. wago.tools publishes no data terms, so leave the attribution in
-the generated file.
+(~/.cache/threelightslib/wago/<build>), keeps the items the addon's filter accepts, and writes them as one sorted
+string. Run it by hand when Forever patches. wago.tools publishes no data terms, so leave the attribution in the
+generated file.
+
+Shared between addons: this file is a copy from the ThreeLightsLib repository (its sync.sh brings it in). The filter is
+the "items" entry of tools/project.json:
+
+  "items": {
+      "output": "Data/Items.lua",        optional, this is the default
+      "include": [                       an item is kept when it matches any one of these
+          { "bonding": [0, 2, 3] },      ItemSparse.Bonding: 0 none, 1 on pickup, 2 on equip, 3 on use, 4 quest, 5 account
+          { "minQuality": 3 },           OverallQualityID: 0 poor, 1 common, 2 uncommon, 3 rare, 4 epic, 5 legendary
+          { "equippable": true, "minQuality": 2 }
+      ]
+  }
+
+Every key in one entry has to match. Names the game data carries as leftovers ("OLD...", "[PH]...", "Monster - ...", "... TEST")
+are always left out. When two items share a name the lower ID is kept.
 
 Usage: tools/gen_items.py [--build 1.60.1.70707] [--refresh]
     no --build   use the newest wowf build wago.tools lists
     --refresh    download the table again even if cached
 """
 import argparse
-import csv
+import json
+import re
+import sys
 from pathlib import Path
 
 import wago
-from wago import cached_table, latest_build
+from wago import cached_table, latest_build, rows
 
-TARGET = Path(__file__).resolve().parent.parent / "Data" / "Items.lua"
+ROOT = Path(__file__).resolve().parent.parent
+PROJECT = json.loads((ROOT / "tools" / "project.json").read_text(encoding="utf-8"))
+NS = PROJECT["namespace"]
 
-# ItemSparse.Bonding: 0 none, 1 when picked up, 2 when equipped, 3 when used, 4 quest item, 5 account.
-TRADEABLE = {"0", "2", "3"}
-# Leftovers the game data still carries.
-JUNK_PREFIXES = ("[", "(", "zz", "old", "deprecated", "test", "nyi", "dnt")
+JUNK_PREFIXES = ("[", "(", "zz", "old", "deprecated", "test", "nyi", "dnt", "monster -")
+# Developer leftovers named anywhere in the name: "2700 Test 2h Axe 63 blue", "UNUSED - ...", "QA Tabard of ...".
+JUNK_WORDS = re.compile(r"\b(test|qa|unused|placeholder)\b", re.I)
+FILTER_KEYS = {"bonding", "minQuality", "equippable"}
+
+wago.AGENT = "ThreeLightsLib-item-generator (run by hand)"
 
 
-wago.AGENT = "ProfessionsForever-item-generator (run by hand)"
+def settings():
+    items = PROJECT.get("items")
+    if not items or not items.get("include"):
+        sys.exit('tools/project.json has no "items": { "include": [...] } filter: see the top of this file')
+    for rule in items["include"]:
+        unknown = set(rule) - FILTER_KEYS
+        if unknown:
+            sys.exit(f"tools/project.json: unknown item filter keys {sorted(unknown)}")
+    return ROOT / items.get("output", "Data/Items.lua"), items["include"]
 
 
-def generate(path, build):
+def matches(rule, row):
+    if "bonding" in rule and int(row["Bonding"]) not in rule["bonding"]:
+        return False
+    if "minQuality" in rule and int(row["OverallQualityID"]) < rule["minQuality"]:
+        return False
+    if "equippable" in rule and (row["InventoryType"] != "0") != rule["equippable"]:
+        return False
+    return True
+
+
+def generate(path, build, include):
     items = {}
-    with open(path, newline="", encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            name = r["Display_lang"].strip()
-            if r["Bonding"] not in TRADEABLE or not name or name.lower().startswith(JUNK_PREFIXES):
-                continue
-            if "\t" in name or "\n" in name or "]==]" in name:
-                continue
-            key = name.lower()
-            item = int(r["ID"])
-            if key not in items or item < items[key][1]:
-                items[key] = (name, item)
+    for r in rows(path):
+        name = r["Display_lang"].strip()
+        if not name or name.lower().startswith(JUNK_PREFIXES) or JUNK_WORDS.search(name) or not any(matches(rule, r) for rule in include):
+            continue
+        if "\t" in name or "\n" in name or "]==]" in name:
+            continue
+        key = name.lower()
+        item = int(r["ID"])
+        if key not in items or item < items[key][1]:
+            items[key] = (name, item, int(r["OverallQualityID"]))
 
-    lines = [f"{name}\t{item}" for _, (name, item) in sorted(items.items())]
+    lines = [f"{name}\t{item}\t{quality}" for _, (name, item, quality) in sorted(items.items())]
     # The blank first line lets the search match a name at the start of a line with a leading newline.
     blob = "\n" + "\n".join(lines) + "\n"
     text = (
         f"-- Generated by tools/gen_items.py from wago.tools DB2 tables (product wowf, build {build}). Do not edit.\n"
-        "local _, FP = ...\n"
+        f"local _, {NS} = ...\n"
         "\n"
-        "-- One line per item, \"Name<tab>item ID\", sorted by name.\n"
-        f"FP.ItemNames = [==[\n{blob}]==]\n"
+        "-- One line per item, \"Name<tab>item ID<tab>quality\", sorted by name. Read by the library's UI:ItemSuggest.\n"
+        f"{NS}.ItemNames = [==[{blob}]==]\n"
     )
     return text, len(lines)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Data/Items.lua from wago.tools data.")
+    parser = argparse.ArgumentParser(description="Generate the addon's item list from wago.tools data.")
     parser.add_argument("--build", help="Forever build, such as 1.60.1.70707 (default: the newest)")
     parser.add_argument("--refresh", action="store_true", help="download the table again")
     args = parser.parse_args()
 
+    target, include = settings()
     build = args.build or latest_build()
-    text, count = generate(cached_table(build, "ItemSparse", args.refresh), build)
-    old = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""
-    TARGET.parent.mkdir(exist_ok=True)
-    TARGET.write_text(text, encoding="utf-8")
-    print(f"build {build}: {count} items, {len(text) // 1024} KB -> {TARGET}" + (" (unchanged)" if text == old else " (changed)"))
+    text, count = generate(cached_table(build, "ItemSparse", args.refresh), build, include)
+    old = target.read_text(encoding="utf-8") if target.exists() else ""
+    target.parent.mkdir(exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    rel = target.relative_to(ROOT)
+    print(f"build {build}: {count} items, {len(text) // 1024} KB -> {rel}" + (" (unchanged)" if text == old else " (changed)"))
 
 
 if __name__ == "__main__":

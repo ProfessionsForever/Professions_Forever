@@ -18,7 +18,7 @@ local function SavePin(f)
     f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
 end
 
--- The pin button shows the game's grey map pin while the panel docks, the gold one while it is pinned.
+-- The pin button shows the game's gray map pin while the panel docks, the gold one while it is pinned.
 local function RefreshPin(f)
     local b = f.pinBtn
     if not b then return end
@@ -159,7 +159,7 @@ local function MainStandIn()
     standIn:ClearAllPoints()
     standIn:SetPoint(db.point, UIParent, db.relPoint or db.point, db.x, db.y)
     standIn:SetSize(db.width, db.height + UI:FooterExtra())
-    standIn:SetScale(db.scale)
+    standIn:SetScale(UI.Opt("scale"))
     return standIn
 end
 
@@ -309,9 +309,9 @@ function UI:AddPinButton(f, closeButton)
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetPoint("TOPLEFT", 0, 0)
     b.icon:SetPoint("BOTTOMRIGHT", 0, 0)
-    self:Tooltip(b, "ANCHOR_BOTTOM", function(tip)
+    self:Tooltip(b, function(tip)
         tip:AddLine(FP.db.sidePanels[f.fpPanelKey] and L["Unpin (Dock to Main Window)"] or L["Pin Position"], 1, 1, 1)
-    end)
+    end, "ANCHOR_BOTTOM")
     f.pinBtn = b
     RefreshPin(f)
     return b
@@ -407,7 +407,7 @@ function UI:AddPanelList(f, o)
     end
     f:EnableMouseWheel(true)
     f:SetScript("OnMouseWheel", function(_, delta)
-        scroll.fpScrollTo(scroll:GetVerticalScroll() - delta * rowH * 3)
+        scroll.barScrollTo(scroll:GetVerticalScroll() - delta * rowH * 3)
     end)
     f.fpListBottom = o.bottom
     f.fpListFit = function()
@@ -426,7 +426,7 @@ end
 function UI.SetPanelListBottom(f, bottom)
     f.fpListBottom = bottom
     f.scroll:SetPoint("BOTTOMRIGHT", -UI.BAR_GUTTER, bottom)
-    f.scroll.fpSetBottom(bottom)
+    f.scroll.barSetBottom(bottom)
     f.fpListFit()
 end
 

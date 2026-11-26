@@ -8,14 +8,16 @@ local STATUS_COLORS, Hex = UI.STATUS_COLORS, UI.Hex
 
 local MAX_TRAINERS = 5 -- trainers listed on a tooltip; the rest are counted
 
--- "Name (Zone)" for a remembered trainer record.
+-- "Name (Zone)" for a remembered trainer record or a quest's giver, with the holiday a quest is only given in.
 local function TrainerWhere(trainer)
-    return trainer.zone and ("%s (%s)"):format(trainer.npc, trainer.zone) or trainer.npc
+    return FP.Waypoint.Label(trainer.npc, trainer.zone, trainer.holiday)
 end
 
--- "Quest: Klaven's Tower (Agent Kearnen)" for a quest that rewards a recipe (an FP.RecipeQuests entry).
+-- "Quest: Klaven's Tower (Agent Kearnen)" for a quest that rewards a recipe (an FP.RecipeQuests entry), or
+-- "Quest: Small Rockets (Fariel Starsong, Lunar Festival)" for one only given in a holiday.
 function UI.QuestSource(q)
-    return ("%s (%s)"):format(L["Quest: %s"]:format(q.quest), q.npc)
+    local holiday = FP.Waypoint.HolidayName(q.holiday)
+    return ("%s (%s)"):format(L["Quest: %s"]:format(q.quest), holiday and ("%s, %s"):format(q.npc, holiday) or q.npc)
 end
 
 -- What the recipe makes, when it can be worn and so previewed.

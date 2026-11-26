@@ -10,7 +10,7 @@ FP.OrdersPanel = Panel
 --     reputation.
 local ROWS, ROW_H = 18, 22
 local LIST_TOP = 86
-local GREY, WHITE, GREEN, GOLD, BLUE = { 0.6, 0.6, 0.6 }, { 0.92, 0.92, 0.92 }, { 0.2, 0.9, 0.2 }, { 1, 0.82, 0 }, { 0.5, 0.8, 1 }
+local GRAY, WHITE, GREEN, GOLD, BLUE = { 0.6, 0.6, 0.6 }, { 0.92, 0.92, 0.92 }, { 0.2, 0.9, 0.2 }, { 1, 0.82, 0 }, { 0.5, 0.8, 1 }
 local GROUP_NAMES = { handin = "Ready to Hand In", crates = "Crates", writs = "Writs", unopened = "Not Opened Yet",
     alts = "On Other Characters", market = "Crates to Buy and Fill", sealedwrits = "Sealed Writs (Average)",
     writmarket = "Writs to Buy and Deliver", receipt = "Reputation From a Crate" }
@@ -148,7 +148,7 @@ local function Money(copper) return FP.Prices:Format(copper) end
 -- A cost per Favor or per reputation as the status column shows it; g: the Orders:Get result behind it, green when
 -- all of it is in hand.
 local function Rate(per, g, format)
-    if not per then return L["No Price"], GREY end
+    if not per then return L["No Price"], GRAY end
     return L[format]:format(Money(per)), g and g.missing == 0 and g.alts == 0 and GREEN or WHITE
 end
 
@@ -158,14 +158,14 @@ local function HolderText(e)
     return L["%s Has %d"]:format(FP.Alts:Label(h), h.count)
 end
 
--- What a row shows: detail (the middle column), status and its colour (the right one), action (a key of BUTTONS, or
+-- What a row shows: detail (the middle column), status and its color (the right one), action (a key of BUTTONS, or
 -- nil for no button). buy: in a Buy view, where the cost counts the auction price too.
 local function Describe(e, buy)
     local Orders, OT = FP.Orders, FP.OrderTips
     if e.kind == "crate" then
         local detail = OT.Amount(e.best)
         if buy then
-            if not e.price then return detail, L["No Auction Price"], GREY end
+            if not e.price then return detail, L["No Auction Price"], GRAY end
             if not e.expected then return detail, Money(e.total or e.price), WHITE end
             return detail, Rate(e.perFavor, nil, "%s per Favor")
         end
@@ -181,26 +181,26 @@ local function Describe(e, buy)
         local detail = e.customer and OT.CustomerText(e.customer) or L[Orders.TIERS[e.tier]]
         -- Handed in today by this character: "Delivered (Resets in 5h)", in either view.
         local delivered = L["Delivered (Resets in %s)"]:format(FP.Cooldowns.Format(C_DateAndTime.GetSecondsUntilDailyReset()))
-        if buy and e.done then return detail, delivered, GREY end
-        if buy and not e.qtyKnown then return detail, L["Checking Quantity"], GREY end
+        if buy and e.done then return detail, delivered, GRAY end
+        if buy and not e.qtyKnown then return detail, L["Checking Quantity"], GRAY end
         if buy then return detail, Rate(e.perRep, nil, "%s per Rep") end
         if e.count == 0 then return detail, HolderText(e), FP.UI.ALT_COLOR end
-        if e.done then return detail, delivered, GREY end
-        if not e.qtyKnown then return detail, L["Checking Quantity"], GREY end -- the game answers within a moment
+        if e.done then return detail, delivered, GRAY end
+        if not e.qtyKnown then return detail, L["Checking Quantity"], GRAY end -- the game answers within a moment
         local action = Orders:FetchState(e.get) or (e.customer and "go")
         local text, c = Rate(e.perRep, e.get, "%s per Rep")
         return detail, text, c, action
     elseif e.kind == "sealed" then
         local s = e.s
         local pay = s.expected and L["%s Favor"]:format(OT.Num(s.expected * s.count)) or L["Favor Not Known Yet"]
-        return L["Hand In at the Camp"], pay, s.expected and GREEN or GREY, "go"
+        return L["Hand In at the Camp"], pay, s.expected and GREEN or GRAY, "go"
     elseif e.kind == "container" then
         return L["Hand In at the Camp"], L["%d Reputation"]:format(Orders.RECEIPT_REP * e.count), GREEN, "go"
     elseif e.kind == "unopened" then
-        return L["Open It to See What It Asks For"], "", GREY
+        return L["Open It to See What It Asks For"], "", GRAY
     elseif e.kind == "sealedWrit" then
         local detail = L["%d of %d Orders Priced"]:format(e.priced, e.orders)
-        if not e.price then return detail, L["No Auction Price"], GREY end
+        if not e.price then return detail, L["No Auction Price"], GRAY end
         return detail, Rate(e.perRep, nil, "%s per Rep")
     end
     -- The cheapest crate at auction, for a Forged Delivery Receipt.
@@ -226,7 +226,7 @@ end
 local function Pays(e)
     local Orders, OT = FP.Orders, FP.OrderTips
     if e.kind == "crate" then
-        if not e.pay then return "?", GREY end
+        if not e.pay then return "?", GRAY end
         return L["%s Favor"]:format(OT.Num(e.pay * e.copies)), WHITE
     elseif e.kind == "writ" or e.kind == "sealedWrit" then
         return L["%d Rep"]:format(e.rep), WHITE
@@ -246,7 +246,7 @@ local function AddSale(tip, e, per, format, missing)
         tip:AddDoubleLine(L["Sold Instead, After the Cut"], Money(e.sale), GOLD[1], GOLD[2], GOLD[3], 1, 1, 1)
         if per then tip:AddDoubleLine(L["Kept and Handed In"], L[format]:format(Money(per)), GOLD[1], GOLD[2], GOLD[3], 1, 1, 1) end
     elseif FP.Prices:Available() then
-        tip:AddLine(L[missing], GREY[1], GREY[2], GREY[3], true)
+        tip:AddLine(L[missing], GRAY[1], GRAY[2], GRAY[3], true)
     end
 end
 
@@ -265,7 +265,7 @@ local function AddReceipt(tip, r)
     Line(L["This Way"], L["%s per Reputation"]:format(Money(r.perRep)))
     Line(L["Your Cheapest Writ"], r.writ and L["%s per Reputation"]:format(Money(r.writ)) or L["None to Deliver"])
     tip:AddLine(L["A Favor is valued at what your cheapest crate costs to fill. %s at the camp sells the receipt."]
-        :format(Orders:Camp().scribe[2]), GREY[1], GREY[2], GREY[3], true)
+        :format(Orders:Camp().scribe[2]), GRAY[1], GRAY[2], GRAY[3], true)
 end
 
 local function RowTooltip(row)
@@ -296,7 +296,7 @@ local function RowTooltip(row)
         if s.pay then
             tip:AddDoubleLine(L["Hand-In Pays"], L["%s Favor"]:format(OT.Num(s.pay)) .. " " .. L["Each"], GOLD[1], GOLD[2], GOLD[3], 1, 1, 1)
         else
-            tip:AddLine(L["Hand one in and ProfessionsForever will remember what it pays."], GREY[1], GREY[2], GREY[3], true)
+            tip:AddLine(L["Hand one in and ProfessionsForever will remember what it pays."], GRAY[1], GRAY[2], GRAY[3], true)
         end
         hints[#hints + 1] = HINT_WAY
     elseif e.kind == "container" then
@@ -308,7 +308,7 @@ local function RowTooltip(row)
         end
         if e.price then tip:AddDoubleLine(L["Sealed Writ at Auction"], Money(e.price), GOLD[1], GOLD[2], GOLD[3], 1, 1, 1) end
         tip:AddLine(L["An average over the %d of its %d orders whose item has a price. What you get is luck."]:format(e.priced, e.orders),
-            GREY[1], GREY[2], GREY[3], true)
+            GRAY[1], GRAY[2], GRAY[3], true)
     elseif e.kind == "receipt" then
         tip:AddDoubleLine(L["Crate at Auction"], Money(e.crate.price), GOLD[1], GOLD[2], GOLD[3], 1, 1, 1)
         tip:AddLine(L["The cheapest crate at auction, with a Forged Delivery Receipt (%d Favor from the Uncertified Scribe), is handed in empty for %d reputation: less per reputation than any writ with a price."]
@@ -393,7 +393,7 @@ function Panel:Update()
 
     local shown = FP.UI.PanelRows(f)
     FauxScrollFrame_Update(f.scroll, #list, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #list - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #list - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
 
     for i, row in ipairs(f.rows) do
@@ -442,7 +442,7 @@ function Panel:Update()
                 row.pay:SetText(pays)
                 row.pay:SetTextColor(payColor[1], payColor[2], payColor[3])
                 row.name:SetText(Count(e) .. ShortName(e.id))
-                -- The item's own quality colour (a green crate pays double), greyed once a writ is delivered today.
+                -- The item's own quality color (a green crate pays double), grayed once a writ is delivered today.
                 local q = ITEM_QUALITY_COLORS[C_Item.GetItemQualityByID(e.id) or 1]
                 if e.kind == "writ" and e.done then
                     row.name:SetTextColor(0.55, 0.55, 0.55)
@@ -451,7 +451,7 @@ function Panel:Update()
                 end
                 row.detail:SetText(detail)
                 -- A fill the player chose over the cheapest one is gold.
-                local chose = e.kind == "crate" and e.best ~= e.bundles[1] and GOLD or GREY
+                local chose = e.kind == "crate" and e.best ~= e.bundles[1] and GOLD or GRAY
                 row.detail:SetTextColor(chose[1], chose[2], chose[3])
                 row.status:SetText(status)
                 row.status:SetTextColor(color[1], color[2], color[3])
@@ -496,10 +496,10 @@ function Panel:Create()
     for i, key in ipairs(TABS) do
         local b = UI:Button(f, labels[key][1], 110, 22, function()
             db.orderTab = key
-            f.scroll.fpScrollTo(0)
+            f.scroll.barScrollTo(0)
             Panel:Update()
         end)
-        UI:Tooltip(b, "ANCHOR_RIGHT", labels[key][2])
+        UI:Tooltip(b, labels[key][2])
         if i == 1 then b:SetPoint("TOPLEFT", 12, -34) else b:SetPoint("LEFT", f.tabs[TABS[i - 1]], "RIGHT", 6, 0) end
         f.tabs[key] = b
     end
@@ -525,7 +525,7 @@ function Panel:Create()
             row.mark:SetTexture(C_Item.GetItemIconByID(FP.OrderItems.receipt))
             row.action = UI:Button(row, "", 66, ROW_H - 2, ActionClick)
             row.action:SetPoint("RIGHT", -2, 0)
-            UI:Tooltip(row.action, "ANCHOR_RIGHT", function(tip, b) tip:AddLine(L[ACTION_TIPS[b.action]], 1, 1, 1, true) end)
+            UI:Tooltip(row.action, function(tip, b) tip:AddLine(L[ACTION_TIPS[b.action]], 1, 1, 1, true) end)
             row.status = UI:Text(row, 0, "RIGHT")
             row.status:SetPoint("RIGHT", -6, 0)
             row.status:SetWidth(126)
@@ -538,7 +538,7 @@ function Panel:Create()
             row.detail:SetPoint("RIGHT", row.pay, "LEFT", -6, 0)
             row.detail:SetWidth(170)
             row.detail:SetWordWrap(false)
-            row.detail:SetTextColor(GREY[1], GREY[2], GREY[3])
+            row.detail:SetTextColor(GRAY[1], GRAY[2], GRAY[3])
             -- Over a crate's fill: a click lists the crate's fills to choose from, cheapest first.
             -- A box around it shows it opens a list; brighter under the mouse.
             row.pick = CreateFrame("Button", nil, row, "BackdropTemplate")
@@ -558,12 +558,12 @@ function Panel:Create()
                 end
                 UI:OpenMenu(s, items, 340)
             end)
-            UI:Tooltip(row.pick, "ANCHOR_RIGHT", L["Click to choose what to fill this crate with, for one fill. The cheapest is first."])
+            UI:Tooltip(row.pick, L["Click to choose what to fill this crate with, for one fill. The cheapest is first."])
             -- How many of a crate held several times over to fill, beside the button that acts on it: "- [3] + of 5".
             row.of = UI:Text(row, -1)
             row.of:SetPoint("RIGHT", row.action, "LEFT", -6, 0)
             row.of:SetWidth(30)
-            row.of:SetTextColor(GREY[1], GREY[2], GREY[3])
+            row.of:SetTextColor(GRAY[1], GRAY[2], GRAY[3])
             local function Pick(v)
                 local e = row.entry
                 picked[e.id] = math.max(1, math.min(e.count, v))
@@ -600,7 +600,7 @@ function Panel:Create()
         b:SetAttribute("type", "item")
         b:SetPoint("RIGHT", f, "TOPRIGHT", -UI.BAR_GUTTER - 2, -LIST_TOP - (i - 1) * ROW_H - ROW_H / 2)
         b:SetFrameLevel(row:GetFrameLevel() + 2)
-        UI:Tooltip(b, "ANCHOR_RIGHT", function(tip) tip:AddLine(L[ACTION_TIPS[b.merge and "stack" or "fill"]], 1, 1, 1, true) end)
+        UI:Tooltip(b, function(tip) tip:AddLine(L[ACTION_TIPS[b.merge and "stack" or "fill"]], 1, 1, 1, true) end)
         b:Hide()
         f.fills[i] = b
     end
@@ -613,5 +613,5 @@ function Panel:Create()
     f.empty = UI:Text(f, 0, "CENTER")
     f.empty:SetPoint("TOPLEFT", 30, -LIST_TOP - 40)
     f.empty:SetPoint("RIGHT", -30, 0)
-    f.empty:SetTextColor(GREY[1], GREY[2], GREY[3])
+    f.empty:SetTextColor(GRAY[1], GRAY[2], GRAY[3])
 end

@@ -21,7 +21,7 @@ local function PlaceWindow(f)
     if pos then f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", pos[1], pos[2]) else f:SetPoint("TOP", UIParent, "CENTER", 0, 240) end
 end
 
--- The pin: the game's gold map pin while pinned, the grey one otherwise, as on the side panels. Escape closes the
+-- The pin: the game's gold map pin while pinned, the gray one otherwise, as on the side panels. Escape closes the
 -- window only while it isn't pinned.
 local function RefreshPin(f)
     local pinned = FP.db.zonePinned
@@ -44,9 +44,8 @@ local function Create()
         FP.db.zonePos = { f:GetLeft(), f:GetTop() }
         PlaceWindow(f)
     end)
-    f.fpOpaque = true -- a solid layer under the skin, so see-through skins stay readable
-    f.fpTitleH = TOP - 6
-    UI:Skin(f, "window")
+    f.libTitleH = TOP - 6
+    UI:Skin(f, "window", true) -- a solid layer under the skin, so see-through skins stay readable
     f.title = UI:Text(f, 2)
     f.title:SetPoint("TOPLEFT", PAD, -12)
     f.title:SetWidth(W - 2 * PAD - 24)
@@ -57,10 +56,10 @@ local function Create()
     f.pin:SetPoint("TOPRIGHT", -PAD + 4, -8)
     f.pin.icon = f.pin:CreateTexture(nil, "ARTWORK")
     f.pin.icon:SetAllPoints()
-    UI:Tooltip(f.pin, "ANCHOR_BOTTOM", function(tip)
+    UI:Tooltip(f.pin, function(tip)
         tip:AddLine(L[FP.db.zonePinned and "Unpin" or "Pin: Keep Open and Follow Me"], 1, 1, 1)
         tip:AddLine(L["A pinned window stays open, lists each zone you enter, and does not close when you press Escape."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_BOTTOM")
     f.empty = UI:Text(f, 0, "CENTER")
     f.empty:SetPoint("TOPLEFT", PAD, -TOP - 8)
     f.empty:SetPoint("RIGHT", -PAD, 0)
@@ -88,7 +87,7 @@ local function Create()
     f.drops = UI:Dropdown(f, 124, 24, function() return FP.ZoneRecipes:DropScopeLabel() end,
         function() return FP.ZoneRecipes:DropScopeItems() end)
     f.drops:SetPoint("BOTTOMLEFT", PAD, 12)
-    UI:Tooltip(f.drops, "ANCHOR_TOP", L["Which of the recipes that creatures drop and that chests and other objects hold are listed. Zone Drops Only leaves out the recipes that also drop in other zones or in a dungeon."])
+    UI:Tooltip(f.drops, L["Which of the recipes that creatures drop and that chests and other objects hold are listed. Zone Drops Only leaves out the recipes that also drop in other zones or in a dungeon."], "ANCHOR_TOP")
     -- The recipes ignored in the zone, listed again so they can be turned back on (as on the Cooldowns window).
     f.showIgnored = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     f.showIgnored:SetSize(24, 24)
@@ -96,7 +95,7 @@ local function Create()
         FP.db.zoneShowIgnored = s:GetChecked() and true or false
         FP.ZoneRecipes:Refresh()
     end)
-    UI:Tooltip(f.showIgnored, "ANCHOR_TOP", L["List the recipes you ignored in this zone, so they can be turned back on."])
+    UI:Tooltip(f.showIgnored, L["List the recipes you ignored in this zone, so they can be turned back on."], "ANCHOR_TOP")
     local ignoredLabel = UI:Text(f, 0)
     ignoredLabel:SetPoint("BOTTOMRIGHT", -PAD, 18)
     ignoredLabel:SetText(L["Show Ignored"])
@@ -148,7 +147,7 @@ local function Row(f, i)
     row = CreateFrame("Button", nil, f.list)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", RowClick)
-    UI:Tooltip(row, "ANCHOR_RIGHT", RowTooltip)
+    UI:Tooltip(row, RowTooltip)
     row.hover = row:CreateTexture(nil, "HIGHLIGHT")
     row.hover:SetAllPoints()
     row.hover:SetColorTexture(1, 1, 1, 0.08)
@@ -243,7 +242,7 @@ function UI:ShowZoneRecipes(zone, found)
         row.name:SetWidth(f.list:GetWidth() - INDENT - (e.need and row.skill:GetStringWidth() + 12 or 0))
         row.name:SetText(e.name)
         -- A recipe whose item the character already has says where it is, in green, instead of its source.
-        -- An ignored one says so, in grey.
+        -- An ignored one says so, in gray.
         row.source:SetText(e.ignored and L["Ignored"] or e.held and L[e.held] or SourceText(e))
         if e.ignored then
             row.source:SetTextColor(0.5, 0.5, 0.5)
@@ -258,6 +257,6 @@ function UI:ShowZoneRecipes(zone, found)
     -- scroll and the bar stays.
     f.list:SetHeight(y > MAX_LIST and y or 1)
     f:SetHeight(TOP + math.max(math.min(y, MAX_LIST), ROW_H) + BOTTOM)
-    if not sameZone then f.scroll.fpScrollTo(0) end
+    if not sameZone then f.scroll.barScrollTo(0) end
     f:Show()
 end

@@ -13,6 +13,20 @@ UI.display = {}
 UI.rows = {}
 UI.numRows = 10
 
+-- The library restyles every skinned frame and text on a skin, accent or font change; what this addon draws itself
+-- follows here.
+UI:OnSkinChanged(function()
+    UI:RefreshWhatsNew()
+    if UI.frame then
+        UI:SyncFilters()
+        UI:UpdateList()
+        UI:RefreshProfessions()
+        UI:RefreshFooterSelection()
+    end
+end)
+-- The star beside a recipe's name is placed by the name's width, which follows the font.
+UI:OnFontsChanged(function() if UI.frame and UI.frame.detail then UI:UpdateDetail() end end)
+
 -- Rows that fit in the recipe list for a window `height` tall; the rest is the header, filter bar and margins.
 function UI:SetNumRows(height)
     self.numRows = math.max(1, math.floor((height - 192 - self:FooterReserve()) / RecipeRowHeight()))
@@ -86,12 +100,10 @@ function UI:ResetWindow()
     self:SetScale(1)
 end
 
-UI.SCALE_MIN, UI.SCALE_MAX = 0.6, 1.6
-
 -- The one place the window scale changes, so Ctrl+wheel and the options slider stay in step.
 function UI:SetScale(scale)
-    FP.db.scale = math.max(UI.SCALE_MIN, math.min(UI.SCALE_MAX, math.floor(scale * 20 + 0.5) / 20))
-    if self.frame then self.frame:SetScale(FP.db.scale) end
+    UI.SetOpt("scale", math.max(UI.SCALE_MIN, math.min(UI.SCALE_MAX, math.floor(scale * 20 + 0.5) / 20)))
+    if self.frame then self.frame:SetScale(UI.Opt("scale")) end
     self:ReflowSidePanels() -- its top moved on the screen: docked panels may need other heights or places
     FP.Options:Refresh()
 end
@@ -119,7 +131,7 @@ function UI:Create()
     self.frame = f
     f:SetSize(db.width, db.height)
     f:SetPoint(db.point, UIParent, db.relPoint or db.point, db.x, db.y)
-    f:SetScale(db.scale)
+    f:SetScale(UI.Opt("scale"))
     f:SetFrameStrata("MEDIUM") -- same strata as Blizzard's panels; toplevel raises it on click
     f:SetToplevel(true)
     f:SetMovable(true)
@@ -133,7 +145,7 @@ function UI:Create()
     f:SetFrameLevel(UI.WINDOW_LEVEL)
     f:SetScript("OnHide", function()
         if UI.stationTicker then UI.stationTicker:Cancel() UI.stationTicker = nil end
-        UI.CloseMenu()
+        UI:CloseMenu()
         UI:CloseSidePanels()
         UI:SetDisenchantMode(false)
         UI:ResetCraftQty()
@@ -165,7 +177,7 @@ function UI:CreateTitleBar(f)
     tb:SetHeight(UI.TITLE_H - 4)
     tb:EnableMouse(true)
     tb:RegisterForDrag("LeftButton")
-    tb:SetScript("OnDragStart", function() if not FP.db.locked then f:StartMoving() end end)
+    tb:SetScript("OnDragStart", function() if not UI.Opt("locked") then f:StartMoving() end end)
     tb:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
         SavePosition(f)
@@ -173,7 +185,7 @@ function UI:CreateTitleBar(f)
     end)
     tb:EnableMouseWheel(true)
     tb:SetScript("OnMouseWheel", function(_, delta)
-        if IsControlKeyDown() and not FP.db.locked then UI:SetScale(FP.db.scale + delta * 0.05) end
+        if IsControlKeyDown() and not UI.Opt("locked") then UI:SetScale(UI.Opt("scale") + delta * 0.05) end
     end)
     f.title = self:Text(tb, 2)
     f.titleBar = tb
@@ -190,17 +202,17 @@ function UI:CreateTitleBar(f)
     gear:SetSize(14, 14)
     gear:SetPoint("CENTER")
     gear:SetTexture("Interface\\Buttons\\UI-OptionsButton")
-    self:Tooltip(opts, "ANCHOR_BOTTOM", L["Options"])
+    self:Tooltip(opts, L["Options"], "ANCHOR_BOTTOM")
     local reagents = FP.ReagentSearch:CreateButton(tb, 20)
     reagents:SetPoint("RIGHT", opts, "LEFT", -4, 0)
     f.leftButton = reagents
     f.clearWay = self:Button(tb, L["Clear Waypoint"], 110, 20, function() FP.Waypoint:Clear() end)
     f.clearWay:SetPoint("RIGHT", reagents, "LEFT", -4, 0)
     f.clearWay:SetShown(FP.Waypoint:HasActive())
-    self:Tooltip(f.clearWay, "ANCHOR_BOTTOM", function(tip)
+    self:Tooltip(f.clearWay, function(tip)
         tip:AddLine(L["Clear Waypoint"])
         tip:AddLine(L["Removes the waypoint ProfessionsForever set in Polestar or TomTom. It also clears itself when you arrive."], 1, 1, 1, true)
-    end)
+    end, "ANCHOR_BOTTOM")
     f.title:SetPoint("RIGHT", f.clearWay, "LEFT", -4, 0)
 end
 
@@ -251,5 +263,5 @@ end
 -- A locked window can't be moved, resized or scaled by the mouse; the resize grip is hidden.
 function UI:ApplyLock()
     local f = self.frame
-    if f and f.grip then f.grip:SetShown(not FP.db.locked) end
+    if f and f.grip then f.grip:SetShown(not UI.Opt("locked")) end
 end

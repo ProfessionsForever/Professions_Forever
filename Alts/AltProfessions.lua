@@ -17,7 +17,7 @@ function AltProfs:RecordRanks()
     local rec = FP.Alts:Current()
     if not rec then return end
     local old, out = rec.professions or {}, {}
-    local bonus = FP.Recipes:SkillUpBonus()
+    local bonus = FP.Recipes:OwnSkillUpBonus() -- not the viewed alt's
     for _, p in ipairs(FP:GetProfessions()) do
         local e = old[p.skillLine] or {}
         e.name, e.icon, e.rank, e.maxRank, e.bonus = p.name, p.icon, p.rank, p.maxRank, bonus

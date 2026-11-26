@@ -31,7 +31,7 @@ function Panel:CreateButton(parent, size, onClick)
     glass:SetSize(size - 8, size - 8)
     glass:SetPoint("CENTER")
     glass:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
-    UI:Tooltip(b, "ANCHOR_BOTTOM", L["Search all recipes, by name or by reagent"])
+    UI:Tooltip(b, L["Search all recipes, by name or by reagent"], "ANCHOR_BOTTOM")
     buttons[#buttons + 1] = b
     UI.SetSelected(b, self.frame and self.frame:IsShown())
     return b
@@ -52,7 +52,7 @@ function Panel:SetMode(mode)
     local text = mode == "recipe" and (self.query or "") or (self.itemID and C_Item.GetItemNameByID(self.itemID) or "")
     f.search:SetText(text)
     f.search:SetCursorPosition(0)
-    f.scroll.fpScrollTo(0)
+    f.scroll.barScrollTo(0)
     self:Update()
 end
 
@@ -66,7 +66,7 @@ end
 function Panel:SearchName(text)
     self.query = text
     self.found = FP.Uses:Search(text)
-    self.frame.scroll.fpScrollTo(0)
+    self.frame.scroll.barScrollTo(0)
     self:Update()
 end
 
@@ -154,7 +154,7 @@ function Panel:Update()
 
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #list, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #list - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #list - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     for i, row in ipairs(f.rows) do
         local r = i <= shown and list[offset + i] or nil
@@ -207,11 +207,10 @@ function Panel:Create()
         ph:SetShown(text == "")
         if Panel.mode == "recipe" and text ~= Panel.query then Panel:SearchName(text) end
     end)
-    local suggest
-    suggest = FP.UI:AttachItemAutocomplete(search, function(name)
-        local id = suggest:Resolve(name)
+    local suggest = FP.UI:ItemSuggest(search, function(id)
         if id then Panel:ShowItem(id) end
-    end, function(itemID) return Panel.mode == "reagent" and FP.Uses.IsReagent(itemID) end)
+    end, { complete = true, up = true,
+        filter = function(itemID) return Panel.mode == "reagent" and FP.Uses.IsReagent(itemID) end })
     search:SetScript("OnEnterPressed", function(s)
         if Panel.mode == "recipe" then return s:ClearFocus() end
         local text = suggest:Selected() or strtrim(s:GetText())

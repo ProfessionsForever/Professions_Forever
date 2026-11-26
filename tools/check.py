@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 """Checks the addon's Lua code without starting the game. Prints only problems, then a one-line summary.
+Shared between addons: this file is a copy from the ThreeLightsLib repository (its sync.sh brings it in). What differs
+per addon is in tools/project.json:
+
+  namespace   the name the addon's files give its private table (local _, IL = ...)
+  shared      folders and files that helpers are expected to be shared from, for --map
+  not_loaded  Lua files that are deliberately not in the .toc
+
+The checks:
 
   1. Syntax of every code file the .toc loads, with LuaJIT (WoW runs Lua 5.1).
   2. Globals each file reads that are not in tools/known-globals.txt: usually a local that stopped resolving after
@@ -7,14 +15,19 @@
   3. Globals a file writes that are not in the list either: usually a missing `local`.
   4. Locals that are declared but never used.
   5. Files the .toc lists that don't exist, and Lua files the .toc doesn't load.
-  6. The locale template (Locales/enUS.lua): keys listed twice, keys no code uses, and L["..."] lookups it lacks.
-  7. FP.* functions and values that are defined but never used anywhere.
+  6. The locale template (Locales/enUS.lua): out of date, when the addon generates it with tools/gen_locale.py;
+     otherwise keys listed twice, keys no code uses, and L["..."] lookups it lacks.
+  7. Functions and values on the addon's table that are defined but never used anywhere.
+
+The UI library's files (Libs/ThreeLightsLib) are checked like the addon's own, with the library's globals (Libs/ThreeLightsLib/known-globals.txt)
+added to the addon's. Library functions the addon doesn't use are not reported.
 
 With --map it also prints, for review (not counted as problems), each file's functions that other files use and by
 whom, and the ones in a feature's file that other features call: a shared helper in the wrong place, or a window's API.
 
 Usage: tools/check.py [--map]   (inside the VS Code Flatpak it runs the host's LuaJIT through flatpak-spawn)
 """
+import json
 import re
 import shutil
 import subprocess
@@ -22,10 +35,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TOC = ROOT / "ProfessionsForever.toc"
-KNOWN = Path(__file__).resolve().parent / "known-globals.txt"
-# Lua files that are deliberately not loaded.
-NOT_LOADED = set()
+TOOLS = Path(__file__).resolve().parent
+TOC = next(ROOT.glob("*.toc"))
+PROJECT = json.loads((TOOLS / "project.json").read_text(encoding="utf-8"))
+NS = PROJECT["namespace"]
+NOT_LOADED = set(PROJECT.get("not_loaded", []))
+LIB = "Libs/ThreeLightsLib/"
+KNOWN_FILES = [TOOLS / "known-globals.txt", ROOT / LIB / "known-globals.txt"]
 
 
 def luajit():
@@ -43,7 +59,7 @@ def toc_files():
 
 def bytecode(cmd, path):
     """LuaJIT's bytecode listing, or None with the error printed when the file doesn't compile."""
-    result = subprocess.run(cmd + ["-bl", str(path)], capture_output=True, text=True)
+    result = subprocess.run(cmd + ["-bl", str(path)], capture_output=True, text=True, errors="replace")
     if result.returncode != 0:
         print(f"SYNTAX  {result.stderr.strip()}")
         return None
@@ -95,14 +111,21 @@ def split_source(text):
 
 
 # --------------------------------------------------------------------------
-# Locale: the template in Locales/enUS.lua against the strings the code uses
+# Locale: the template must match what tools/gen_locale.py would write
 # --------------------------------------------------------------------------
 LOCALE = "Locales/enUS.lua"
 
 
 def locale_problems(sources):
-    """Template keys listed twice, keys no code names (as a literal anywhere: many are looked up through tables), and
-    L["..."] lookups missing from the template. sources: {rel: text} of the code files, the locale file included."""
+    """sources: {rel: text} of the code files, the locale file included."""
+    if (TOOLS / "gen_locale.py").exists():
+        sys.path.insert(0, str(TOOLS))
+        import gen_locale
+        if (ROOT / LOCALE).read_text(encoding="utf-8") != gen_locale.render(gen_locale.collect()):
+            return [f"LOCALE  {LOCALE} is out of date: run tools/gen_locale.py"]
+        return []
+    # A hand-kept template: keys listed twice, keys no code names (as a literal anywhere: many are looked up through
+    # tables), and L["..."] lookups missing from it.
     _, template = split_source(sources[LOCALE])
     seen, out = set(), []
     for key in template:
@@ -113,7 +136,7 @@ def locale_problems(sources):
     for rel, text in sources.items():
         if rel == LOCALE:
             continue
-        code, literals = split_source(text)
+        _, literals = split_source(text)
         used.update(literals)
         for m in re.finditer(r'\bL\[\s*"((?:\\.|[^"\\\n])*)"\s*\]', text):
             looked_up.setdefault(m.group(1), rel)
@@ -126,36 +149,39 @@ def locale_problems(sources):
 
 
 # --------------------------------------------------------------------------
-# Exports: FP.* definitions against the files that use them
+# Exports: definitions on the addon's table against the files that use them
 # --------------------------------------------------------------------------
 IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
 
 
 def exports(sources):
     """defs: {qualified name: (file, line)}; uses: {qualified name: {files}}; by_name: {last name part: {files}} for
-    self.x / self:x uses, which can't be resolved to a table. A local that holds an FP table (local UI = FP.UI, or a
-    table the file creates and exports, local Shop = {} ... FP.Shop = Shop) stands for it."""
+    self.x / self:x uses, which can't be resolved to a table. A local that holds one of the addon's tables
+    (local UI = IL.UI, or a table the file creates and exports, local Shop = {} ... IL.Shop = Shop) stands for it.
+    Names are qualified with the addon's namespace; the library's files call the same table ns."""
     defs, uses, by_name, modules = {}, {}, {}, set()
     for rel, text in sources.items():
         code, _ = split_source(text)
-        aliases = {"FP": "FP"}
-        # local A = FP.X, local A, B = FP.X, UI.Y, local Q = FP.Queue inside a function: each name gets its chain.
+        aliases = {NS: NS}
+        if rel.startswith(LIB):
+            aliases["ns"] = NS
+        # local A = IL.X, local A, B = IL.X, UI.Y, local Q = IL.Queue inside a function: each name gets its chain.
         for m in re.finditer(r"^[ \t]*local\s+([\w \t,]+?)\s*=\s*([^\n]+)$", code, re.M):
             names, exprs = [n.strip() for n in m.group(1).split(",")], [e.strip() for e in m.group(2).split(",")]
             for name, expr in zip(names, exprs):
                 chain = re.fullmatch(rf"({IDENT})((?:\.{IDENT})*)", expr)
                 if chain and chain.group(1) in aliases:
                     aliases[name] = aliases[chain.group(1)] + chain.group(2)
-        for m in re.finditer(rf"^(FP(?:\.{IDENT})+)\s*=\s*({IDENT})\s*$", code, re.M):
-            if re.search(rf"^local\s+{m.group(2)}\s*=\s*\{{\s*\}}", code, re.M):
-                aliases[m.group(2)] = m.group(1)
-                modules.add(m.group(1))
+        for m in re.finditer(rf"^((?:{NS}|ns)(?:\.{IDENT})+)\s*=\s*({IDENT})\s*$", code, re.M):
+            if m.group(1).split(".")[0] in aliases and re.search(rf"^local\s+{m.group(2)}\s*=\s*\{{\s*\}}", code, re.M):
+                aliases[m.group(2)] = NS + m.group(1)[m.group(1).index("."):]
+                modules.add(aliases[m.group(2)])
         names = "|".join(sorted(map(re.escape, aliases), key=len, reverse=True))
         spans = set()
 
         def define(base, name, pos):
             if aliases[base].count(".") > 1:
-                return  # a field of a frame or record (f.detail.qty = ...), not one of FP's tables
+                return  # a field of a frame or record (f.detail.qty = ...), not one of the addon's tables
             q = aliases[base] + "." + name
             defs.setdefault(q, (rel, code[:pos].count("\n") + 1))
             spans.add(pos)
@@ -173,12 +199,12 @@ def exports(sources):
             for part in re.split(r"[.:]", m.group(2))[1:]:
                 q += "." + part
                 uses.setdefault(q, set()).add(rel)
-        # self.x is the table a method belongs to; in event handlers (FP:RegisterEvent) self is FP itself, so a longer
-        # chain (self.Alts:Flush) is also counted as FP's.
+        # self.x is the table a method belongs to; in event handlers self is the addon's table itself, so a longer
+        # chain (self.Alts:Flush) is also counted as the addon's.
         for m in re.finditer(rf"(?<![\w.:])self[.:]({IDENT})((?:[.:]{IDENT})*)", code):
             by_name.setdefault(m.group(1), set()).add(rel)
             if m.group(2):
-                q = "FP." + m.group(1)
+                q = NS + "." + m.group(1)
                 for part in re.split(r"[.:]", m.group(2))[1:]:
                     q += "." + part
                     uses.setdefault(q, set()).add(rel)
@@ -201,13 +227,15 @@ def export_problems(defs, uses, by_name):
     out = []
     for q, (rel, line) in sorted(defs.items()):
         name = q.rsplit(".", 1)[1]
+        if rel.startswith(LIB):
+            continue  # the library offers more than one addon uses
         if not uses.get(q) and not any(k.startswith(q + ".") for k in uses) and name not in by_name:
             out.append(f"EXPORT  {rel}:{line} {q} is defined but never used")
     return out
 
 
 # Where helpers are expected to be shared from; everything else is one feature's code.
-SHARED = ("Core/", "Alts/", "Waypoints/", "Data/", "Locales/", "UI/Common/", "UI/Shared.lua")
+SHARED = tuple(PROJECT.get("shared", [])) + (LIB,)
 WINDOW_API = {"Open", "Toggle", "Update", "QueueUpdate", "Create", "frame"}
 
 
@@ -218,11 +246,11 @@ def folder(rel):
 def print_map(defs, uses, by_name, modules):
     """For review, not counted as problems: each file's functions used by other files and by whom, then the ones that
     look like a shared helper living inside one feature's file (the kind that belongs in UI/Common or UI/Shared.lua).
-    Module tables, saved settings (FP.db) and state fields (lowercase names) are left out."""
+    Module tables, saved settings (.db) and state fields (lowercase names) are left out."""
     per_file, hints = {}, []
     for q, (rel, line) in defs.items():
         name = q.rsplit(".", 1)[1]
-        if q in modules or q.startswith("FP.db.") or name[0].islower():
+        if q in modules or q.startswith(NS + ".db.") or name[0].islower():
             continue
         others = users_of(q, uses, by_name, defs) - {rel}
         if not others:
@@ -241,7 +269,8 @@ def print_map(defs, uses, by_name, modules):
 
 def main():
     cmd = luajit()
-    known = {l.strip() for l in KNOWN.read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")}
+    known = {l.strip() for path in KNOWN_FILES if path.exists()
+             for l in path.read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")}
     listed = toc_files()
     problems = 0
 
@@ -250,12 +279,13 @@ def main():
             print(f"TOC     {rel} is listed but missing")
             problems += 1
     on_disk = {p.relative_to(ROOT).as_posix() for p in ROOT.rglob("*.lua")
-               if not p.relative_to(ROOT).parts[0] in ("tools", ".vscode", ".git")}
+               if not p.relative_to(ROOT).parts[0] in ("tools", ".vscode", ".git", "tests", "Libs", "dist")}
     for rel in sorted(on_disk - set(listed) - NOT_LOADED):
         print(f"TOC     {rel} is not loaded by the .toc")
         problems += 1
 
-    code = [rel for rel in listed if not rel.startswith("Data/") and (ROOT / rel).exists()]
+    code = [rel for rel in listed if rel.endswith(".lua") and (ROOT / rel).exists()
+            and (rel.startswith(LIB) or not rel.startswith(("Data/", "Libs/")))]
     for rel in code:
         listing = bytecode(cmd, ROOT / rel)
         if listing is None:

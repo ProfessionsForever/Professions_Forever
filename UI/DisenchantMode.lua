@@ -265,7 +265,7 @@ local function UpdateList()
     local n, h = #display, RowHeight()
     local visible = math.min(MAX_ROWS, math.max(1, math.floor(p.list:GetHeight() / h)))
     FauxScrollFrame_Update(p.scroll, n, visible, h)
-    p.scroll.fpSetRange(math.max(0, n - visible) * h)
+    p.scroll.barSetRange(math.max(0, n - visible) * h)
     local offset = FauxScrollFrame_GetOffset(p.scroll)
     local a = UI:GetAccent()
     for i, row in ipairs(p.rows) do
@@ -274,7 +274,7 @@ local function UpdateList()
         if not entry then
             row:Hide()
         elseif entry.header then
-            -- As the recipe list's category headers: accent colour, - or + for open or collapsed, and the count.
+            -- As the recipe list's category headers: accent color, - or + for open or collapsed, and the count.
             row.icon:Hide()
             row.warn:Hide()
             row.name:SetText((entry.open and "- " or "+ ") .. entry.header .. " (" .. entry.count .. ")")
@@ -301,8 +301,8 @@ local function UpdateList()
     p.empty:SetText(search ~= "" and L["No items match the search."]
         or #items > 0 and L["No items match the filters."]
         or to and OtherFaction(to) and L["%s is of the other faction, so nothing can be mailed to them."]:format(to.owner)
-        or to and L["Nothing in your bags to send %s. Unbound weapons and armour of uncommon quality or better can be mailed to them to disenchant."]:format(to.owner)
-        or L["Nothing to disenchant in your bags. Weapons and armour of uncommon quality or better can be disenchanted."])
+        or to and L["Nothing in your bags to send %s. Unbound weapons and armor of uncommon quality or better can be mailed to them to disenchant."]:format(to.owner)
+        or L["Nothing to disenchant in your bags. Weapons and armor of uncommon quality or better can be disenchanted."])
 end
 
 -- Brings the selected item into view, centred, when it isn't already.
@@ -315,7 +315,7 @@ local function ScrollToSelected()
             local offset = FauxScrollFrame_GetOffset(p.scroll)
             if i > offset and i <= offset + visible then return end
             local top = math.max(0, math.min(i - 1 - math.floor(visible / 2), #display - visible))
-            p.scroll.fpScrollTo(top * h)
+            p.scroll.barScrollTo(top * h)
             return
         end
     end
@@ -355,7 +355,7 @@ local function CreateRow(p)
         selectedKey = Key(it)
         UI:UpdateDisenchantMode()
     end)
-    UI:Tooltip(row, "ANCHOR_RIGHT", function(tip, s)
+    UI:Tooltip(row, function(tip, s)
         local it = s.entry
         if not it or it.header then return false end
         tip:SetHyperlink(it.link)
@@ -400,12 +400,12 @@ local function CreateLeft(f)
     UI:Skin(p, "panel")
     f.deLeft = p
 
-    -- The way back, at the top in the accent colour so it can't be missed.
+    -- The way back, at the top in the accent color so it can't be missed.
     p.back = UI:Button(p, "< " .. L["Back to Recipes"], 10, 24, function() UI:SetDisenchantMode(false) end)
     p.back:SetPoint("TOPLEFT", 6, -7)
     p.back:SetPoint("TOPRIGHT", -6, -7)
     p.back.text:SetTextColor(1, 0.82, 0)
-    UI:Tooltip(p.back, "ANCHOR_RIGHT", L["Leave Disenchanting Mode and show the Enchanting recipes again."])
+    UI:Tooltip(p.back, L["Leave Disenchanting Mode and show the Enchanting recipes again."])
 
     -- A change that keeps the same items: rebuild the rows and redraw.
     local function Redraw()
@@ -415,7 +415,7 @@ local function CreateLeft(f)
     -- A change of what is shown: also back to the top of the list.
     local function Relist()
         BuildDisplay()
-        p.scroll.fpScrollTo(0)
+        p.scroll.barScrollTo(0)
         UI:UpdateDisenchantMode()
     end
     p.header = UI:CreateListHeader(p, -34, {
@@ -464,7 +464,7 @@ local function CreateLeft(f)
         end,
         canCollapse = function() return #display > 0 end,
         onDensity = function()
-            p.scroll.fpScrollTo(0)
+            p.scroll.barScrollTo(0)
             UI:UpdateDisenchantMode()
             UI:SetNumRows(f:GetHeight()) -- the recipe list, for when you go back to it
         end,
@@ -499,7 +499,7 @@ local function CreateLeft(f)
     UI:AttachScrollbar(p.scroll, p.scroll.ScrollBar or _G["ProfessionsForeverDisenchantScrollScrollBar"], p.list)
     p.list:EnableMouseWheel(true)
     p.list:SetScript("OnMouseWheel", function(_, delta)
-        p.scroll.fpScrollTo(p.scroll:GetVerticalScroll() - delta * RowHeight() * 3)
+        p.scroll.barScrollTo(p.scroll:GetVerticalScroll() - delta * RowHeight() * 3)
     end)
     p.list:SetScript("OnSizeChanged", function() if p:IsShown() then UpdateList() end end)
     p.rows = {}
@@ -554,8 +554,8 @@ local function Columns(row, cols, delta)
     return left
 end
 
--- A section: a gold title, a grey header line with the column names, and `count` cards under it in one column.
--- `seenKeys`: the columns that get a small grey "seen ..." line under their value (see SetSeen).
+-- A section: a gold title, a gray header line with the column names, and `count` cards under it in one column.
+-- `seenKeys`: the columns that get a small gray "seen ..." line under their value (see SetSeen).
 local function Section(parent, title, cols, count, seenKeys)
     local sec = CreateFrame("Frame", nil, parent)
     sec:SetHeight(1)
@@ -629,7 +629,7 @@ local function SetBestHighlight(card, on)
     for _, e in ipairs(card.bestEdges) do e:SetShown(on) end
 end
 
--- What you've seen, small under a card's value in column `key`: grey while there are too few disenchants to rely on,
+-- What you've seen, small under a card's value in column `key`: gray while there are too few disenchants to rely on,
 -- lighter once there are enough. `text` nil (or the option off) shows nothing, and the value sits in the middle.
 local function SetSeen(card, key, text, enough)
     local line, col = card.seen[key], card.cols[key]
@@ -640,7 +640,7 @@ local function SetSeen(card, key, text, enough)
     col:SetPoint("RIGHT", card, "RIGHT", col.fpX, shown and 6 or 0)
 end
 
--- A card's grey second line; without one the name sits in the middle of the card.
+-- A card's gray second line; without one the name sits in the middle of the card.
 local function SetNote(card, text)
     local has = text and text ~= ""
     card.note:SetText(text or "")
@@ -672,8 +672,7 @@ local function CreateConfirm(d)
     box:SetPoint("CENTER")
     box:SetFrameLevel(d:GetFrameLevel() + 30)
     box:EnableMouse(true)
-    box.fpOpaque = true -- readable over the panel in see-through skins
-    UI:Skin(box, "panel")
+    UI:Skin(box, "panel", true) -- a solid layer under the skin, readable over the panel in see-through skins
     box:Hide()
     box.title = UI:Text(box, 1, "CENTER")
     box.title:SetWidth(CONFIRM_W - 2 * CONFIRM_PAD)
@@ -888,7 +887,7 @@ local function CreateRight(f)
     local iconHit = CreateFrame("Frame", nil, c)
     iconHit:SetAllPoints(p.icon)
     iconHit:EnableMouse(true)
-    UI:Tooltip(iconHit, "ANCHOR_RIGHT", function(tip)
+    UI:Tooltip(iconHit, function(tip)
         local it = Selected()
         if not it then return false end
         tip:SetHyperlink(it.link)
@@ -914,7 +913,7 @@ local function CreateRight(f)
     local results = Section(c, L["Possible Results"], RESULT_COLS, RESULT_CARDS, { "chance", "amount" }) -- placed on each update, under the warnings
     p.results, p.resultsHeader, p.resultsSec = results.cards, results.header, results
     for _, card in ipairs(p.results) do
-        UI:Tooltip(card, "ANCHOR_RIGHT", function(tip, s)
+        UI:Tooltip(card, function(tip, s)
             if not s.itemID then return false end
             tip:SetItemByID(s.itemID)
         end)
@@ -940,7 +939,7 @@ local function CreateRight(f)
         card.name:SetText(row[2])
         card.name:SetTextColor(0.92, 0.92, 0.92)
         if row[3] then card.icon:SetTexture(row[3]) end
-        UI:Tooltip(card, "ANCHOR_RIGHT", function(tip)
+        UI:Tooltip(card, function(tip)
             tip:AddLine(row[2], 1, 1, 1)
             tip:AddLine(row[4], 0.8, 0.8, 0.8, true)
             tip:AddLine(L["5% is the standard auction house cut, 15% the neutral auction house's."], 0.6, 0.6, 0.6, true)
@@ -961,7 +960,7 @@ local function CreateRight(f)
         C_Timer.After(0.5, function() UI:UpdateDisenchantMode(true) end)
     end, "up")
     p.cast:SetPoint("BOTTOMLEFT", 12, 18)
-    UI:Tooltip(p.cast, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(p.cast, function(tip)
         local it = Selected()
         if not it then return false end
         tip:AddLine(L["Disenchant"], 1, 1, 1)
@@ -969,20 +968,20 @@ local function CreateRight(f)
         local warnings = Warnings(it)
         AddWarningLines(tip, warnings)
         if #warnings > 0 then tip:AddLine(L["You'll be asked to confirm first."], 0.8, 0.8, 0.8, true) end
-    end)
+    end, "ANCHOR_TOP")
     p.mail = UI:Button(c, "", 140, 24, MailSelected)
     p.mail:SetPoint("BOTTOMLEFT", 12, 18)
     p.mail:Hide()
-    UI:Tooltip(p.mail, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(p.mail, function(tip)
         local to = Recipient()
         if not to then return false end
         tip:AddLine(L["Mail to %s"]:format(to.owner), 1, 1, 1)
         tip:AddLine(L["Attaches the item to a new mail and fills in their name. Review it and press Send."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_TOP")
     p.plan = UI:Button(c, "", 180, 24, TogglePlan)
     p.plan:SetPoint("BOTTOMLEFT", 12, 18)
     p.plan:Hide()
-    UI:Tooltip(p.plan, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(p.plan, function(tip)
         local it = Selected()
         if not (it and it.owner) then return false end
         tip:AddLine(InPlan(it) and L["Remove from Transfer Plan"] or L["Add to Transfer Plan"], 1, 1, 1)
@@ -992,7 +991,7 @@ local function CreateRight(f)
             tip:AddLine(L["%s is asked to send you this exact piece: it shows in their Transfer Planner, login reminder and mailbox prompt, and their Mail button attaches it. It drops from the plan once they no longer hold it."]
                 :format(OwnerName(it)), 0.8, 0.8, 0.8, true)
         end
-    end)
+    end, "ANCHOR_TOP")
     p.castNote = UI:Text(c, -1)
     p.castNote:SetPoint("LEFT", p.cast, "RIGHT", 10, 0)
     p.castNote:SetPoint("RIGHT", c, "RIGHT", -12, 0)
@@ -1057,7 +1056,7 @@ function UI:SetDisenchantMode(on)
             CreateLeft(f)
             CreateRight(f)
         end
-        f.deLeft.scroll.fpScrollTo(0)
+        f.deLeft.scroll.barScrollTo(0)
     end
     self:ApplyDisenchantMode()
     self:UpdateDisenchantMode(true)
@@ -1089,7 +1088,7 @@ function UI:SyncDisenchantCardButton(card, p, last)
         b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
         UI.TrimIcon(b.icon)
         b.icon:SetTexture(MODE_ICON)
-        self:Tooltip(b, "ANCHOR_RIGHT", function(tip, s)
+        self:Tooltip(b, function(tip, s)
             tip:AddLine(L["Disenchanting Mode"], 1, 1, 1)
             local rec = s.altKey and FP.db.characters[s.altKey]
             tip:AddLine(rec and L["Opens %s's Enchanting with the gear in your bags you could send them to disenchant."]:format(rec.name)
@@ -1223,13 +1222,13 @@ function UI:UpdateDisenchantModeButton(skillLine, leftmost)
         icon:SetPoint("BOTTOMRIGHT", -3, 3)
         UI.TrimIcon(icon)
         icon:SetTexture(MODE_ICON)
-        self:Tooltip(f.deModeBtn, "ANCHOR_BOTTOM", function(tip)
+        self:Tooltip(f.deModeBtn, function(tip)
             tip:AddLine(L["Disenchanting Mode"], 1, 1, 1)
             local recipient = Recipient()
             tip:AddLine(UI.deMode and L["Click to go back to the Enchanting recipes."]
                 or recipient and L["Lists the gear in your bags you could send %s to disenchant, what each may give and what that is worth."]:format(recipient.owner)
                 or L["Lists the gear in your bags that can be disenchanted, what each may give and what that is worth."], 0.8, 0.8, 0.8, true)
-        end)
+        end, "ANCHOR_BOTTOM")
     end
     f.deModeBtn:SetShown(show)
     if show then

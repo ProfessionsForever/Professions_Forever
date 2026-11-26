@@ -6449,8 +6449,8 @@ FP.RecipeYellow = {
     [1328948] = 280,
 }
 
--- [recipe spell ID] = skill where the recipe turns grey; between the two it can still give a skill up
-FP.RecipeGrey = {
+-- [recipe spell ID] = skill where the recipe turns gray; between the two it can still give a skill up
+FP.RecipeGray = {
     [2149] = 70,
     [2152] = 60,
     [2153] = 75,

@@ -1,10 +1,13 @@
-local _, FP = ...
-local L = FP.L
-local UI = FP.UI
-
--- Binding keys to Bindings.xml actions, shared by the options' key rows (UI/Options/OptionsControls.lua) and the
--- quick buttons' bind mode (UI/Launcher.lua). Bindings go in the game's current binding set (account or character),
--- so they show on its Key Bindings screen too. Each action has two slots there, the first and second key.
+--[[
+ThreeLightsLib: binding keys to the addon's Bindings.xml actions, for the options' key rows (O.KeyBind) and anything
+else of the addon's that binds keys. Taken from ProfessionsForever. Bindings go in the game's current binding set
+(account or character), so they show on its Key Bindings screen too. Each action has two slots there, the first and
+second key.
+]]
+local _, ns = ...
+local host = ns.LibHost
+local L = host.L
+local UI = ns.UI
 
 -- Pressed alone these only modify the next key.
 UI.MODIFIER_KEYS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true,
@@ -23,8 +26,10 @@ function UI.BindKey(action, index, key)
     local keys = { GetBindingKey(action) }
     local old = GetBindingAction(key)
     if old ~= "" and old ~= action then
-        FP:Print(L["%s was bound to %s; it now does %s."]:format(GetBindingText(key), GetBindingName(old),
-            GetBindingName(action)))
+        -- host.print, when given, prints in the addon's own style.
+        local msg = L["%s was bound to %s; it now does %s."]:format(GetBindingText(key), GetBindingName(old),
+            GetBindingName(action))
+        if host.print then host.print(msg) else print(msg) end
     end
     if keys[index] and keys[index] ~= key then SetBinding(keys[index]) end
     SetBinding(key, action)

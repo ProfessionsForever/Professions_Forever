@@ -4,7 +4,7 @@
 ## Author: Thorgrim Lightfist - PvE
 ## X-Email: professionsforever@gmail.com
 ## X-License: GPL-3.0-only
-## Version: 0.10.6
+## Version: 0.10.7
 ## Category: Professions
 ## IconTexture: Interface\AddOns\ProfessionsForever\Media\icon
 ## SavedVariables: ProfessionsForeverDB
@@ -44,13 +44,21 @@ Core\QueueRunner.lua
 Core\Shopping.lua
 Data\Orders.lua
 Core\Orders.lua
-UI\Common\Skin.lua
-UI\Common\Scrollbar.lua
-UI\Common\Widgets.lua
-UI\Common\KeyBinding.lua
-UI\Common\Completion.lua
+UI\Host.lua
+Libs\ThreeLightsLib\Skin.lua
+Libs\ThreeLightsLib\Scrollbar.lua
+Libs\ThreeLightsLib\Controls.lua
+Libs\ThreeLightsLib\Menu.lua
+Libs\ThreeLightsLib\List.lua
+Libs\ThreeLightsLib\Suggest.lua
+Libs\ThreeLightsLib\Completion.lua
+Libs\ThreeLightsLib\ItemSuggest.lua
+Libs\ThreeLightsLib\Drag.lua
+Libs\ThreeLightsLib\Dialog.lua
+Libs\ThreeLightsLib\Form.lua
+Libs\ThreeLightsLib\KeyBinding.lua
+Libs\ThreeLightsLib\Options.lua
 UI\Common\ListHeader.lua
-UI\Common\ItemAutocomplete.lua
 UI\Common\CombatClose.lua
 UI\ExtraSpell.lua
 UI\ProfessionOpener.lua
@@ -100,7 +108,6 @@ Waypoints\WaypointTrainers.lua
 Waypoints\WaypointBankers.lua
 Core\ZoneRecipes.lua
 Panels\ZoneRecipes.lua
-UI\Options\OptionsControls.lua
 UI\Options\OptionsAlts.lua
 UI\Options\OptionsIntegrations.lua
 UI\Options\OptionsQuick.lua

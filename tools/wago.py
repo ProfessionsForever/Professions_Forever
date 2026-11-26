@@ -1,6 +1,8 @@
 """Downloads the WoW: Forever DB2 tables (product wowf) from wago.tools for the generator scripts, keeping each in a
-cache folder (~/.cache/professionsforever/wago/<build>) so a build is downloaded once. Each script sets AGENT to its
+cache folder (~/.cache/threelightslib/wago/<build>) so a build is downloaded once. Each script sets AGENT to its
 own name before downloading. wago.tools publishes no data terms, so leave the attribution in the generated files.
+
+Shared between addons: this file is a copy from the ThreeLightsLib repository (its sync.sh brings it in).
 """
 import csv
 import json
@@ -8,8 +10,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-CACHE = Path.home() / ".cache" / "professionsforever" / "wago"
-AGENT = "ProfessionsForever-data-generator (run by hand)"
+CACHE = Path.home() / ".cache" / "threelightslib" / "wago"
+AGENT = "ThreeLightsLib-data-generator (run by hand)"
 
 
 def fetch(url):

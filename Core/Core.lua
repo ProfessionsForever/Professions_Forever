@@ -89,6 +89,7 @@ local defaults = {
     collapsedCategories = {}, -- [categoryID] = true for recipe-list categories the user collapsed
     trackShopping = false, -- show the shopping list tracker on screen
     replaceDefault = true, shoppingScope = "account", -- one shopping list shared by all your characters (or "char")
+    confirmVendorBuy = true, -- the Buy List button on a vendor asks first
     trainerRecipes = {}, -- [recipe spell ID] = "npcId,npcId" of the trainers seen teaching it
     trainers = {}, -- [npc id] = { npc, sub, uiMap, x, y, zone, skill, alliance, horde } for trainers you've opened
     bankers = {}, -- same shape, for bankers whose window you've opened
@@ -185,7 +186,7 @@ local defaults = {
     altTipSend = true, -- "Send 42" on it
     altTipTotal = "multi", -- Available on Enabled Characters: never | multi (2 or more characters) | always
     altTipToBuy = true, -- Still to Buy under the alts
-    altTipIgnored = true, -- characters left out of planning, greyed
+    altTipIgnored = true, -- characters left out of planning, grayed
     tipAuctionPrice = "auto", -- "Auction Price: 25c each": auto (unless Auctionator shows one) | always | never
     tipHints = "line", -- click hints: line (one line) | full (a line per action) | none
     tipVendor = true, -- "Sold by" and the right-click waypoint hint
@@ -208,7 +209,7 @@ local defaults = {
 }
 FP.defaults = defaults
 
--- Options saved without a default (nil until the user sets one), which a reset clears: the accent colour picked over
+-- Options saved without a default (nil until the user sets one), which a reset clears: the accent color picked over
 -- the skin's own, and where the shopping tracker and the quick buttons were dragged to. One more key has no default
 -- and is not an option: euiAdopted, set once EllesmereUI's look has been adopted, so a reset leaves it.
 local NO_DEFAULT = { "accent", "trackerPos", "launcherPos", "mainEnchanter" } -- mainEnchanter: nil is Automatic
@@ -351,6 +352,7 @@ FP:RegisterEvent("SKILL_LINES_CHANGED", function(self) -- a profession learned, 
     -- An unlearned profession takes its recipes with it; a skill up changes none (NEW_RECIPE_LEARNED covers learning).
     if ProfessionSet(self) ~= before then self.Known:Snapshot() end
     self.AltProfs:RecordRanks()
+    self.Queue:Update() -- its skill ups follow the new rank
     Reload(self)
 end)
 FP:RegisterEvent("TRACKED_RECIPE_UPDATE", Refresh)

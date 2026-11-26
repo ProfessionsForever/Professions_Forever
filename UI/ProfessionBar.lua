@@ -211,5 +211,5 @@ function UI:CreateHeader(f)
     f.link.icon:SetSize(24, 24)
     f.link.icon:SetPoint("CENTER")
     f.link.icon:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-Chat-Up")
-    self:Tooltip(f.link, "ANCHOR_RIGHT", L["Link This Profession in Chat"])
+    self:Tooltip(f.link, L["Link This Profession in Chat"])
 end

@@ -81,7 +81,7 @@ function UI:CreateDetailHeader(d, c)
         t.label:SetPoint("BOTTOM", 0, 2)
         t.label:SetText(label)
         t.label:SetTextColor(0.7, 0.7, 0.7)
-        self:Tooltip(t, "ANCHOR_BOTTOM", function(tip, s)
+        self:Tooltip(t, function(tip, s)
             if type(tipText) == "function" then return tipText(tip, s) end
             tip:AddLine(tipText, 1, 1, 1, true)
             if s.isBank and FP.chardb.bankTime then
@@ -90,7 +90,7 @@ function UI:CreateDetailHeader(d, c)
             if s.isBank and FP.Waypoint:NavAvailable() then
                 tip:AddLine(L["Right-click: waypoint to the nearest banker"], 0.5, 0.8, 1)
             end
-        end)
+        end, "ANCHOR_BOTTOM")
         return t
     end
     d.statBank = Tile(L["From Bank"], L["Extra crafts using materials in your bank."])
@@ -121,19 +121,19 @@ function UI:CreateDetailHeader(d, c)
         UI:UpdateList()
         UI:UpdateDetail()
     end)
-    self:Tooltip(d.fav, "ANCHOR_BOTTOM", function(tip)
+    self:Tooltip(d.fav, function(tip)
         local recipe = SelectedRecipe()
         tip:AddLine(recipe and recipe.favorite and L["Remove from Favorites"] or L["Set as Favorite"], 1, 1, 1)
-    end)
+    end, "ANCHOR_BOTTOM")
 
     -- New or changed in Forever; UpdateDetail places it between the recipe name and the favorite star.
     d.forever = CreateFrame("Frame", nil, c)
     d.forever:EnableMouse(true)
     d.forever.icon = d.forever:CreateTexture(nil, "ARTWORK")
     d.forever.icon:SetAllPoints()
-    self:Tooltip(d.forever, "ANCHOR_BOTTOM", function(tip)
+    self:Tooltip(d.forever, function(tip)
         tip:AddLine(UI.ForeverTagText(SelectedRecipe().id), 0.5, 0.8, 1)
-    end)
+    end, "ANCHOR_BOTTOM")
 
     d.name = self:Text(c, 4)
     d.name:SetPoint("TOPLEFT", d.icon, "TOPRIGHT", 8, -2)
@@ -154,7 +154,7 @@ function UI:CreateDetailHeader(d, c)
     d.sourceHit:SetAllPoints(d.source)
     d.sourceHit:SetFrameLevel(c:GetFrameLevel() + 2)
     d.sourceHit:EnableMouse(true)
-    self:Tooltip(d.sourceHit, "ANCHOR_RIGHT", function()
+    self:Tooltip(d.sourceHit, function()
         local recipe = SelectedRecipe()
         if not (recipe and UI.ShowsSource(recipe)) then return false end
         UI.AddSourceLines(recipe.id, recipe.learned)
@@ -197,10 +197,10 @@ function UI:CreateDetailActions(d, c)
     d.costHit = CreateFrame("Frame", nil, c)
     d.costHit:SetAllPoints(d.cost)
     d.costHit:EnableMouse(true)
-    self:Tooltip(d.costHit, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.costHit, function(tip)
         if not d.costInfo then return false end
         FillCostTip(tip, d.costInfo)
-    end)
+    end, "ANCHOR_TOP")
     d.profit = self:Text(c, -1)
     d.profit:SetPoint("BOTTOMLEFT", 12, 100)
     d.profit:SetPoint("RIGHT", -12, 0)
@@ -208,10 +208,10 @@ function UI:CreateDetailActions(d, c)
     d.profitHit = CreateFrame("Frame", nil, c)
     d.profitHit:SetAllPoints(d.profit)
     d.profitHit:EnableMouse(true)
-    self:Tooltip(d.profitHit, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.profitHit, function(tip)
         if not d.profitInfo then return false end
         FillProfitTip(tip, d.profitInfo)
-    end)
+    end, "ANCHOR_TOP")
     d.banner:SetPoint("BOTTOMLEFT", 12, 80)
     d.banner:SetPoint("RIGHT", -12, 0)
 
@@ -250,10 +250,10 @@ function UI:CreateDetailActions(d, c)
     d.readOnly:SetTextColor(0.75, 0.75, 0.75)
     d.readOnly:Hide()
     for _, b in ipairs({ d.craft, d.craftAll, d.enchantBtn }) do
-        self:Tooltip(b, "ANCHOR_TOP", function(tip)
+        self:Tooltip(b, function(tip)
             if not d.craftBlock then return false end
             tip:AddLine(d.craftBlock, 1, 0.3, 0.3, true)
-        end)
+        end, "ANCHOR_TOP")
     end
     -- Queueing opens the queue, and the transfer planner too when other characters hold materials it needs.
     local function Queue(add)
@@ -280,7 +280,7 @@ function UI:CreateDetailActions(d, c)
         d.qty:SetText("1")
     end)
     d.addQueue:SetPoint("BOTTOMLEFT", 12, 46)
-    self:Tooltip(d.addQueue, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.addQueue, function(tip)
         local e = SelectedRecipe()
         if not e then return false end
         local enchant = FP.Recipes:IsEnchant(e.id)
@@ -293,20 +293,50 @@ function UI:CreateDetailActions(d, c)
             tip:AddLine(L["Enchant"], 1, 1, 1)
             tip:AddLine(L["The queue plans and shops for this enchant's materials. Apply it with the Enchant button: each one applied comes off the queue."], 0.8, 0.8, 0.8, true)
         end
+    end, "ANCHOR_TOP")
+    -- Shop for Reagents takes Queue's place where a recipe can't be queued: one the character whose profession this is
+    -- hasn't learned, or another player's. It adds the reagents for the quantity's crafts to the shopping list as items
+    -- you added; the list itself takes off what your characters already hold.
+    d.shop = self:Button(c, L["Shop for Reagents"], 130, 24, function()
+        local reagents = d.shopReagents
+        if not reagents then return end
+        for _, r in ipairs(reagents) do FP.Shop:Add(r.itemID, r.need) end
+        FP.Shop:Open()
+        FP:Print(L["Added %d item(s) to the shopping list."]:format(#reagents))
+        d.qty:SetText("1")
     end)
+    d.shop:SetPoint("BOTTOMLEFT", 12, 46)
+    self:Tooltip(d.shop, function(tip)
+        local reagents = d.shopReagents
+        if not reagents then return false end
+        tip:AddLine(L["Shop for Reagents"], 1, 1, 1)
+        if d.shopFor then
+            tip:AddLine(L["%s hasn't learned this recipe, so it can't be queued for them."]:format(d.shopFor), 1, 0.3, 0.3, true)
+        else
+            tip:AddLine(L["Another player's recipe can't be queued."], 1, 0.3, 0.3, true)
+        end
+        tip:AddLine(L["Adds its reagents for the number of crafts in Qty to your shopping list:"], 0.8, 0.8, 0.8, true)
+        for _, r in ipairs(reagents) do
+            tip:AddDoubleLine(FP.ItemName(r.itemID), r.need, 1, 1, 1, 1, 1, 1)
+        end
+        tip:AddLine(L["The list counts what you and your other characters already hold, and shows only what is still to buy."],
+            0.8, 0.8, 0.8, true)
+        tip:AddLine(L["They stay on the list until you remove them, even if you learn the recipe or change your mind."],
+            0.6, 0.6, 0.6, true)
+    end, "ANCHOR_TOP")
     d.queueAll = self:Button(c, L["Queue All"], 80, 24, function()
         if FP.selected and d.queueAllCount > 0 then Queue(function() FP.Queue:Add(FP.selected, d.queueAllCount) end) end
     end)
     d.queueAll:SetPoint("LEFT", d.addQueue, "RIGHT", 6, 0)
     d.queueAllCount = 0
-    self:Tooltip(d.queueAll, "ANCHOR_TOP", L["Queues as many crafts as your bags can supply."])
+    self:Tooltip(d.queueAll, L["Queues as many crafts as your bags can supply."], "ANCHOR_TOP")
 
     -- Queue Needed: queues the crafts that make what the queues still need of this recipe's item (the shopping list's
     -- queue part, net of what other queues make), so 441 Bronze Bar queues 221 Smelt Bronze, not 441.
     d.forQueues = self:Button(c, L["Queue Needed (%d)"], 80, 24, function()
         if FP.selected and d.forQueuesInfo then AddSelected(math.min(999, d.forQueuesInfo.crafts)) end
     end)
-    self:Tooltip(d.forQueues, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.forQueues, function(tip)
         local info = d.forQueuesInfo
         if not info then return false end
         tip:AddLine(L["Queue Needed (%d)"]:format(info.crafts), 1, 1, 1)
@@ -314,7 +344,7 @@ function UI:CreateDetailActions(d, c)
         tip:AddLine(L["Still needed: %d %s. One craft makes %d."]:format(info.need, FP.ItemName(info.itemID), info.yield),
             0.8, 0.8, 0.8, true)
         FP.Tooltips:AddQueueRecipeLines(tip, info.itemID)
-    end)
+    end, "ANCHOR_TOP")
     d.forQueues:Hide()
 
     d.track = self:Button(c, L["Track"], 80, 24, function()
@@ -322,22 +352,22 @@ function UI:CreateDetailActions(d, c)
         if e then UI.TrackRecipe(e) end
     end)
     d.track:SetPoint("LEFT", d.queueAll, "RIGHT", 6, 0)
-    self:Tooltip(d.track, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.track, function(tip)
         local e = SelectedRecipe()
         if not e or e.learned then return false end
         tip:AddLine(L["Set a waypoint to where this recipe is learned"], 1, 1, 1)
         if not FP.Waypoint:NavAvailable() then tip:AddLine(L["Polestar or TomTom is needed for waypoints."], 0.6, 0.6, 0.6, true) end
-    end)
+    end, "ANCHOR_TOP")
     self:CreateEnchantTarget(d, c)
 
     -- Search: Auctionator's own button on Blizzard's profession window, which this window replaces. While the auction
     -- house is open it fills Auctionator's Shopping tab with what the recipe makes and each of its reagents.
-    d.search = self:Button(c, L["Search"], 80, 24, function() UI.SearchReagents(FP.selected) end)
+    d.search = self:Button(c, L["Search"], 80, 24, function() UI.SearchReagents(FP.selected, UI:GetCount()) end)
     d.search:SetPoint("BOTTOMRIGHT", -12, 18)
-    self:Tooltip(d.search, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.search, function(tip)
         tip:AddLine(L["Search the Auction House"], 1, 1, 1)
-        tip:AddLine(L["Searches Auctionator's Shopping tab for what this recipe makes and each of its reagents."], 0.8, 0.8, 0.8, true)
-    end)
+        tip:AddLine(L["Searches Auctionator's Shopping tab for what this recipe makes and each of its reagents, with how many the crafts in Qty use."], 0.8, 0.8, 0.8, true)
+    end, "ANCHOR_TOP")
     d.search:Hide()
 end
 
@@ -357,20 +387,36 @@ end
 FP:RegisterEvent("AUCTION_HOUSE_SHOW", function() UI:UpdateSearchButton() end)
 FP:RegisterEvent("AUCTION_HOUSE_CLOSED", function() UI:UpdateSearchButton() end)
 
--- Searches Auctionator's Shopping tab for the recipe's item and reagents, once the game has loaded their names.
-function UI.SearchReagents(recipeID)
+-- Searches Auctionator's Shopping tab the way Auctionator's own button on Blizzard's window does: what the recipe
+-- makes, exact and any quantity (an enchant's scroll from Auctionator's own table; a recipe with neither, its name),
+-- then each reagent exact with how many `count` crafts use (shown on the search as "x10"). Bound items are left out,
+-- since they can't be bought. Runs once the game has loaded the items.
+local UNBOUND = { [0] = true, [2] = true, [3] = true } -- no binding, binds when equipped, binds when used
+function UI.SearchReagents(recipeID, count)
     if not (recipeID and AuctionHouseOpen()) then return end
-    local ids = {}
-    local made = FP.Recipes:OutputItemID(recipeID)
-    if made then ids[1] = made end
-    for _, r in ipairs(FP.Recipes:GetReagents(recipeID)) do ids[#ids + 1] = r.itemID end
+    local terms, ids, quantities = {}, {}, {}
+    local enchants = Auctionator.CraftingInfo and Auctionator.CraftingInfo.EnchantSpellsToItems
+    local made = FP.Recipes:OutputItemID(recipeID) or (enchants and enchants[recipeID] and enchants[recipeID][1])
+    if made then
+        ids[1], quantities[1] = made, 0
+    else
+        local e = FP.Recipes.byID[recipeID]
+        if e then terms[1] = { searchString = e.name } end
+    end
+    for _, r in ipairs(FP.Recipes:GetReagents(recipeID)) do
+        ids[#ids + 1], quantities[#quantities + 1] = r.itemID, r.qty * count
+    end
     local items = ContinuableContainer:Create()
     for _, id in ipairs(ids) do items:AddContinuable(Item:CreateFromItemID(id)) end
     items:ContinueOnLoad(function()
         if not AuctionHouseOpen() then return end
-        local terms = {}
-        for _, id in ipairs(ids) do terms[#terms + 1] = C_Item.GetItemNameByID(id) end
-        Auctionator.API.v1.MultiSearchExact("ProfessionsForever", terms)
+        for i, id in ipairs(ids) do
+            local name, _, _, _, _, _, _, _, _, _, _, _, _, bindType = C_Item.GetItemInfo(id)
+            if name and UNBOUND[bindType] then
+                terms[#terms + 1] = { searchString = name, isExact = true, quantity = quantities[i] }
+            end
+        end
+        Auctionator.API.v1.MultiSearchAdvanced("ProfessionsForever", terms)
     end)
 end
 
@@ -404,7 +450,7 @@ function UI:CreateEnchantTarget(d, c)
     d.targetName:SetJustifyH("LEFT")
     d.targetName:SetWordWrap(false)
     d.target:SetScript("OnClick", function(s) UI:OpenMenu(s, UI.TargetMenu(), 300) end)
-    self:Tooltip(d.target, "ANCHOR_TOP", function(tip)
+    self:Tooltip(d.target, function(tip)
         local guid = UI.craftTarget and UI.craftTarget:GetItemGUID()
         if guid then
             tip:SetItemByGUID(guid)
@@ -412,7 +458,7 @@ function UI:CreateEnchantTarget(d, c)
             tip:AddLine(L["Enchant Target"], 1, 1, 1)
             tip:AddLine(L["Click to choose the item to enchant."], 0.6, 0.6, 0.6, true)
         end
-    end)
+    end, "ANCHOR_TOP")
     d.target:Hide()
     d.targetTitle:Hide()
     d.targetName:Hide()

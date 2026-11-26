@@ -69,9 +69,9 @@ driver:SetScript("OnUpdate", function(_, elapsed)
     ghost:ClearAllPoints()
     ghost:SetPoint("LEFT", UIParent, "BOTTOMLEFT", x + 10, y)
     if y > scroll:GetTop() - EDGE then
-        scroll.fpScrollTo(scroll:GetVerticalScroll() - SCROLL_SPEED * elapsed)
+        scroll.barScrollTo(scroll:GetVerticalScroll() - SCROLL_SPEED * elapsed)
     elseif y < scroll:GetBottom() + EDGE then
-        scroll.fpScrollTo(scroll:GetVerticalScroll() + SCROLL_SPEED * elapsed)
+        scroll.barScrollTo(scroll:GetVerticalScroll() + SCROLL_SPEED * elapsed)
     end
     local to, gap = Target()
     line:SetShown(to ~= Queue.dragFrom)

@@ -71,7 +71,7 @@ end
 -- SetItemByID, to put the key in its own hint line.
 Tips.hidden = false
 
--- "Hold Shift for details", grey.
+-- "Hold Shift for details", gray.
 function Tips:AddKeyHint(tip)
     tip:AddLine(L["Hold %s for details"]:format(self:KeyName()), 0.5, 0.5, 0.5)
 end

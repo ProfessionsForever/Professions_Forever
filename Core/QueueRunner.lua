@@ -155,7 +155,23 @@ local function UsefulCrafts(q)
     end
     -- Nothing later wants its materials (smelting ore into bars): making them all leaves no one short.
     if not (usedLater and shared) then return end
-    local function IsFinal(e) return not (e.output and consumed[e.output.itemID] and maker[e.output.itemID] == e) end
+    -- Only the entries that use what `q` makes, directly or through later steps, decide how many it makes: a later
+    -- entry that doesn't (slugs, goggles) mustn't size the trigger for a shrink ray. The others get no crafts below
+    -- unless one of these needs what they make.
+    local downstream, made = {}, { [q.output.itemID] = true }
+    for i = 2, #list do
+        local e = list[i]
+        for _, r in ipairs(e.reagents) do
+            if made[r.itemID] then
+                downstream[e] = true
+                if e.output then made[e.output.itemID] = true end
+                break
+            end
+        end
+    end
+    local function IsFinal(e)
+        return downstream[e] and not (e.output and consumed[e.output.itemID] and maker[e.output.itemID] == e)
+    end
     local most = 0
     for _, e in ipairs(list) do
         if IsFinal(e) then most = math.max(most, e.qty) end
@@ -170,6 +186,8 @@ local function UsefulCrafts(q)
             local n
             if IsFinal(e) then
                 n = math.floor(e.qty * k / most)
+            elseif not e.output then
+                n = 0 -- makes nothing these entries use (an enchant)
             else
                 local out = e.output
                 local short = (demand[out.itemID] or 0) - Bags(out.itemID)

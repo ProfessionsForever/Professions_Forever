@@ -1,14 +1,22 @@
-local _, FP = ...
-local UI = FP.UI
+--[[
+ThreeLightsLib: completion for a text box (UI:AttachCompletion): a list of matches and grey text that finishes the
+first one, accepted with Tab. Taken from ProfessionsForever.
+
+Unlike UI:Suggest, Enter is left to the box's own script: the caller asks :Selected() for a row picked with the arrow
+keys and otherwise uses what was typed.
+]]
+local _, ns = ...
+local UI = ns.UI
 
 local MAX_ROWS, ROW_H = 6, 20
 
--- Suggestions for an edit box: a drop list of matches and grey text completing the first one. Tab or a click
+-- Suggestions for edit box eb: a drop list of matches and grey text completing the first one. Tab or a click
 -- accepts; Up/Down pick a row. getMatches(text) returns the full names to offer, best first. The caller decides
--- when to call :Update() (so it can wait out typing) and :Clear() on every text change. `up` opens the list above.
--- :Selected() is the row picked with the arrow keys, for a caller that handles Enter itself. With `onPick`, a click
--- on a row calls it with the name instead of filling the box.
-function UI:AttachCompletion(eb, getMatches, up, onPick)
+-- when to call :Update() (so it can wait out typing) and :Clear() on every text change. up: the list opens above.
+-- :Selected() is the row picked with the arrow keys, for a caller that handles Enter itself. With onPick, a click
+-- on a row calls it with the name instead of filling the box. label(name), optional, gives a row's text (a name in
+-- its item quality's color, say); the box and the grey text always take the plain name.
+function UI:AttachCompletion(eb, getMatches, up, onPick, label)
     -- Its own frame, so skin addons restyling the edit box's regions can't hide the grey text.
     local holder = CreateFrame("Frame", nil, eb)
     holder:SetAllPoints(eb)
@@ -29,7 +37,7 @@ function UI:AttachCompletion(eb, getMatches, up, onPick)
         local accent = UI:GetAccent()
         for i, row in ipairs(list.rows) do
             row:SetShown(names[i] ~= nil)
-            row.text:SetText(names[i] or "")
+            row.text:SetText(names[i] and (label and label(names[i]) or names[i]) or "")
             row.sel:SetColorTexture(accent[1], accent[2], accent[3], i == sel and 0.35 or 0)
         end
     end
@@ -44,7 +52,7 @@ function UI:AttachCompletion(eb, getMatches, up, onPick)
 
     local function BuildList()
         list = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-        list:SetFrameStrata("FULLSCREEN_DIALOG")
+        list:SetFrameStrata(UI.STRATA.popup)
         list:EnableMouse(true)
         UI:Skin(list, "button")
         list.rows = {}
@@ -95,8 +103,8 @@ function UI:AttachCompletion(eb, getMatches, up, onPick)
         if eb:GetCursorPosition() ~= strlenutf8(text) then return end
         local path, size, flags = eb:GetFont()
         -- Only on a change: a skin addon may react to every font set by re-styling the edit box.
-        if ghost.fpPath ~= path or ghost.fpSize ~= size then
-            ghost.fpPath, ghost.fpSize = path, size
+        if ghost.libPath ~= path or ghost.libSize ~= size then
+            ghost.libPath, ghost.libSize = path, size
             if not (path and ghost:SetFont(path, size, flags)) then ghost:SetFont(STANDARD_TEXT_FONT, size or 12, "") end
         end
         ghost:SetText(text)

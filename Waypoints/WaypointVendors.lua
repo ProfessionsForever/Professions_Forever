@@ -9,9 +9,18 @@ local indexes = W.indexes
 
 local RECIPE_PREFIXES = W.RECIPE_PREFIXES
 
-local function Label(name, area)
-    return area and ("%s (%s)"):format(name, area) or name
+-- "Name (Area)", with the holiday the source is only there for: "Name (Area, Lunar Festival)". The Darkmoon Faire
+-- isn't named again: its area already says so. A doubtful vendor (W.Doubtful) is marked and grayed:
+-- "Name (Area, Not Seen in Stock)".
+function W.Label(name, area, holiday, doubtful)
+    local notes = {}
+    notes[#notes + 1] = area
+    notes[#notes + 1] = W.HolidayName(holiday)
+    notes[#notes + 1] = doubtful and L["Not Seen in Stock"] or nil
+    local text = notes[1] and ("%s (%s)"):format(name, table.concat(notes, ", ")) or name
+    return doubtful and FP.UI.Hex(FP.UI.STATUS_COLORS.none) .. text .. "|r" or text
 end
+local Label = W.Label
 
 local function RefreshUI() FP.UI:QueueRefresh() end
 
@@ -32,6 +41,27 @@ local DARKMOON_SITES = {
 -- [npc id] = the calendar holiday (event) the vendor is only there for. Smokywood Pastures' city vendors come for
 -- the Feast of Winter Veil (141, as Forever's calendar lists it) with the Gingerbread Cookie and Egg Nog recipes.
 local HOLIDAY_NPCS = { [13420] = 141, [13429] = 141, [13432] = 141, [13433] = 141, [13435] = 141 }
+
+-- [quest id] = the calendar holiday the quest is only given in. Fariel Starsong's firework recipe quests in Moonglade
+-- come with the Lunar Festival (327 in Forever's Holidays table).
+local HOLIDAY_QUESTS = { [8876] = 327, [8877] = 327, [8878] = 327, [8879] = 327, [8880] = 327, [8881] = 327, [8882] = 327 }
+
+-- [recipe spell] = { [vendor npc id] = true }: vendors the built-in data and Questie list for the recipe that players
+-- have confirmed don't sell it in Forever. Never listed, unless your own visit records it in their stock.
+local NOT_SOLD = {
+    [15906] = { [4897] = true }, -- Dragonbreath Chili: Helenia Olden (Wowhead comments, 2026-11)
+}
+
+local function NotSold(recipeID, npcId)
+    return NOT_SOLD[recipeID] ~= nil and NOT_SOLD[recipeID][npcId] == true
+end
+
+-- The holidays a source's label names (locale keys), by calendar event ID.
+local HOLIDAY_NAMES = { [141] = "Feast of Winter Veil", [327] = "Lunar Festival" }
+
+function W.HolidayName(event)
+    return HOLIDAY_NAMES[event] and L[HOLIDAY_NAMES[event]]
+end
 
 local function Serves(id, v)
     return DARKMOON_NPCS[id] or W.Usable(v, "vendors", id)
@@ -90,16 +120,25 @@ function W.KnownRecipeVendors(recipeID)
             end
         end
     end
-    local out, seen = {}, {}
+    local out, seen, doubtful = {}, {}, {}
     for _, spot in ipairs(recipeVendors[recipeID] or {}) do
         seen[spot.id] = true
         out[#out + 1] = spot
     end
     for v in (W.SourceIds(recipeID, "VL") or ""):gmatch("%d+") do
         local id = tonumber(v)
-        local vendor = not seen[id] and W.KnownEntry("vendors", id)
-        if vendor and Serves(id, vendor) then AddSpots(out, id, vendor) end
+        local vendor = not seen[id] and not NotSold(recipeID, id) and W.KnownEntry("vendors", id)
+        if vendor and Serves(id, vendor) then
+            if W.Doubtful(recipeID, id) then
+                local first = #doubtful + 1
+                AddSpots(doubtful, id, vendor)
+                for i = first, #doubtful do doubtful[i].doubtful = true end
+            else
+                AddSpots(out, id, vendor)
+            end
+        end
     end
+    for _, spot in ipairs(doubtful) do out[#out + 1] = spot end
     return out
 end
 
@@ -125,20 +164,44 @@ local function SupplyList(set)
     return ids[1] and ("," .. table.concat(ids, ",") .. ",") or nil
 end
 
+-- The items that teach a recipe, by its ID (FP.RecipeItems turned around, built on first use).
+local itemsOf
+local function RecipeItemsOf(recipeID)
+    if not itemsOf then
+        itemsOf = {}
+        for item, recipe in pairs(FP.RecipeItems) do
+            itemsOf[recipe] = itemsOf[recipe] or {}
+            tinsert(itemsOf[recipe], item)
+        end
+    end
+    return itemsOf[recipeID] or {}
+end
+
 -- Whether the vendor's supply of the recipe is limited: as seen at the vendor (your recording or a shipped one), else
 -- as 1.12's data has it.
 function W.LimitedSupply(recipeID, npcId)
     local entry = W.KnownEntry("vendors", npcId)
     local seenLimited, seenNoLimit = SupplySet(entry.limited), SupplySet(entry.noLimit)
     local seen
-    for item, recipe in pairs(FP.RecipeItems) do
-        if recipe == recipeID then
-            if seenLimited[item] then return true end
-            seen = seen or seenNoLimit[item]
-        end
+    for _, item in ipairs(RecipeItemsOf(recipeID)) do
+        if seenLimited[item] then return true end
+        seen = seen or seenNoLimit[item]
     end
     if seen then return false end
     return ("," .. (W.SourceIds(recipeID, "L") or "") .. ","):find("," .. npcId .. ",", 1, true) ~= nil
+end
+
+-- Whether a vendor the built-in data or Questie lists for the recipe may no longer sell it: it was recorded in
+-- Forever (by you or in the shipped data) without the recipe item in its stock, and the item isn't a limited supply
+-- there, which a visit can find sold out. Still listed, as the recording may have missed it (an item shown only to
+-- some players), but marked, after the others, and not picked for a waypoint while another vendor is known.
+function W.Doubtful(recipeID, npcId)
+    local entry = W.KnownEntry("vendors", npcId)
+    if not (entry and entry.ver and entry.items) then return false end
+    for _, item in ipairs(RecipeItemsOf(recipeID)) do
+        if entry.items:find("," .. item .. ",", 1, true) then return false end
+    end
+    return not W.LimitedSupply(recipeID, npcId)
 end
 
 -- Stock is stored as ",itemID,itemID," to keep the saved file small and searchable. The recipes a vendor sells are
@@ -172,20 +235,23 @@ FP:RegisterEvent("MERCHANT_SHOW", RememberVendor)
 ---------------------------------------------------------------------------
 -- Vendors for a recipe
 ---------------------------------------------------------------------------
--- Friendly vendor NPC ids selling the recipe item; the item index must be ready.
-local function VendorsForRecipe(db, recipeName)
+-- Friendly vendor NPC ids Questie lists as selling the recipe item, the doubtful ones (W.Doubtful) last and the ones
+-- confirmed not to sell it left out; the item index must be ready.
+local function VendorsForRecipe(db, recipeName, recipeID)
     local items = indexes.item.map
-    local out, seen = {}, {}
+    local out, doubtful, seen = {}, {}, {}
     for _, prefix in ipairs(RECIPE_PREFIXES) do
         for _, itemId in ipairs(items[prefix .. ": " .. recipeName] or {}) do
             for _, npcId in ipairs(db.QueryItemSingle(itemId, "vendors") or {}) do
-                if not seen[npcId] and Friendly(db, npcId) then
+                if not seen[npcId] and Friendly(db, npcId) and not NotSold(recipeID, npcId) then
                     seen[npcId] = true
-                    out[#out + 1] = npcId
+                    local list = W.Doubtful(recipeID, npcId) and doubtful or out
+                    list[#list + 1] = npcId
                 end
             end
         end
     end
+    for _, npcId in ipairs(doubtful) do out[#out + 1] = npcId end
     return out
 end
 
@@ -198,27 +264,35 @@ function W:Summary(recipeID)
     local e = FP.Recipes.byID[recipeID]
     local recipeName = e and e.name or C_Spell.GetSpellName(recipeID) -- a recipe of a profession that isn't open
     local db, zoneDB = Questie()
-    local parts, seen, loading = {}, {}, false
-    local function Add(name, area)
+    local sure, doubtful, seen, loading = {}, {}, {}, false
+    local function Add(name, area, holiday, doubt)
         name = name or "?"
-        if not seen[name] and #parts < 3 then
+        if not seen[name] then
             seen[name] = true
-            parts[#parts + 1] = Label(name, area)
+            local list = doubt and doubtful or sure
+            list[#list + 1] = Label(name, area, holiday, doubt)
         end
     end
     if db then
         local st = indexes.item
         if st and st.map then
-            for _, npcId in ipairs(VendorsForRecipe(db, recipeName)) do
+            for _, npcId in ipairs(VendorsForRecipe(db, recipeName, recipeID)) do
                 local spot = Spawns(db, zoneDB, npcId)[1]
-                Add(db.QueryNPCSingle(npcId, "name"), spot and spot.area)
+                Add(db.QueryNPCSingle(npcId, "name"), spot and spot.area, HOLIDAY_NPCS[npcId], W.Doubtful(recipeID, npcId))
             end
         else
             loading = true
             if not (st and st.building) then W.Index("item", db, RefreshUI) end
         end
     end
-    for _, s in ipairs(W.KnownRecipeVendors(recipeID)) do Add(s.name, s.area) end
+    for _, s in ipairs(W.KnownRecipeVendors(recipeID)) do Add(s.name, s.area, s.holiday, s.doubtful) end
+    -- Three at most, the doubtful ones last.
+    local parts = {}
+    for _, list in ipairs({ sure, doubtful }) do
+        for _, label in ipairs(list) do
+            if #parts < 3 then parts[#parts + 1] = label end
+        end
+    end
     return #parts > 0 and table.concat(parts, ", ") or nil, loading
 end
 
@@ -235,14 +309,15 @@ function W:ForSpot(spot, who, recipeName)
 end
 
 -- The quests that reward the recipe and that your faction can take, with a giver placed in the built-in data
--- (FP.RecipeQuests entries, each with its quest id): { id, quest, level, npc, zone, uiMap, x, y }.
+-- (FP.RecipeQuests entries, each with its quest id, and the calendar holiday it is only given in):
+-- { id, quest, level, npc, zone, uiMap, x, y, holiday }.
 function W:QuestsFor(recipeID)
     local out = {}
     for v in (W.SourceIds(recipeID, "Q") or ""):gmatch("%d+") do
         local id = tonumber(v)
         local q = FP.RecipeQuests[id] -- none for a quest an item starts: it has no place
         if q and W.Usable(q) then
-            q.id = id
+            q.id, q.holiday = id, HOLIDAY_QUESTS[id]
             out[#out + 1] = q
         end
     end
@@ -308,10 +383,15 @@ function W:DropTargets(recipeID)
     return out
 end
 
--- The nearest known vendor of the recipe, else the nearest giver of a quest that rewards it, else the nearest
--- creature or object that drops it (for one in a dungeon, the dungeon's entrance).
+-- The nearest known vendor of the recipe (a doubtful one only when no other is known), else the nearest giver of a
+-- quest that rewards it, else the nearest creature or object that drops it (for one in a dungeon, the dungeon's
+-- entrance).
 local function GoToKnownVendor(e)
-    local pick = W.PickNearest(W.KnownRecipeVendors(e.id))
+    local vendors, sure = W.KnownRecipeVendors(e.id), {}
+    for _, s in ipairs(vendors) do
+        if not s.doubtful then sure[#sure + 1] = s end
+    end
+    local pick = W.PickNearest(sure) or W.PickNearest(vendors)
     if pick then
         SetWaypoint(pick, pick.name, e.name)
         return true
@@ -354,7 +434,7 @@ function W:ForRecipe(recipeID)
     end
 
     W.Search("item", db, function()
-        local vendors = VendorsForRecipe(db, e.name)
+        local vendors = VendorsForRecipe(db, e.name, recipeID)
         for _, npcId in ipairs(vendors) do
             local spot = Spawns(db, zoneDB, npcId)[1]
             if spot then

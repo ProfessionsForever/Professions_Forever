@@ -72,7 +72,7 @@ function Transfer:Update()
 
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #list, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #list - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #list - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     local queued = #FP.Queue:Data(view) > 0
     f.empty:SetShown(#list == 0)
@@ -147,7 +147,7 @@ function Transfer:Update()
                 row.icon:SetTexture(C_Item.GetItemIconByID(id))
                 row.name:SetText(FP.ItemName(id))
                 if isGear then
-                    -- The exact piece: its link carries its quality colour and random enchantment.
+                    -- The exact piece: its link carries its quality color and random enchantment.
                     row.link = e.gear.link
                     row.name:SetText(e.gear.link)
                     row.qty:SetText(e.sender == me and L["Send %d"]:format(1) or "1")
@@ -264,14 +264,14 @@ function Transfer:Create()
     letter:SetPoint("BOTTOMRIGHT", -3, 2)
     letter:SetTexture("Interface\\Icons\\INV_Letter_15")
     UI.TrimIcon(letter)
-    UI:Tooltip(f.manualBtn, "ANCHOR_BOTTOM", function(tip)
+    UI:Tooltip(f.manualBtn, function(tip)
         if Transfer.view == "manual" then
             tip:AddLine(L["Back to the Transfer Planner"], 1, 1, 1)
             return
         end
         tip:AddLine(L["Manual Transfers"], 1, 1, 1)
         tip:AddLine(L["Optional. The planner already works out what to mail for your queued crafts. Use this to send or ask for anything else, items or gold."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_BOTTOM")
 
     f.banner = UI:Text(f, -1)
     f.banner:SetPoint("TOPLEFT", 14, -36)
@@ -331,7 +331,7 @@ function Transfer:Create()
             end)
             row.mail:SetPoint("RIGHT", -4, 0)
             row.mail:Hide()
-            UI:Tooltip(row.mail, "ANCHOR_RIGHT", function(tip)
+            UI:Tooltip(row.mail, function(tip)
                 local p = MailTo()
                 if not p then return false end
                 tip:AddLine(L["Mail to %s"]:format(FP.Alts:Label(p)), 1, 1, 1)
@@ -341,7 +341,7 @@ function Transfer:Create()
             row.remove = UI:Button(row, "X", 18, 18, function() RemoveManual(row.entry) end)
             row.remove:SetPoint("LEFT", 4, 0)
             row.remove:Hide()
-            UI:Tooltip(row.remove, "ANCHOR_RIGHT", function(tip)
+            UI:Tooltip(row.remove, function(tip)
                 tip:AddLine(L["Remove Manual Transfer"], 1, 1, 1)
             end)
             row.icon = row:CreateTexture(nil, "ARTWORK")
@@ -355,7 +355,7 @@ function Transfer:Create()
                 if not (row.charKey and row.itemID) then return end
                 FP.Alts:SetTake(row.charKey, row.itemID, s:GetChecked() and row.takeDefault or 0, FP.Queue:ViewKey())
             end)
-            UI:Tooltip(row.check, "ANCHOR_RIGHT", function(tip)
+            UI:Tooltip(row.check, function(tip)
                 tip:AddLine(L["Take from This Character"], 1, 1, 1)
                 tip:AddLine(L["When off, this material is not taken from this character."], 0.8, 0.8, 0.8, true)
             end)
@@ -431,23 +431,23 @@ function Transfer:Create()
     local half = (f:GetWidth() - 28 - 90 - 12) / 2
     f.withdraw:SetPoint("LEFT", refresh, "RIGHT", 6, 0)
     f.withdraw:SetWidth(half)
-    UI:Tooltip(f.withdraw, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(f.withdraw, function(tip)
         if f.withdraw:IsEnabled() then return false end
         tip:AddLine(FP.Inv.bankOpen and L["Nothing to withdraw."] or L["Open your bank to withdraw."], 1, 1, 1, true)
-    end)
+    end, "ANCHOR_TOP")
     f.collect = UI:Button(f, L["Collect from Mailbox"], half, ACTION_BUTTON_H, function()
         FP.Outgoing:Collect(FP.Planner.MailNeeds(FP.Queue:TransferNeeds()))
     end)
     f.collect:SetPoint("LEFT", f.withdraw, "RIGHT", 6, 0)
     f.collect:SetPoint("RIGHT", f, "RIGHT", -14, 0)
-    UI:Tooltip(f.collect, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(f.collect, function(tip)
         tip:AddLine(L["Collect from Mailbox"], 1, 1, 1)
         if f.collect:IsEnabled() then
             tip:AddLine(L["Takes what your queue and your sends need from your mailbox: whole stacks, never cash-on-delivery mail."], 0.8, 0.8, 0.8, true)
         else
             tip:AddLine(MailFrame:IsShown() and L["Nothing to collect."] or L["Open a mailbox to collect."], 0.8, 0.8, 0.8, true)
         end
-    end)
+    end, "ANCHOR_TOP")
 
     Transfer.BuildManualForm(f)
     self:SetView(self.view or "plan")

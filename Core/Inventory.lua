@@ -114,7 +114,7 @@ function Inv:Withdraw(needs)
     return moved
 end
 
--- A weapon or armour piece of uncommon quality or better: what Disenchanting Mode may list. Which of them really can be
+-- A weapon or armor piece of uncommon quality or better: what Disenchanting Mode may list. Which of them really can be
 -- disenchanted is decided where they are listed (Core/Disenchant.lua). `info` is GetContainerItemInfo's.
 local function IsGear(info)
     if not (info.quality and info.quality >= 2) then return false end
@@ -126,7 +126,7 @@ local function GUIDAt(bag, slot) return C_Item.GetItemGUID(ItemLocation:CreateFr
 
 -- Only valid while the bank is open: the container APIs return nothing otherwise, so an empty
 -- scan never overwrites the cache.
--- Also saves the bank's uncommon-or-better weapons and armour slot by slot (bankGear), so Disenchanting Mode can list
+-- Also saves the bank's uncommon-or-better weapons and armor slot by slot (bankGear), so Disenchanting Mode can list
 -- them while the bank is closed, and the unbound ones account-wide for the other characters (Alts:SetGear).
 function Inv:ScanBank()
     local counts, gear, unbound, scanned = {}, {}, {}, 0
@@ -155,7 +155,7 @@ function Inv:ScanBank()
     end
 end
 
--- Saves the unbound uncommon-or-better weapons and armour in the carried bags account-wide, by GUID, so the other
+-- Saves the unbound uncommon-or-better weapons and armor in the carried bags account-wide, by GUID, so the other
 -- characters' Disenchanting Mode can list them (Alts:SetGear). On a character that can disenchant, every such piece,
 -- bound or not, is also handed to the disenchant recorder (Core/DisenchantRecord.lua), so the bags are walked once for
 -- both. Until the backpack can be read the client hasn't loaded the bags, and an empty scan would wipe the saved list.

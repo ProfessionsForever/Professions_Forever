@@ -71,25 +71,25 @@ local function joinIds(list)
     return "," .. table.concat(sorted(list), ",") .. ","
 end
 
--- A vendor's recipe items seen with a limited supply and with none: what src saw replaces what dst had for an item.
-local function mergeSupply(dst, src)
+-- A pair of opposite lists, such as a vendor's recipe items seen with a limited supply and with none, or the ranks a
+-- trainer was seen to offer and not to: what src saw replaces what dst had for an id.
+local function mergeOpposites(dst, src, yes, no)
     local state = {}
     for _, e in ipairs({ dst, src }) do
-        for _, id in ipairs(ids(e.limited)) do state[id] = "limited" end
-        for _, id in ipairs(ids(e.noLimit)) do state[id] = "noLimit" end
+        for _, id in ipairs(ids(e[yes])) do state[id] = yes end
+        for _, id in ipairs(ids(e[no])) do state[id] = no end
     end
-    local lists = { limited = {}, noLimit = {} }
+    local lists = { [yes] = {}, [no] = {} }
     for id, k in pairs(state) do table.insert(lists[k], id) end
     for k, list in pairs(lists) do dst[k] = list[1] and joinIds(list) or nil end
 end
 
 local function mergeEntry(dst, src)
-    mergeSupply(dst, src)
+    mergeOpposites(dst, src, "limited", "noLimit")
+    mergeOpposites(dst, src, "ranks", "noRanks")
     for _, k in ipairs({ "npc", "sub", "skill", "zone" }) do dst[k] = dst[k] or src[k] end
     dst.alliance, dst.horde = dst.alliance or src.alliance, dst.horde or src.horde
-    for _, k in ipairs({ "items", "ranks", "noRanks" }) do
-        if dst[k] or src[k] then dst[k] = joinIds(union(ids(dst[k]), ids(src[k]))) end
-    end
+    if dst.items or src.items then dst.items = joinIds(union(ids(dst.items), ids(src.items))) end
 end
 
 local builtIn = {}
@@ -143,19 +143,18 @@ for i = 1, #arg do
     if type(db) ~= "table" then error(arg[i] .. ": no ProfessionsForeverDB in this file", 0) end
     add(incoming, db)
 end
--- Stock and factions are still combined with the shipped entry: sold-out limited-supply items drop off a
--- vendor's list, and each faction only adds its own flag.
+-- Stock, ranks and factions are still combined with the shipped entry: sold-out limited-supply items drop off a
+-- vendor's list, a rank seen not offered drops off a trainer's, and each faction only adds its own flag.
 for _, kind in ipairs(KINDS) do
     for id, e in pairs(incoming[kind]) do
         local old = data[kind][id]
         if old then
             e.alliance, e.horde = e.alliance or old.alliance, e.horde or old.horde
-            local supply = { limited = old.limited, noLimit = old.noLimit }
-            mergeSupply(supply, e)
-            e.limited, e.noLimit = supply.limited, supply.noLimit
-            for _, k in ipairs({ "items", "ranks", "noRanks" }) do
-                if e[k] or old[k] then e[k] = joinIds(union(ids(e[k]), ids(old[k]))) end
-            end
+            local merged = { limited = old.limited, noLimit = old.noLimit, ranks = old.ranks, noRanks = old.noRanks }
+            mergeOpposites(merged, e, "limited", "noLimit")
+            mergeOpposites(merged, e, "ranks", "noRanks")
+            e.limited, e.noLimit, e.ranks, e.noRanks = merged.limited, merged.noLimit, merged.ranks, merged.noRanks
+            if e.items or old.items then e.items = joinIds(union(ids(e.items), ids(old.items))) end
         end
         data[kind][id] = e
     end

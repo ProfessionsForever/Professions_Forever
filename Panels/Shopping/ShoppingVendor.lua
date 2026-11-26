@@ -39,7 +39,7 @@ function Shop:VendorOrders()
     return orders, total
 end
 
-local function OnClick()
+local function Buy()
     for _, o in ipairs(Shop:VendorOrders()) do
         local left = o.qty
         while left > 0 do
@@ -48,6 +48,18 @@ local function OnClick()
             left = left - n
         end
     end
+end
+
+-- Asks first, listing what it buys and the total, unless Options, Shopping List turns that off. Yes buys what the
+-- vendor sells of the list at that moment.
+local function OnClick()
+    if not FP.db.confirmVendorBuy then return Buy() end
+    local orders, total = Shop:VendorOrders()
+    local lines = { L["Buy these items from this vendor?"], "" }
+    for _, o in ipairs(orders) do lines[#lines + 1] = L["%d x %s"]:format(o.qty, o.name) end
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = L["Total: %s"]:format(FP.Prices:Format(total))
+    FP.UI:Confirm(L["Buy from the Shopping List"], table.concat(lines, "\n"), Buy)
 end
 
 local function FillTooltip(tip)
@@ -63,7 +75,7 @@ local function Create()
     button:SetPoint("RIGHT", MerchantFrame.FilterDropdown, "LEFT", -4, 0)
     button:SetText(L["Buy List"])
     button:SetScript("OnClick", OnClick)
-    FP.UI:Tooltip(button, "ANCHOR_RIGHT", FillTooltip)
+    FP.UI:Tooltip(button, FillTooltip)
     -- The buyback tab hides the list's items.
     hooksecurefunc("MerchantFrame_Update", function()
         if button.hasOrders then button:SetShown(MerchantFrame.selectedTab == 1) end

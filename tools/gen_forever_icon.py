@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 MEDIA = Path(__file__).resolve().parent.parent / "Media"
 SIZE, SCALE = 64, 8  # drawn 8 times larger, then shrunk
-# name -> (glow, body, core) colours
+# name -> (glow, body, core) colors
 ICONS = {
     "forever-new": ((255, 140, 10), (255, 190, 40), (255, 245, 170)),
     "forever-changed": ((20, 120, 255), (70, 170, 255), (215, 240, 255)),
@@ -51,7 +51,7 @@ def draw(glow, body, core):
 
 
 def main():
-    icons = {name: draw(*colours) for name, colours in ICONS.items()}
+    icons = {name: draw(*colors) for name, colors in ICONS.items()}
     for name, image in icons.items():
         image.save(MEDIA / f"{name}.tga")
         print(f"{SIZE}x{SIZE} -> {MEDIA / name}.tga")

@@ -22,13 +22,13 @@ Summary footer (every tab)
 
 Recipe browser
 - Search by recipe name or by reagent name.
-- Sort by name, skill up difficulty, skill up chance, craftable amount, or profit (with Auctionator). The arrow next to Sort reverses the order.
-- Filters drop-down: show unlearned, unlearned only, has materials, orange and yellow only, hide grey recipes, favorites only, and hiding the category headers.
+- Sort by name, skill up difficulty, skill up chance, craftable amount, profit or sale price (with Auctionator; what the craft's items sell for, whatever the reagents cost). The arrow next to Sort reverses the order.
+- Filters drop-down: show unlearned, unlearned only, has materials, orange and yellow only, hide gray recipes, favorites only, and hiding the category headers.
 - Expand and collapse every category with the + and - buttons.
 - Row spacing drop-down: compact, normal, roomy or spacious rows.
-- Recipes are coloured by skill up difficulty, with a status stripe for materials: bags, bank, partial or none. Learned recipes show their skill up chance (such as 75%). A glowing infinity marks recipes that are new in Forever (gold) or changed in Forever (blue).
+- Recipes are colored by skill up difficulty, with a status stripe for materials: bags, bank, partial or none. Learned recipes show their skill up chance (such as 75%). A glowing infinity marks recipes that are new in Forever (gold) or changed in Forever (blue).
 - The recipe you last clicked in each profession is selected again when you come back to it.
-- Hover a recipe to see where it comes from: every trainer of your faction known to teach it, nearest first (up to 5, then "+N more"), the vendors that sell it, the quest that rewards it and who gives it, or the creatures, chests and dungeons it drops in. The recipe panel names the nearest trainer, with how many others. Trainers are matched by the recipe's name or by the item it makes (Smelt Steel is listed as "Steel Bar").
+- Hover a recipe to see where it comes from: every trainer of your faction known to teach it, nearest first (up to 5, then "+N more"), the vendors that sell it, the quest that rewards it and who gives it, or the creatures, chests and dungeons it drops in. The recipe panel names the nearest trainer, with how many others. Trainers are matched by the recipe's name or by the item it makes (Smelt Steel is listed as "Steel Bar"). A vendor or quest that is only there for a holiday names it ("Fariel Starsong (Moonglade, Lunar Festival)"). A vendor seen in Forever without the recipe in stock is listed last, grayed, as Not Seen in Stock, and waypoints go to another vendor first.
 - Unlearned recipes show the skill they need ("Requires skill 150"). The recipe icon in the panel shows how many items one craft makes ("2", or "2-4").
 - Ctrl-click a recipe, or its icon in the detail panel, to preview what it makes in the dressing room when it can be worn.
 - Shift-click a recipe to link it in chat, or with no chat box open to track it in the objective tracker, learned or not, as Blizzard's window does. At the auction house it searches Auctionator's Shopping tab. Everywhere in the addon's windows, Shift-click only links or searches.
@@ -38,7 +38,7 @@ Reagent cards
 - Badges show what the crafting queue and shopping list already want of that reagent, with a breakdown on hover.
 - A vendor badge appears when a vendor sells the reagent. Click it, or right-click the card, to navigate to the nearest vendor.
 - From bags and From bank tiles show how many crafts you can make now and how many more the bank adds. Right-click the bank tile to navigate to the nearest banker.
-- A Requires line lists tools and stations, coloured by whether you have them: in bags, in the bank, or missing.
+- A Requires line lists tools and stations, colored by whether you have them: in bags, in the bank, or missing.
 - With Auctionator, Cost to Craft and Profit lines. Each reagent is priced at the cheapest of the vendor, the auction house or crafting it from its own reagents (a Bolt of Silk Cloth against four Silk Cloth), counting your alts' recipes too if you like. Hover for the breakdown.
 
 Crafting queue
@@ -48,6 +48,7 @@ Crafting queue
 - Queueing a recipe whose reagents you can craft yourself queues those first, sized to what you're short of. With only part of the materials, the queue holds back the early steps so the final crafts aren't left short.
 - Rows are marked when something is missing: red when no one has it, blue when it's in the bank, pink when it's waiting in the mailbox. A missing reagent another character has queued to craft is named in the tooltip, and the mark turns yellow when their crafts cover all of it.
 - Queue Needed (N) in the recipe panel queues exactly the crafts your queues still need of what that recipe makes (441 Bronze Bar needs 221 Smelt Bronze). Its tooltip says who needs it. On another character's profession it queues for that character.
+- Each row shows its skill up color and chance, and "+3" for the skill ups its crafts should give, worked out top to bottom as your skill rises. The status line shows the skill the queue should take each profession to, and a row's tooltip says when the recipe turns its next color.
 - Enchants can be queued with a quantity to plan and shop for their materials. The queue runner skips them; each one you apply with the Enchant button comes off the queue.
 - What the queue is short of goes on the shopping list by itself and follows the queue as it changes (with the shared list, the queues of all your characters of the same faction). Shared materials are counted once. With the shared list, an item one character has queued to craft comes off the list, and its materials go on instead. Quantities you change or add yourself are kept; Reset to Queue in the shopping list undoes your changes to the queue's items.
 - The character picker in the title bar shows and edits another of your characters' queue (it crafts only on that character); the Transfer Planner follows it and shows who should send that character what.
@@ -57,6 +58,7 @@ Shopping list
 - Click an item to search for it at the auction house.
 - With Auctionator: a unit price per item, a cost column, an estimated total, and an Auctionator shopping list named ProfessionsForever that always holds what is still to buy.
 - Export as plain text.
+- At a vendor, the Buy List button buys what the list still needs from that vendor, after listing the items and the total for you to confirm (Options, General, Shopping List, Confirm Before Buy List Buys).
 - Items on your shopping list say so on their tooltip in your bags, bank and loot window: On Shopping List, Needed by Crafting Queues when your queues need them, and Still to Buy. Hold Shift for each character's queued recipes that use it. Made by Queues says how many another character's queued crafts cover, and Crafts Into on a raw material such as ore says what it is smelted or crafted into that your queues need.
 
 Alt inventory and transfer planner
@@ -84,8 +86,8 @@ Tooltips
 - The recipe list's tooltip normally opens over the recipe panel. Options, Tooltips, Recipes can dock it beside the main window instead (on its left or right; level with the recipe you point at, or always with the top of the list), so the reagents stay readable, or show it only while the detail key is held.
 
 Disenchant advice and your own results
-- Weapons and armour that can be disenchanted say what to do with them on their tooltip: Disenchant, Vendor or Auction, with the best lit and what it earns. Hold Shift for every result with its chance and value. Options, Tooltips, Disenchant Results sets when and how much it shows.
-- Every disenchant your characters do is recorded, by item level. Under each expected chance, Disenchanting Mode and the tooltip show how often you've really seen that result, your average amount, and what your disenchants were really worth, greyed until 100 disenchants of that kind are recorded.
+- Weapons and armor that can be disenchanted say what to do with them on their tooltip: Disenchant, Vendor or Auction, with the best lit and what it earns. Hold Shift for every result with its chance and value. Options, Tooltips, Disenchant Results sets when and how much it shows.
+- Every disenchant your characters do is recorded, by item level. Under each expected chance, Disenchanting Mode and the tooltip show how often you've really seen that result, your average amount, and what your disenchants were really worth, grayed until 100 disenchants of that kind are recorded.
 
 Recipe Search
 - Find any recipe in the game, in any profession, learned or not, by name or by reagent. Hover a recipe for what it makes, its reagents and which of your characters know it; click one of your recipes to open it.
@@ -93,14 +95,14 @@ Recipe Search
 Quick buttons and Skill Up Route
 - A movable bar of icons opens the Overview, settings, crafting queue, shopping list, transfer planner, cooldowns, Skill Up Route, Camp, Crates and Writs and Disenchanting Mode without the main window, each with a count of what is waiting. It can also have a button for each profession with a crafting window, which opens it like its tab. Lay it out in fixed columns or rows, growing from any corner (Options, Quick Buttons, Buttons).
 - Every quick button can have a key, even with the bar hidden: under Options, Quick Buttons, Key Bindings, or the game's Key Bindings, AddOns, ProfessionsForever. Profession 1 to 5 are your professions with a crafting window, in tab order. Or type /pf bind (or click Mouseover Keybinding on that page), hover a quick button and press a key; right-click a button to unbind it, Escape to finish. Each button shows its key in its top left corner.
-- With SkillUp Forever installed, the Skill Up Route window shows its levelling route for each profession; click a step to go to its trainer, vendor or recipe.
+- With SkillUp Forever installed, the Skill Up Route window shows its leveling route for each profession; click a step to go to its trainer, vendor or recipe.
 
 Side windows
 - The crafting queue, transfer planner and shopping list share a row of buttons to open and close each other.
 - Side windows dock beside the main window, or beside the open mailbox or bank while the main window is closed, and always stay on screen: at a large UI scale they get shorter, and with no room beside the main window one docks over it. Pin a window to keep it in place.
 
 What's New
-- After an update, the first login shows a short list of what's new. /pf whatsnew or the What's New button under Options, About shows it again. Older and Newer step through the notes of earlier versions.
+- After an update, the first login shows a short list of what's new. /pf whatsnew or the What's New button under Options, About shows it again. After skipping updates, it shows each missed version's notes in turn, oldest first. Older and Newer step through the notes of earlier versions.
 - The version is shown at login, with a note when another player has a newer version (Options, General, Notifications).
 
 Camp
@@ -122,7 +124,7 @@ Crates and Writs
 Recipe Scout
 - Entering a zone opens the Recipe Scout window, once per zone each session, listing the recipes you have not learned that you can get there: sold by a vendor (marked Limited Supply when the vendor's stock runs out), taught by a trainer once your skill is high enough, rewarded by a quest you can take, or dropped by a creature or held by a chest or other object. Inside a dungeon or raid it lists what its creatures and chests drop. /pf scout opens it again.
 - Each recipe shows the skill it needs and where it comes from. Click one to open it, right-click for a waypoint to its vendor, trainer, quest giver or drop. Shift-click ignores a recipe in that zone for this character; Show Ignored lists them again.
-- A recipe you already bought and have not learned says whether it is in your bags, bank or mailbox, and does not open the window on its own. Recipes of a specialization you do not have (Goblin Engineer, Weaponsmith and the like) and creatures friendly to your side are left out. Darkmoon Faire merchants are listed only while the faire is in that zone, and Winter Veil vendors only during the Feast of Winter Veil.
+- A recipe you already bought and have not learned says whether it is in your bags, bank or mailbox, and does not open the window on its own. Recipes of a specialization you do not have (Goblin Engineer, Weaponsmith and the like) and creatures friendly to your side are left out. Darkmoon Faire merchants are listed only while the faire is in that zone, Winter Veil vendors only during the Feast of Winter Veil, and Fariel Starsong's firework recipe quests only during the Lunar Festival.
 - The Drops dropdown lists all drops, only the recipes that drop nowhere but in this zone, or none. The window reopens where you dragged it, and its pin keeps it open and lists each zone you enter.
 - Opening a vendor records which recipes it sells in a limited supply, and the window follows that over the built-in data.
 - Options, General, Recipe Scout turns off opening on its own and chooses what it lists: vendors, limited supply, trainers, quests, drops, and recipes you already have.
@@ -156,7 +158,7 @@ Navigation (optional)
 
 Look and feel
 - Four skins: Modern Dark, Blackout, Classic and Minimal, plus an EllesmereUI skin when EllesmereUI is installed. Pick them from the Skin drop-down on the Appearance page.
-- Adjustable font (by default Game Default, the game's own font for your client's language, so Korean, Chinese and Russian text shows), font size, scale, background opacity and accent colour.
+- Adjustable font (by default Game Default, the game's own font for your client's language, so Korean, Chinese and Russian text shows), font size, scale, background opacity and accent color.
 - Blizzard's own sounds for opening and closing the window, the crafting queue, the shopping list and the settings, and for switching tabs.
 - The default professions keybind and the micro-menu Professions button open this window.
 
@@ -190,6 +192,7 @@ OPTIONAL INTEGRATIONS
 - Syndicator: Live bank counts, and the inventory of your other characters for the alt features
 - Questie: Vendor, trainer and banker locations. Current Questie releases keep their database in the separate QuestieDB addon, which is read directly, so QuestieDB alone is enough; older Questie releases that bundle the database work too
 - TomTom or Polestar: Waypoints and the navigation arrow; with Polestar, multi-step routes are printed to chat
+- TradeSkillMaster: At the auction house, Shift-clicking an item in the addon's windows searches it in TSM's open auction tab, when no chat box is open
 - SkillUp Forever: The Skill Up Route window, footer cell and quick button
 - EllesmereUI: An EllesmereUI skin for the windows; side windows dock beside its bank window
 
@@ -228,8 +231,8 @@ SETTINGS
 
 Open them with /pf options or the Options button in the title bar. Each category page links to its pages.
 
-- General: Main Window (replace the default professions window, skill up chance in the recipe list, the mark on recipes new or changed in Forever, minimap button), Shopping List (shared by your characters of the same faction, or per character), Alt Inventory (Never, Show only, Include in planning, and which characters may supply materials) and Notifications (the version at login, the newer-version note, ready cooldowns at login, opening the Transfer Planner at your bank or a mailbox) and Recipe Scout (open when you enter a zone, pin the window, and which kinds of recipes it lists)
-- Appearance: Theme (skin, font, accent colour) and Size and Window (scale, font size, background opacity, locking and resetting the window's position and size)
+- General: Main Window (replace the default professions window, skill up chance in the recipe list and queue, the mark on recipes new or changed in Forever, minimap button), Shopping List (shared by your characters of the same faction, or per character, and confirming Buy List buys), Alt Inventory (Never, Show only, Include in planning, and which characters may supply materials) and Notifications (the version at login, the newer-version note, ready cooldowns at login, opening the Transfer Planner at your bank or a mailbox) and Recipe Scout (open when you enter a zone, pin the window, and which kinds of recipes it lists)
+- Appearance: Theme (skin, font, accent color) and Size and Window (scale, font size, background opacity, locking and resetting the window's position and size)
 - Quick Buttons: Buttons (show, lock, which buttons, fixed columns or fixed rows and how many, the corner they grow from, keys shown on the buttons) and Key Bindings (a key for each quick button and profession, and Mouseover Keybinding)
 - Disenchanting: record your results, show seen rates, main enchanter, Auction Deposit
 - Tooltips: a page for each part of what the addon adds to tooltips (General, Queues & Shopping, Alts and Transfers, Prices and Hints, Recipes, Disenchant Results), with a live preview beside them

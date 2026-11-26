@@ -64,10 +64,10 @@ function Transfer.BuildManualForm(f)
     end)
     f.requestPick = pick
     pick:SetPoint("BOTTOMLEFT", FIELD_X, LINE_CHAR)
-    UI:Tooltip(pick, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(pick, function(tip)
         tip:AddLine(L["Character"], 1, 1, 1)
         tip:AddLine(L["Pick who to send to, or who to ask. Only characters of the same faction are listed."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_TOP")
 
     LineLabel(L["Item"], LINE_ITEM)
     local item = CreateFrame("EditBox", nil, form, "InputBoxTemplate")
@@ -82,10 +82,10 @@ function Transfer.BuildManualForm(f)
     qty:SetMaxLetters(4)
     qty:SetText("1")
     local ph = UI:AddPlaceholder(item, L["Type a name, or drop an item here"])
-    UI:Tooltip(item, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(item, function(tip)
         tip:AddLine(L["Item"], 1, 1, 1)
         tip:AddLine(L["Type an item's name, ID or link, or drop a stack from your bags anywhere on this window: the amount becomes the stack's count. Soulbound items can't be mailed."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_TOP")
     -- An accent outline on the slot and the item box while an item is held on the cursor, to show it can be dropped.
     local glow = CreateFrame("Frame", nil, form, "BackdropTemplate")
     glow:SetPoint("BOTTOMRIGHT", item, 2, -2)
@@ -106,8 +106,8 @@ function Transfer.BuildManualForm(f)
     -- InputBoxTemplate draws its left cap about 5px outside the box, so the boxes start that much further in to line up
     -- with the character picker and the icon; EllesmereUI's square box has no cap.
     local function Cap() return UI.EUI() and 0 or 5 end
-    item.fpEUILayout = function() item:SetPoint("BOTTOMLEFT", FIELD_X + ICON_SLOT + 4 + Cap(), LINE_ITEM) end
-    item.fpEUILayout()
+    item.libEUILayout = function() item:SetPoint("BOTTOMLEFT", FIELD_X + ICON_SLOT + 4 + Cap(), LINE_ITEM) end
+    item.libEUILayout()
     item:SetPoint("RIGHT", qty.minus, "LEFT", -10, 0)
 
     -- Gold, silver and copper boxes, each with its coin after it, as in the game's mail window.
@@ -124,8 +124,8 @@ function Transfer.BuildManualForm(f)
         if prev then
             box:SetPoint("LEFT", prev, "RIGHT", 10, 0)
         else
-            box.fpEUILayout = function() box:SetPoint("BOTTOMLEFT", FIELD_X + Cap(), LINE_GOLD) end
-            box.fpEUILayout()
+            box.libEUILayout = function() box:SetPoint("BOTTOMLEFT", FIELD_X + Cap(), LINE_GOLD) end
+            box.libEUILayout()
         end
         local icon = form:CreateTexture(nil, "ARTWORK")
         icon:SetSize(13, 13)
@@ -171,10 +171,10 @@ function Transfer.BuildManualForm(f)
         qty:SetFocus()
         qty:HighlightText()
     end
-    local suggest = UI:AttachItemAutocomplete(item, function(name)
+    local suggest = UI:ItemSuggest(item, function(_, name)
         item:SetText(name)
         ToAmount()
-    end)
+    end, { complete = true, up = true })
     UI:AddClearButton(item, L["Clear"])
     -- The item's icon in front of the box: drop an item on it, or click it with one held (Drop, below).
     local slot = suggest:IconSlot(ICON_SLOT, L["Type a name, or drop an item here"])
@@ -242,7 +242,7 @@ function Transfer.BuildManualForm(f)
         local b = UI:Button(form, L[text.button], half, ACTION_BUTTON_H, function() Add(mode) end)
         b:SetPoint("BOTTOMLEFT", 14 + (i - 1) * (half + 6), 14)
         buttons[mode] = b
-        UI:Tooltip(b, "ANCHOR_TOP", function(tip)
+        UI:Tooltip(b, function(tip)
             local picked = Picked()
             tip:AddLine(L[text.tip], 1, 1, 1)
             if picked then
@@ -252,7 +252,7 @@ function Transfer.BuildManualForm(f)
                 tip:AddLine(L["Pick a character first."], 0.8, 0.8, 0.8, true)
             end
             tip:AddLine(L["Enter in the amount box repeats the last of Send and Ask you clicked."], 0.6, 0.6, 0.6, true)
-        end)
+        end, "ANCHOR_TOP")
     end
 
     -- Puts an item in the form, in this view: by ID, then on to the amount. `load` (optional) is a manual transfer from

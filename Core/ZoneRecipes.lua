@@ -19,10 +19,11 @@ function Zone:Here()
 end
 
 -- A quest that rewards the recipe and is given on the map, which this character may take (side, level) and has not
--- done: its entry in FP.RecipeQuests.
+-- done: its entry in FP.RecipeQuests. A holiday's quest (the Lunar Festival's) only counts while the holiday is on.
 local function Quest(recipeID, uiMap)
     for _, q in ipairs(W:QuestsFor(recipeID)) do
-        if q.uiMap == uiMap and UnitLevel("player") >= q.level and not C_QuestLog.IsQuestFlaggedCompleted(q.id) then
+        if q.uiMap == uiMap and UnitLevel("player") >= q.level and not C_QuestLog.IsQuestFlaggedCompleted(q.id)
+            and (not q.holiday or W.HolidayOn(q.holiday)) then
             return q
         end
     end
@@ -32,8 +33,8 @@ end
 -- enough to learn it, else a quest given there, else a creature that drops it or an object that holds
 -- it there. Returns the kind ("V" vendor, "L" vendor with a limited supply, "T" trainer, "Q" quest, "D" creature,
 -- "O" object), the NPC's or object's name, its spot or entry (with dungeon for one inside a dungeon), and the skill
--- needed (a trainer's asked skill for "T"; nil when any skill will do). A holiday's vendor (the Darkmoon Faire at this site, Winter Veil) only counts while
--- the calendar says the holiday is on.
+-- needed (a trainer's asked skill for "T"; nil when any skill will do). A holiday's vendor or quest (the Darkmoon
+-- Faire at this site, Winter Veil, the Lunar Festival) only counts while the calendar says the holiday is on.
 local function Source(recipeID, here, rank)
     local db, need, uiMap = FP.db, FP.RecipeMinSkill[recipeID], here.uiMap
     for _, s in ipairs((db.zoneVendors or db.zoneLimited) and W.KnownRecipeVendors(recipeID) or {}) do

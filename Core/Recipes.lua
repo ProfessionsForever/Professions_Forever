@@ -45,14 +45,14 @@ function R:Crafter()
     return viewing and viewing.key
 end
 
--- A recipe's difficulty (0 orange, 1 yellow, 2 green, 3 grey) at `skill`, from the game data; green starts halfway
--- between yellow and grey. Nil when the data has no thresholds for it.
+-- A recipe's difficulty (0 orange, 1 yellow, 2 green, 3 gray) at `skill`, from the game data; green starts halfway
+-- between yellow and gray. Nil when the data has no thresholds for it.
 local function Difficulty(recipeID, skill)
-    local yellow, grey = FP.RecipeYellow[recipeID], FP.RecipeGrey[recipeID]
+    local yellow, gray = FP.RecipeYellow[recipeID], FP.RecipeGray[recipeID]
     if not yellow then return end
     if skill < yellow then return 0 end
-    if skill < (yellow + grey) / 2 then return 1 end
-    if skill < grey then return 2 end
+    if skill < (yellow + gray) / 2 then return 1 end
+    if skill < gray then return 2 end
     return 3
 end
 
@@ -276,6 +276,11 @@ local overtimeBonus -- nil until the talent config can be read
 function R:SkillUpBonus()
     local viewing = FP.AltProfs.viewing
     if viewing then return viewing.bonus end -- that character's own bonus, as last recorded
+    return self:OwnSkillUpBonus()
+end
+
+-- The current character's own talent bonus, whoever's profession the main window shows.
+function R:OwnSkillUpBonus()
     if overtimeBonus then return overtimeBonus end
     local configID = C_Traits.GetConfigIDByTreeID(Constants.LegacyConsts.LEGACY_TREE_PROFESSIONS_ID)
     if not configID then return 0 end -- not loaded yet; ask again next time
@@ -292,14 +297,28 @@ end
 FP:RegisterEvent("TRAIT_CONFIG_UPDATED", TalentsChanged)
 FP:RegisterEvent("TRAIT_NODE_CHANGED", TalentsChanged)
 
--- Chance (0 to 1) that a craft at `skill` gives a skill up: certain below yellow, falling in a line to nothing at grey,
--- plus the talent bonus between the two. Nil when the recipe has no thresholds in the data.
-function R:SkillUpChance(recipeID, skill)
-    local yellow, grey = FP.RecipeYellow[recipeID], FP.RecipeGrey[recipeID]
+-- Chance (0 to 1) that a craft at `skill` gives a skill up: certain below yellow, falling in a line to nothing at gray,
+-- plus the talent bonus between the two (`bonus`, or the shown profession's). Nil when the recipe has no thresholds in
+-- the data.
+function R:SkillUpChance(recipeID, skill, bonus)
+    local yellow, gray = FP.RecipeYellow[recipeID], FP.RecipeGray[recipeID]
     if not yellow then return end
     if skill < yellow then return 1 end
-    if skill >= grey then return 0 end
-    return min(1, (grey - skill) / (grey - yellow) + self:SkillUpBonus())
+    if skill >= gray then return 0 end
+    return min(1, (gray - skill) / (gray - yellow) + (bonus or self:SkillUpBonus()))
+end
+
+-- The recipe's difficulty (0 orange to 3 gray) at `skill`; nil without thresholds in the data.
+function R:DifficultyAt(recipeID, skill) return Difficulty(recipeID, skill) end
+
+-- The next, easier difficulty the recipe turns after `skill`, and the skill it turns at; nil once gray or without data.
+function R:NextDifficulty(recipeID, skill)
+    local yellow, gray = FP.RecipeYellow[recipeID], FP.RecipeGray[recipeID]
+    if not yellow then return end
+    local green = math.ceil((yellow + gray) / 2)
+    if skill < yellow then return 1, yellow end
+    if skill < green then return 2, green end
+    if skill < gray then return 3, gray end
 end
 
 -- Items one craft of the recipe makes: the fewest and the most.
@@ -450,10 +469,17 @@ local function SortValue(self, e, key, skill)
         local profit = FP.Prices:RecipeProfit(e.id)
         return profit and -profit or huge
     end
+    if key == "sale" then
+        local sale = FP.Prices:RecipeSale(e.id)
+        return sale and -sale or huge
+    end
     return e.learned and 0 or 1
 end
 
--- o: search, categoryName, showUnlearned, unlearnedOnly, matsOnly, skillUps, hideTrivial, sortKey (name|difficulty|chance|craftable|profit|ilevel),
+-- Sorts that need Auction prices; without Auctionator they sort by name.
+R.PRICE_SORTS = { profit = true, sale = true }
+
+-- o: search, categoryName, showUnlearned, unlearnedOnly, matsOnly, skillUps, hideTrivial, sortKey (name|difficulty|chance|craftable|profit|sale|ilevel),
 -- sortDesc, skill (the open profession's skill, for the chance sort).
 function R:GetFiltered(o)
     local out = {}
@@ -471,7 +497,7 @@ function R:GetFiltered(o)
         end
     end
     local key = o.sortKey or "name"
-    if key == "profit" and not FP.Prices:Available() then key = "name" end
+    if R.PRICE_SORTS[key] and not FP.Prices:Available() then key = "name" end
     if key ~= "name" or o.sortDesc then
         local keys = {}
         for _, e in ipairs(out) do keys[e] = { SortValue(self, e, key, o.skill) } end

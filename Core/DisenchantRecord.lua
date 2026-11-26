@@ -7,25 +7,25 @@ local DE = FP.Disenchant
 -- FP.db.deObserved[key] = { n = disenchants, items = { [itemID] = { drops = times it dropped, qty = total amount,
 --   min, max = smallest and largest amount in one drop (recorded since 2026-11-13, so missing on older records) } },
 --   first = WoW build of the first one, last = WoW build of the latest one }
--- key is "class:quality:item level" (weapons are class 2, armour 4), or "i" .. itemID for an item with its own loot
+-- key is "class:quality:item level" (weapons are class 2, armor 4), or "i" .. itemID for an item with its own loot
 -- table. Keying by item level rather than by our loot table keeps the record useful when a level bracket is wrong.
 --
 -- How a disenchant is matched to its loot: each loot slot says where it came from, and disenchant loot comes from the
--- disenchanted item itself, by its GUID ("Item-..."). So the GUID and link of every weapon and armour piece in your
+-- disenchanted item itself, by its GUID ("Item-..."). So the GUID and link of every weapon and armor piece in your
 -- bags is remembered, and loot from one of them is that item's disenchant, however it was cast (the spellbook,
 -- Disenchanting Mode, a macro, a bag addon). The item is gone from the bags by the time the loot window opens, so
 -- what is remembered is kept for the session. Loot from anything else with an item GUID (a clam, a lockbox) isn't
 -- on the list and is never counted. (On Forever, UNIT_SPELLCAST_SENT doesn't name the target of a disenchant, seen
 -- in game 2026-11-13, so the cast can't be used for this.)
 
-local gear = {} -- [item GUID] = link, for weapons and armour of uncommon quality or better seen in your bags
+local gear = {} -- [item GUID] = link, for weapons and armor of uncommon quality or better seen in your bags
 local recorded = {} -- [item GUID] = true once its disenchant is recorded (LOOT_READY can fire twice per window)
 
 -- Only a character that knows Disenchant remembers its gear or checks its loot; the others can't disenchant.
 local function CanDisenchant() return IsPlayerSpell(DE.SPELL) end
 DE.CanDisenchant = CanDisenchant
 
--- A weapon or armour piece seen in the carried bags, from the bag walk Inv:ScanBagGear already does on each bag change
+-- A weapon or armor piece seen in the carried bags, from the bag walk Inv:ScanBagGear already does on each bag change
 -- (only on a character that can disenchant). Nothing is removed, see above.
 function DE:RememberGear(guid, link) gear[guid] = link end
 

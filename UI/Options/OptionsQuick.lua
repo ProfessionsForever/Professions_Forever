@@ -50,7 +50,7 @@ function O.BuildQuick(page)
         db.quickProfessions = v
         FP.Launcher:Update()
     end)
-    UI:Tooltip(profs, "ANCHOR_RIGHT", L["A button for each of your professions with a crafting window, opening it like its tab, without the main window."])
+    UI:Tooltip(profs, L["A button for each of your professions with a crafting window, opening it like its tab, without the main window."])
     O.Check(page, L["Show Overview Button"], function() return db.quickOverview end, function(v)
         db.quickOverview = v
         FP.Launcher:Update()
@@ -71,23 +71,22 @@ function O.BuildQuick(page)
         db.quickDisenchant = v
         FP.Launcher:Update()
     end)
-    UI:Tooltip(de, "ANCHOR_RIGHT", L["Shown on a character that knows Disenchant, or that has an enchanter among your characters to send gear to."])
+    UI:Tooltip(de, L["Shown on a character that knows Disenchant, or that has an enchanter among your characters to send gear to."])
 
     O.Section(page, L["Appearance"])
     local layout = O.DropList(page, L["Layout"], function() return Label(LAYOUTS, IsLayout) end,
         function() return Items(LAYOUTS, IsLayout, function(c) db.quickLayout = c.key end) end)
-    UI:Tooltip(layout, "ANCHOR_RIGHT", L["Fixed Columns: rows of that many buttons, and more rows as buttons are added. Fixed Rows: columns of that many buttons, and more columns as buttons are added."])
-    local count = O.Slider(page, "ProfessionsForeverOptQuickCount", L["Columns"], 1, FP.Launcher.MAX_BUTTONS, 1,
+    UI:Tooltip(layout, L["Fixed Columns: rows of that many buttons, and more rows as buttons are added. Fixed Rows: columns of that many buttons, and more columns as buttons are added."])
+    local count = O.Slider(page, L["Columns"], 1, FP.Launcher.MAX_BUTTONS, 1,
         function() return db[CountKey()] end, function(v)
             db[CountKey()] = v
             FP.Launcher:Update()
         end, "%d")
     local function CountLabel() count.label:SetText(db.quickLayout == "rows" and L["Rows"] or L["Columns"]) end
-    CountLabel()
-    O.refreshers[#O.refreshers + 1] = CountLabel
+    O.AddRefresher(CountLabel)
     local corner = O.DropList(page, L["Grow From"], function() return Label(CORNERS, IsCorner) end,
         function() return Items(CORNERS, IsCorner, function(c) db.quickGrowX, db.quickGrowY = c.x, c.y end) end)
-    UI:Tooltip(corner, "ANCHOR_RIGHT", L["The corner the handle sits on. The buttons spread away from it, and it stays put as buttons come and go."])
+    UI:Tooltip(corner, L["The corner the handle sits on. The buttons spread away from it, and it stays put as buttons come and go."])
     O.Check(page, L["Show Header"], function() return db.quickHeader end, function(v)
         db.quickHeader = v
         FP.Launcher:Update()
@@ -103,7 +102,7 @@ end
 function O.BuildQuickKeys(page)
     O.Section(page, L["Key Bindings"])
     local hover = O.ActionButton(page, L["Mouseover Keybinding"], 160, function() FP.Launcher:ToggleBindMode() end)
-    UI:Tooltip(hover, "ANCHOR_RIGHT", L["Hover a quick button and press a key to bind it, or right-click it to unbind. Escape to finish. Also /pf bind."])
+    UI:Tooltip(hover, L["Hover a quick button and press a key to bind it, or right-click it to unbind. Escape to finish. Also /pf bind."])
     for _, k in ipairs(FP.Launcher.BINDINGS) do
         local label = O.KeyBind(page, k.label and L[k.label] or "", k.action)
         if k.profession then
@@ -112,8 +111,7 @@ function O.BuildQuickKeys(page)
                 local p = FP.Launcher.CraftingProfessions()[k.profession]
                 label:SetText(p and p.name or L["Profession %d"]:format(k.profession))
             end
-            Name()
-            O.refreshers[#O.refreshers + 1] = Name
+            O.AddRefresher(Name)
         end
     end
 end

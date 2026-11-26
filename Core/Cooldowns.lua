@@ -119,7 +119,7 @@ function Cooldowns:IsOnCooldown(recipeID)
     return left ~= nil and left > 0
 end
 
--- The detail pane line, coloured: the cooldown's length, then ready or the time left. Empty for a recipe without one.
+-- The detail pane line, colored: the cooldown's length, then ready or the time left. Empty for a recipe without one.
 function Cooldowns:DetailText(recipeID)
     if FP:IsReadOnly() then return "" end
     local c = Entry(recipeID)

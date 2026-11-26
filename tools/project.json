@@ -1,0 +1,20 @@
+{
+    "namespace": "FP",
+    "shared": [
+        "Core/",
+        "Alts/",
+        "Waypoints/",
+        "Data/",
+        "Locales/",
+        "UI/Common/",
+        "UI/Shared.lua"
+    ],
+    "not_loaded": [],
+    "items": {
+        "include": [
+            {
+                "bonding": [0, 2, 3]
+            }
+        ]
+    }
+}

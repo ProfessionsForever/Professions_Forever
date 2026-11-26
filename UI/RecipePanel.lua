@@ -3,22 +3,22 @@ local L = FP.L
 local UI = FP.UI
 local RecipeRowHeight = UI.RecipeRowHeight
 
--- Sorts: key, label in the menu, label on the button.
+-- Sorts: key, label in the menu, label on the button. In the menu's order: alphabetical.
 local SORTS = {
-    { "name", "Name", "Name" }, { "difficulty", "Skill Up Difficulty", "Skill Up" }, { "chance", "Skill Up Chance", "Chance" },
-    { "craftable", "Craftable Amount", "Craftable" }, { "profit", "Profit", "Profit" },
-    { "ilevel", "Item Level", "Item Level" },
+    { "craftable", "Craftable Amount", "Craftable" }, { "ilevel", "Item Level", "Item Level" }, { "name", "Name", "Name" },
+    { "profit", "Profit", "Profit" }, { "sale", "Sale Price", "Sale Price" },
+    { "chance", "Skill Up Chance", "Chance" }, { "difficulty", "Skill Up Difficulty", "Skill Up" },
 }
 local FILTERS = {
     { "showUnlearned", "Show Unlearned" }, { "unlearnedOnly", "Unlearned Only" }, { "hasMatsOnly", "Has Materials" },
-    { "skillUpsOnly", "Orange and Yellow Only" }, { "hideTrivial", "Hide Grey Recipes" }, { "favoritesOnly", "Favorites Only" },
+    { "skillUpsOnly", "Orange and Yellow Only" }, { "hideTrivial", "Hide Gray Recipes" }, { "favoritesOnly", "Favorites Only" },
     { "hideCategories", "Do Not Show Category Headers" },
 }
 
--- The saved sort, except that profit counts as name without Auctionator.
+-- The saved sort, except that the price sorts count as name without Auctionator.
 local function SortKey()
     local key = FP.db.sortKey
-    return key == "profit" and not FP.Prices:Available() and "name" or key
+    return FP.Recipes.PRICE_SORTS[key] and not FP.Prices:Available() and "name" or key
 end
 
 -- Left panel: the search, sort and filter rows (UI/Common/ListHeader.lua) and the recipe list.
@@ -84,7 +84,7 @@ function UI:CreateRecipePanel(f)
         sorts = SORTS,
         getSort = SortKey,
         setSort = function(key) FP.db.sortKey = key end,
-        sortShown = function(key) return key ~= "profit" or FP.Prices:Available() end,
+        sortShown = function(key) return not FP.Recipes.PRICE_SORTS[key] or FP.Prices:Available() end,
         descKey = "sortDesc",
         onSort = Relist,
         categoryLabel = function()
@@ -108,7 +108,7 @@ function UI:CreateRecipePanel(f)
         hideCollapse = function() return FP.db.hideCategories end,
         onDensity = function()
             UI:SetNumRows(f:GetHeight())
-            f.scroll.fpScrollTo(0)
+            f.scroll.barScrollTo(0)
             UI:SyncFilters()
             UI:UpdateList()
             UI:UpdateDetail()
@@ -142,6 +142,6 @@ function UI:CreateRecipeList(f)
     self:AttachScrollbar(scroll, scrollBar, list)
     list:EnableMouseWheel(true)
     list:SetScript("OnMouseWheel", function(_, delta)
-        scroll.fpScrollTo(scroll:GetVerticalScroll() - delta * RecipeRowHeight() * 3)
+        scroll.barScrollTo(scroll:GetVerticalScroll() - delta * RecipeRowHeight() * 3)
     end)
 end

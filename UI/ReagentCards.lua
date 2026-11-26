@@ -26,7 +26,7 @@ local function Badge(row, texture, onEnter, onClick)
     UI.TrimIcon(b.icon)
     b.text = UI:Text(b, -1, "LEFT")
     b.text:SetPoint("LEFT", b.icon, "RIGHT", 2, 0)
-    UI:Tooltip(b, "ANCHOR_TOP", function() onEnter(row) end)
+    UI:Tooltip(b, function() onEnter(row) end, "ANCHOR_TOP")
     if onClick then
         b:SetScript("OnMouseUp", function(_, button) if button == "LeftButton" then onClick(row) end end)
     end

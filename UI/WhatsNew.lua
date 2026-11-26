@@ -3,10 +3,10 @@ local L = FP.L
 local UI = FP.UI
 
 -- What's New: at the first login after an update, a short list of the main changes (the full list is the changelog).
--- It shows the newest notes the player hasn't seen yet, so updating past a version (0.9.4 straight to 0.10.1) still
--- shows that version's notes, and a small update without notes of its own shows nothing. A fresh install only notes the
--- version (FP.freshInstall, Core/Core.lua). /pf whatsnew and the About page's button show the newest notes again.
--- Older and Newer step through the earlier versions' notes.
+-- It shows every version's notes the player hasn't seen yet, oldest first, with Next stepping on to the newest, so
+-- updating past versions (0.10.5 straight to 0.10.8) still shows each one's notes once, and a small update without
+-- notes of its own shows nothing. A fresh install only notes the version (FP.freshInstall, Core/Core.lua). /pf whatsnew
+-- and the About page's button show the newest notes again. Older and Newer step through the earlier versions' notes.
 -- FP.db.whatsNewSeen is the version last logged in with.
 
 -- [version] = { { icon (in Interface\\Icons), heading, text }, ... }. A version without an entry shows nothing.
@@ -27,14 +27,9 @@ local NOTES = {
         { "INV_Letter_15", "A Sharper Transfer Planner", "Mail puts short stacks together and attaches the fewest it can, and fills in the subject. Withdraw from Bank and Collect from Mailbox also fetch what this character has to send." },
         { "INV_Misc_Gift_02", "And More", "Stop Queue as its own button, a click on a queued recipe opens it, your specialization on the Overview, Darkmoon Faire and neutral vendors for both factions, Older and Newer buttons right here, and a pile of fixes. The changelog has every detail." },
     },
-    -- 0.10.3 was a small update, so its notes keep the main 0.10.2 ones under its own.
     ["0.10.3"] = {
         { "INV_Fabric_Linen_02", "Your Alts' Queues Work Together", "Hover an item to see how many your crafting queues need, how many you still have to buy, and which of your characters' queues are making it. Queue bolts on your tailor and your engineer's shopping list drops them and lists the cloth instead. Ore says what it smelts into, and Queue Needed queues exactly what's missing in one click." },
         { "INV_Enchant_EssenceMagicLarge", "Queue Your Enchants", "Queue an enchant with a quantity to plan and shop for its materials. Each one you apply with the Enchant button comes off the queue." },
-        { "Spell_Fire_Fire", "Set Up Camp", "A new Camp window (footer, quick button or /pf camp) lists every camp feature you hold, can craft, have on an alt or haven't learned yet. Place them with one click, and the shared cooldowns sit right at the top." },
-        { "Trade_Fishing", "One-Click Fishing", "Bind one key: it puts on your fishing gear, best pole and lure, casts, and catches when the fish bites. Your normal gear goes back on when you mount or stop fishing, and bites are louder so you don't miss the splash." },
-        { "INV_Misc_Coin_02", "Send Stuff by Hand", "The Transfer Planner's letter button opens Manual Transfers: send an alt an item or some gold, or ask one to send you something. Drop a stack from your bags straight on the window. At the mailbox, Mail attaches exactly the right amount, splitting stacks for you. You can ask for gear from Disenchanting Mode too." },
-        { "INV_Misc_Key_03", "Keys for Your Quick Buttons", "Bind a key to any window, to Disenchanting Mode or to each of your professions. Hover a button and press a key to bind it (/pf bind). New Overview and Settings buttons, plus rows or columns, growing from any corner." },
         { "INV_Misc_Gift_02", "And More", "\"On Shopping List\" on item tooltips, how many a craft makes on the recipe icon, a smarter auction verdict when disenchanting, crafted reagents priced at their crafting cost, options in categories with a live tooltip preview, and a pile of fixes. The changelog has every detail." },
     },
     ["0.10.2"] = {
@@ -49,7 +44,7 @@ local NOTES = {
     },
     ["0.10.0"] = {
         { "INV_Enchant_DustStrange", "Disenchanting Mode", "Hit the dust icon on the Enchanting tab and your recipes turn into a list of everything you could disenchant. See what each piece might give, whether it's worth more vendored, disenchanted or on the auction house, and zap it right there. Your alts' gear shows up too." },
-        { "INV_Enchant_EssenceMagicLarge", "Disenchant advice on tooltips", "Hover a weapon or armour piece and it'll tell you whether to disenchant, vendor or auction it. Every disenchant you do gets recorded, so over time you'll see how the real drops stack up against the odds." },
+        { "INV_Enchant_EssenceMagicLarge", "Disenchant advice on tooltips", "Hover a weapon or armor piece and it'll tell you whether to disenchant, vendor or auction it. Every disenchant you do gets recorded, so over time you'll see how the real drops stack up against the odds." },
         { "INV_Scroll_03", "Check in on your alts", "Pick any of your characters on the Overview to browse their recipes, and queue crafts for them. Whoever's holding the materials gets told what to mail over." },
         { "INV_Misc_Bag_10", "A shopping list that keeps itself", "Whatever your queues are short of lands on the list on its own, shared across all your characters on the same faction. Your old lists came along for the ride." },
         { "INV_Letter_01", "Mail counts now", "Stuff sitting in a mailbox counts as yours. At the mailbox, the Transfer Planner mails your alts what they need and grabs what your queue needs in one click." },
@@ -83,6 +78,15 @@ local function NewestNotes(after)
     return best
 end
 
+-- The oldest version with notes that is no newer than this one and newer than `after`; nil when none.
+local function OldestNotes(after)
+    local best
+    for v in pairs(NOTES) do
+        if not Before(VERSION, v) and Before(after, v) and (not best or Before(v, best)) then best = v end
+    end
+    return best
+end
+
 -- The versions with notes, up to this one, oldest first.
 local function Versions()
     local out = {}
@@ -111,9 +115,8 @@ local function Create()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f.fpOpaque = true -- a solid layer under the skin, as the options window has, so see-through skins stay readable
-    f.fpTitleH = PAD + LOGO + 10 -- EllesmereUI's title strip ends at the rule under the logo and title
-    UI:Skin(f, "window")
+    f.libTitleH = PAD + LOGO + 10 -- EllesmereUI's title strip ends at the rule under the logo and title
+    UI:Skin(f, "window", true) -- a solid layer under the skin, as the options window has, so see-through skins stay readable
     tinsert(UISpecialFrames, "ProfessionsForeverWhatsNew") -- Escape closes it
     f.logo = f:CreateTexture(nil, "ARTWORK")
     f.logo:SetSize(LOGO, LOGO)
@@ -123,7 +126,7 @@ local function Create()
     f.title:SetPoint("BOTTOMLEFT", f.logo, "RIGHT", 12, 1) -- title and welcome together centred on the logo
     f.title:SetWidth(W - 2 * PAD - LOGO - 12)
     f.title:SetTextColor(1, 0.82, 0)
-    -- Under it, the options banner's welcome with the character's name in their class colour.
+    -- Under it, the options banner's welcome with the character's name in their class color.
     f.welcome = UI:Text(f, 0)
     f.welcome:SetPoint("TOPLEFT", f.logo, "RIGHT", 12, -2)
     local r, g, b = FP.Alts:ClassColor(select(2, UnitClass("player")))
@@ -135,8 +138,6 @@ local function Create()
     f.rule = f:CreateTexture(nil, "ARTWORK")
     f.rule:SetHeight(1)
     f.lines = {}
-    f.ok = UI:Button(f, L["Got It"], 120, 24, function() f:Hide() end)
-    f.ok:SetPoint("BOTTOM", 0, PAD)
     -- The notes of the versions before and after the one shown.
     local function Step(by)
         local versions = Versions()
@@ -144,6 +145,14 @@ local function Create()
             if v == f.version then return UI:ShowWhatsNew(versions[i + by]) end
         end
     end
+    -- Got It, or "Next: 0.10.8" while stepping through the notes missed since the last login (f.unseenTo, set at login).
+    f.ok = UI:Button(f, L["Got It"], 130, 24, function()
+        if f.unseenTo and Before(f.version, f.unseenTo) then return Step(1) end
+        f:Hide()
+    end)
+    f.ok:SetPoint("BOTTOM", 0, PAD)
+    -- Closing it (Escape too) ends the stepping.
+    f:SetScript("OnHide", function() f.unseenTo = nil end)
     f.older = UI:Button(f, L["Older"], 90, 24, function() Step(-1) end)
     f.older:SetPoint("BOTTOMLEFT", PAD, PAD)
     f.newer = UI:Button(f, L["Newer"], 90, 24, function() Step(1) end)
@@ -152,17 +161,17 @@ local function Create()
     return f
 end
 
--- The header's glow and line: inside the skin's border, in the accent colour. Again on a skin or accent change.
+-- The header's glow and line: inside the skin's border, in the accent color. Again on a skin or accent change.
 local function ApplyLook(f)
     local a = UI:GetAccent()
     local edge = UI:WindowEdge()
     f.glow:ClearAllPoints()
     f.glow:SetPoint("TOPLEFT", edge, -edge)
     f.glow:SetPoint("TOPRIGHT", -edge, -edge)
-    f.glow:SetHeight(f.fpTitleH - edge)
+    f.glow:SetHeight(f.libTitleH - edge)
     f.rule:ClearAllPoints()
-    f.rule:SetPoint("TOPLEFT", edge, -f.fpTitleH)
-    f.rule:SetPoint("TOPRIGHT", -edge, -f.fpTitleH)
+    f.rule:SetPoint("TOPLEFT", edge, -f.libTitleH)
+    f.rule:SetPoint("TOPRIGHT", -edge, -f.libTitleH)
     f.glow:SetVertexColor(a[1], a[2], a[3], 0.32)
     f.rule:SetColorTexture(a[1], a[2], a[3], 0.6)
 end
@@ -179,6 +188,15 @@ function UI:ShowWhatsNew(version)
     f.older:SetActive(version ~= versions[1])
     f.newer:SetActive(version ~= versions[#versions])
     f.title:SetText(L["What's New in ProfessionsForever %s"]:format(version))
+    local nextVersion
+    for i, v in ipairs(versions) do
+        if v == version then nextVersion = versions[i + 1] end
+    end
+    if f.unseenTo and Before(version, f.unseenTo) then
+        f.ok:SetLabel(L["Next: %s"]:format(nextVersion))
+    else
+        f.ok:SetLabel(L["Got It"])
+    end
     ApplyLook(f)
     local textW = W - 2 * PAD - ICON - ICON_GAP
     local y = PAD + LOGO + 10 + 1 + GAP + 4
@@ -220,17 +238,20 @@ function UI:ShowWhatsNew(version)
     return true
 end
 
--- First login after an update: the newest notes since the version last logged in with, once. A player from before What's
--- New existed has no version noted, so gets the newest notes. Waits for the loading screen to settle and for combat to
--- end, so it never comes up mid-fight.
+-- First login after an update: every version's notes since the version last logged in with, once, oldest first, with
+-- Next stepping on to the newest. A player from before What's New existed has no version noted, so gets only the newest
+-- notes. Waits for the loading screen to settle and for combat to end, so it never comes up mid-fight.
 local function Check()
     local db = FP.db
     local seen = db.whatsNewSeen
     if seen == VERSION then return end
     db.whatsNewSeen = VERSION
     if FP.freshInstall then return end -- a new install has nothing to compare with
-    local notes = NewestNotes(seen)
-    if notes then UI:ShowWhatsNew(notes) end
+    local newest = NewestNotes(seen)
+    if not newest then return end
+    frame = frame or Create()
+    frame.unseenTo = newest
+    UI:ShowWhatsNew(seen and OldestNotes(seen) or newest)
 end
 
 local waiting

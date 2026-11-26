@@ -2,7 +2,7 @@
 """Writes Data/Cooldowns.lua: the profession recipes that have a cooldown, and how long it is.
 
 Downloads the DB2 tables it needs from wago.tools for the WoW: Forever build (product wowf), keeps them in a cache
-folder (~/.cache/professionsforever/wago/<build>), and generates the file from them. Run it by hand when Forever
+folder (~/.cache/threelightslib/wago/<build>), and generates the file from them. Run it by hand when Forever
 patches; it makes four requests at most, and none once a build is cached. wago.tools publishes no data terms, so
 leave the attribution in the generated file.
 

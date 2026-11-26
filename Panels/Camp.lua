@@ -13,7 +13,7 @@ local LIST_TOP = 62
 local REFRESH = 5 -- seconds between redraws while open, for the cooldowns counting down
 local GROUP_NAMES = { extras = "Essentials", ready = "Camp Features (In Bags)", craft = "Camp Features (Craftable)",
     alts = "Camp Features (On Alts)", unknown = "Camp Features (Not Learned)" }
-local GREY, WHITE = { 0.6, 0.6, 0.6 }, { 0.92, 0.92, 0.92 }
+local GRAY, WHITE = { 0.6, 0.6, 0.6 }, { 0.92, 0.92, 0.92 }
 
 local function Collapsed(group) return FP.db.campCollapsed[group] end
 
@@ -65,7 +65,7 @@ local function RowTooltip(row)
         return
     end
     local need = FP.RecipeMinSkill[e.recipe]
-    tip:AddLine(need and L["Crafted with %s (skill %d)"]:format(e.prof, need) or L["Crafted with %s"]:format(e.prof), GREY[1], GREY[2], GREY[3])
+    tip:AddLine(need and L["Crafted with %s (skill %d)"]:format(e.prof, need) or L["Crafted with %s"]:format(e.prof), GRAY[1], GRAY[2], GRAY[3])
     if e.bags > 0 then tip:AddLine(L["In your bags: %d"]:format(e.bags), 1, 1, 1) end
     if e.bank > 0 then tip:AddLine(L["In your bank: %d"]:format(e.bank), 1, 1, 1) end
     for _, h in ipairs(e.holders) do
@@ -111,7 +111,7 @@ function Panel:Update()
 
     local shown = FP.UI.PanelRows(f)
     FauxScrollFrame_Update(f.scroll, #list, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #list - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #list - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
 
     for i, row in ipairs(f.rows) do
@@ -214,12 +214,12 @@ function Panel:Create()
             row.place:SetPoint("RIGHT", -2, 0)
             row.craft = UI:Button(row, L["Craft"], 120, ROW_H - 2, function(s) UI:OpenRecipe(s.entry.recipe, s.entry.skillLine) end)
             row.craft:SetPoint("RIGHT", -2, 0)
-            UI:Tooltip(row.craft, "ANCHOR_RIGHT", L["Opens the recipe in its profession."])
+            UI:Tooltip(row.craft, L["Opens the recipe in its profession."])
             row.prof = UI:Text(row, -1, "RIGHT")
             row.prof:SetPoint("RIGHT", row.status, "LEFT", -6, 0)
             row.prof:SetWidth(90)
             row.prof:SetWordWrap(false)
-            row.prof:SetTextColor(GREY[1], GREY[2], GREY[3])
+            row.prof:SetTextColor(GRAY[1], GRAY[2], GRAY[3])
             row.name = UI:Text(row, 0)
             row.name:SetWordWrap(false)
         end })

@@ -28,14 +28,14 @@ function DE:Results(tableID)
     return list
 end
 
--- The loot table of a weapon (class 2) or armour (class 4) of uncommon or better quality at its item level; nil when
+-- The loot table of a weapon (class 2) or armor (class 4) of uncommon or better quality at its item level; nil when
 -- it can't be disenchanted.
 function DE:TableFor(itemID, classID, quality, level)
     if FP.DisenchantNever:find("," .. itemID .. ",", 1, true) then return end
     return FP.DisenchantOverride[itemID] or self:BracketTable(classID, quality, level)
 end
 
--- The loot table the level brackets give weapons or armour of this quality and item level, leaving out items with a
+-- The loot table the level brackets give weapons or armor of this quality and item level, leaving out items with a
 -- table of their own; nil when there is none.
 function DE:BracketTable(classID, quality, level)
     local byQuality = FP.DisenchantBrackets[classID]

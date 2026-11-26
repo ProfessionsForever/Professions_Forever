@@ -244,23 +244,41 @@ local function UnitSubtitle()
     return line and line.leftText
 end
 
--- The next rank a trainer can teach you shows as its own service, apart from the recipes (the game's window puts it in
--- a box under the list), so each visit tells one thing about the trainer: it offers the rank after your current
--- one, or, when you are at your cap and its list hides nothing, it doesn't. `step` is that service's index, or nil.
+local function DropCap(list, cap)
+    if not Listed(list, cap) then return list end
+    list = list:gsub("," .. cap .. ",", ",", 1)
+    if list ~= "," then return list end
+end
+
+-- What a visit saw wins over what was recorded before: a rank seen offered leaves noRanks, and the other way round.
+local function SawRank(entry, cap, offered)
+    local yes, no = "ranks", "noRanks"
+    if not offered then yes, no = no, yes end
+    entry[yes], entry[no] = AddCap(entry[yes], cap), DropCap(entry[no], cap)
+end
+
+-- The skill a rank's service asks for, and the cap that rank gives. Keep in step with RANK_CAPS in tools/gen_npcs.py.
+local RANK_BY_SKILL = { [0] = 75, [50] = 150, [125] = 225, [200] = 300 }
+
+-- A trainer's rank shows as its own service, apart from the recipes, even once you know it: Trixie Quikswitch shows
+-- Journeyman Engineer, already known, to someone at Expert. The skill that service asks for tells which rank it is.
+-- When you are at your cap and the trainer shows a lower rank, or none while its list hides nothing, it doesn't offer
+-- the next one. `step` is that service's index, or nil.
 local function RecordRanks(entry, step)
     local line = step and GetTrainerServiceSkillLine(step) or entry.skill
     local cap, atCap
     for _, p in ipairs(FP:GetProfessions()) do
         if p.name == line then cap, atCap = p.maxRank, p.rank >= p.maxRank end
     end
-    local nextCap = (cap or 0) + RANK_STEP
-    if nextCap > MAX_CAP then return end
-    if step then
-        entry.ranks = AddCap(entry.ranks, nextCap)
+    local taught = step and RANK_BY_SKILL[select(2, GetTrainerServiceSkillReq(step))]
+    if taught then
+        SawRank(entry, taught, true)
         entry.skill = entry.skill or line
-    elseif atCap and not Listed(entry.ranks, nextCap)
-        and GetTrainerServiceTypeFilter("available") and GetTrainerServiceTypeFilter("unavailable") then
-        entry.noRanks = AddCap(entry.noRanks, nextCap)
+    end
+    local nextCap = (cap or 0) + RANK_STEP
+    if not atCap or nextCap > MAX_CAP or (taught and taught >= nextCap) then return end
+    if taught or (not step and GetTrainerServiceTypeFilter("available") and GetTrainerServiceTypeFilter("unavailable")) then
+        SawRank(entry, nextCap, false)
     end
 end
 

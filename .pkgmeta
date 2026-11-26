@@ -12,6 +12,8 @@ ignore:
   - TODO-TESTS.md
   - TODO-TESTS-DONE.md
   - Core/Debug.lua
+  - Libs/ThreeLightsLib/known-globals.txt
+  - Libs/ThreeLightsLib/load-order.txt
 
 manual-changelog:
   filename: CHANGELOG.md

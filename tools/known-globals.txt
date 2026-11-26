@@ -42,11 +42,14 @@ CreateFrame
 CreateVector2D
 date
 DEFAULT_CHAT_FRAME
+DIFFICULT_DIFFICULTY_COLOR
 DressUpFrame
 DressUpLink
+EASY_DIFFICULTY_COLOR
 EllesmereUI
 Enum
 EquipCursorItem
+FAIR_DIFFICULTY_COLOR
 FauxScrollFrame_GetOffset
 FauxScrollFrame_OnVerticalScroll
 FauxScrollFrame_Update
@@ -94,6 +97,7 @@ GetTrainerServiceStepIndex
 GetTrainerServiceTypeFilter
 GetWeaponEnchantInfo
 GUILD
+HandleModifiedItemClick
 hooksecurefunc
 InCombatLockdown
 INVSLOT_FIRST_EQUIPPED
@@ -208,6 +212,7 @@ TomTom
 tonumber
 TooltipDataProcessor
 tostring
+TRIVIAL_DIFFICULTY_COLOR
 type
 UIErrorsFrame
 UIParent

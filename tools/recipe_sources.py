@@ -135,6 +135,11 @@ class Sources:
         key = (spell, kind, source_id)
         self.order[key] = max(self.order.get(key, 0), chance)
 
+    def mark_limited(self, spell, source_id):
+        """Notes a vendor's limited supply of the recipe without listing the vendor: it only shows where some
+        source lists that vendor."""
+        self.limited.add((spell, source_id))
+
     def text(self, spell):
         """"Tc:514,957;Td:257003;Vq:3413": per kind and source code, the ids."""
         parts = []

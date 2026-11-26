@@ -69,7 +69,7 @@ function Shop:Update()
     if f.track then f.track:SetChecked(FP.db.trackShopping) end
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #data, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #data - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #data - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     f.empty:SetShown(#data == 0)
     local hasPrices = FP.Prices:Available()
@@ -123,7 +123,7 @@ end
 ---------------------------------------------------------------------------
 -- Window
 ---------------------------------------------------------------------------
-local GREY = { 0.6, 0.6, 0.6 }
+local GRAY = { 0.6, 0.6, 0.6 }
 
 -- A row's tooltip, on GameTooltip or on `tip` (the options' previewer: row.preview holds its made-up price, alts and
 -- vendor). The queue and alts blocks come in Options, Tooltips, General's order; each part as its options say.
@@ -163,7 +163,7 @@ function Shop:FillRowTooltip(row, tip)
     if vendor then hints[#hints + 1] = { L["Right: Vendor Waypoint"], L["Right-click: waypoint to the nearest vendor"] } end
     hints[#hints + 1] = { L["Ctrl: Auction House"], L["Ctrl-click: search the auction house"] }
     hints[#hints + 1] = { L["Alt: Recipes"], L["Alt-click: find the recipes that use this reagent"] }
-    FP.UI:AddHints(tip, hints, hidden, GREY)
+    FP.UI:AddHints(tip, hints, hidden, GRAY)
 end
 
 local function RowTooltip(row)
@@ -243,10 +243,10 @@ local function BuildList(f)
     hint.text:SetPoint("LEFT")
     hint.text:SetText(L["Made by Queues (?)"])
     hint.text:SetTextColor(0.6, 0.6, 0.6)
-    UI:Tooltip(hint, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(hint, function(tip)
         tip:AddLine(L["Made by Queues"], 1, 1, 1)
         tip:AddLine(L["Some items are off the list because another character's queue makes them. They come back as that character crafts them, until mailed. Set Alt Inventory to Include in Planning to count them in that character's bags instead."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_TOP")
     hint:Hide()
     f.coverHint = hint
 
@@ -273,8 +273,8 @@ local function BuildManualAdd(f)
     item:SetSize(200 - ICON_SLOT - 4, 20)
     -- Above the window buttons, after the icon. InputBoxTemplate draws its left cap about 5px outside the box;
     -- EllesmereUI's square box has no cap.
-    item.fpEUILayout = function() item:SetPoint("BOTTOMLEFT", 13 + ICON_SLOT + 4 + (UI.EUI() and 0 or 5), 112) end
-    item.fpEUILayout()
+    item.libEUILayout = function() item:SetPoint("BOTTOMLEFT", 13 + ICON_SLOT + 4 + (UI.EUI() and 0 or 5), 112) end
+    item.libEUILayout()
     item:SetAutoFocus(false)
     UI:EUIWidget(item, "editbox")
     local qty = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
@@ -298,10 +298,10 @@ local function BuildManualAdd(f)
         if editing and s:GetText() ~= editName then SetEditing(nil) end
     end)
     local AddManual
-    local suggest = FP.UI:AttachItemAutocomplete(item, function(name)
+    local suggest = FP.UI:ItemSuggest(item, function(_, name)
         item:SetText(name)
         AddManual()
-    end)
+    end, { complete = true, up = true })
     AddManual = function()
         local text = suggest:Selected() or strtrim(item:GetText())
         local id = editing or (text ~= "" and suggest:Resolve(text))
@@ -357,10 +357,10 @@ local function BuildButtons(f)
         FP:Print(L["Shopping list reset to what the queues need."])
     end)
     f.reset:SetPoint("BOTTOMLEFT", 14, 46)
-    UI:Tooltip(f.reset, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(f.reset, function(tip)
         tip:AddLine(L["Reset to Queue"], 1, 1, 1)
         tip:AddLine(L["Undoes your changes to the items the queues need, including ones you removed. Anything you added yourself stays on the list."], 0.8, 0.8, 0.8, true)
-    end)
+    end, "ANCHOR_TOP")
     UI:AddWindowButtons(f, 80) -- between the item search and Reset to Queue
 end
 

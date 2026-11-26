@@ -67,7 +67,7 @@ local function SetTile(t, n, fmt, shown, color)
     local col = n > 0 and base or STATUS_COLORS.none
     t.num:SetText(fmt:format(n))
     t.num:SetTextColor(col[1], col[2], col[3])
-    -- The label keeps its colour even at zero, so the three tiles read as a legend.
+    -- The label keeps its color even at zero, so the three tiles read as a legend.
     t.label:SetTextColor(base[1], base[2], base[3])
     t:SetShown(shown)
 end
@@ -159,7 +159,7 @@ function UpdateDetailHeader(d, e)
     local required = not e.learned and UI.RequiredSkillText(e.id)
     if required then status = status .. "  -  " .. required end
     status = status .. (DIFF_LABELS[e.difficulty] and ("  -  " .. L[DIFF_LABELS[e.difficulty]]) or "")
-    -- The skill up chance in the recipe's difficulty colour, as in the list; nothing once it is grey.
+    -- The skill up chance in the recipe's difficulty color, as in the list; nothing once it is gray.
     local chance = e.learned and FP.Recipes:SkillUpChance(e.id, select(2, FP.RankInfo()) or 0)
     if chance and chance > 0 then
         status = status .. "  -  " .. RGBToColorCode(dc[1], dc[2], dc[3])
@@ -186,7 +186,7 @@ function UpdateDetailHeader(d, e)
     return sourceKnown
 end
 
--- The "Requires:" line, each requirement coloured by whether it is met.
+-- The "Requires:" line, each requirement colored by whether it is met.
 local function ToolsText(recipeID)
     local parts = {}
     for _, r in ipairs(FP.Tools:Get(recipeID)) do
@@ -271,6 +271,7 @@ local function LayoutActions(d)
     SetButtonLabel(d.addQueue, queueLabel, compactActions and 80 or 110)
     if compactActions then d.addQueue:SetWidth(math.min(d.addQueue:GetWidth(), 120)) end
     SetButtonLabel(d.queueAll, L["Queue All"], compactActions and 80 or 90)
+    SetButtonLabel(d.shop, L["Shop for Reagents"], compactActions and 80 or 120)
     local trackText = compactActions and L["Track"] or L["Track Location"]
     if a.learned then
         trackText = compactActions and (a.tracked and L["Untrack"] or L["Track"]) or (a.tracked and L["Untrack Recipe"] or L["Track Recipe"])
@@ -335,16 +336,22 @@ function UpdateDetailActions(d, e, ev, one, count, sourceKnown)
     local queueFor = viewing and e.learned
     local plain = not enchant and not linked
     local canQueue = not linked or queueFor
+    -- A recipe that can't be queued can still be shopped for: Shop for Reagents takes Queue's place, with the quantity.
+    local canShop = not canQueue and #ev.reagents > 0
+    d.shopReagents = canShop and ev.reagents or nil
+    d.shopFor = canShop and viewing and viewing.owner:match("^%S+") or nil
     for _, w in ipairs({ d.craft, d.craftAll, d.queueAll }) do w:SetShown(plain) end
-    for _, w in ipairs({ d.qtyLabel, d.qty, d.qty.minus, d.qty.plus, d.addQueue }) do w:SetShown(canQueue) end
+    for _, w in ipairs({ d.qtyLabel, d.qty, d.qty.minus, d.qty.plus }) do w:SetShown(canQueue or canShop) end
+    d.addQueue:SetShown(canQueue)
     d.addQueue:SetActive(canQueue)
+    d.shop:SetShown(canShop)
     d.forQueuesInfo = canQueue and ForQueues(e) or nil
     d.forQueues:SetShown(d.forQueuesInfo ~= nil)
     d.enchantBtn:SetShown(enchant and not linked)
     d.track:SetShown(not linked)
     d.readOnly:SetShown(linked)
     d.readOnly:ClearAllPoints()
-    if queueFor then d.readOnly:SetPoint("LEFT", d.qty.plus, "RIGHT", 12, 0) else d.readOnly:SetPoint("BOTTOMLEFT", 12, 23) end
+    if queueFor or canShop then d.readOnly:SetPoint("LEFT", d.qty.plus, "RIGHT", 12, 0) else d.readOnly:SetPoint("BOTTOMLEFT", 12, 23) end
     UI:UpdateSearchButton() -- sets the line's right edge, clear of the button
     if linked then d.readOnly:SetText(d.craftBlock) end
 

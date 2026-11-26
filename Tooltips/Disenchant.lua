@@ -12,7 +12,7 @@ local DE, P = FP.Disenchant, FP.Prices
 local ENCHANTING = FP.ENCHANTING
 local LABEL = { 1, 0.82, 0 }
 local DETAIL = { 0.6, 0.6, 0.6 }
--- The three ways to get rid of an item, in the order the verdict line lists them, each with its colour.
+-- The three ways to get rid of an item, in the order the verdict line lists them, each with its color.
 local CHOICE_ORDER = { "disenchant", "vendor", "auction" }
 local CHOICES = {
     disenchant = { label = "Disenchant", color = { 0.75, 0.45, 1 } },
@@ -22,7 +22,7 @@ local CHOICES = {
 
 local Hex = FP.UI.Hex
 
--- "Disenchant / Vendor / Auction" with the best one in its colour and the others grey, so the line says both what
+-- "Disenchant / Vendor / Auction" with the best one in its color and the others gray, so the line says both what
 -- is being weighed and which wins.
 local function VerdictText(best)
     local parts = {}
@@ -52,7 +52,7 @@ local function AuctionatorShowsDE()
     return A and A.Config and A.Config.Get(A.Config.Options.ENCHANT_TOOLTIPS) and true or false
 end
 
--- "[icon] Strange Dust x1-2", the name in its quality colour.
+-- "[icon] Strange Dust x1-2", the name in its quality color.
 local function ResultText(r)
     local name, _, quality = C_Item.GetItemInfo(r.itemID)
     if not name then
@@ -93,7 +93,7 @@ local function Choice(tip, key, value, best, note, indent, extra)
 end
 
 -- "  (seen 1s 25c)": what your disenchants of this table were really worth at today's prices, times `factor` (1, or
--- after the auction cut), grey while unreliable; "" with Show Seen Rates off or nothing recorded.
+-- after the auction cut), gray while unreliable; "" with Show Seen Rates off or nothing recorded.
 local function SeenValue(tableID, factor)
     if not FP.db.deShowObserved then return "" end
     local value, enough = DE:ObservedValue(tableID)
@@ -119,7 +119,7 @@ local function Chance(tip, chance)
 end
 
 -- Each result with its chance and value; with Show Seen Rates on, your own share after it ("(seen 75%)",
--- grey while too few disenchants back it) and, under the results, how many disenchants that is and what else you've
+-- gray while too few disenchants back it) and, under the results, how many disenchants that is and what else you've
 -- had from this table.
 local function Results(tip, results, indent, tableID)
     local observed = FP.db.deShowObserved
@@ -168,7 +168,7 @@ local function Add(tip, data, itemID)
     local one, two = Tips:Indent(1), Tips:Indent(2)
 
     if verdict then
-        -- The decision first: "Disenchant / Vendor / Auction   12s", the winner lit, its value in its colour.
+        -- The decision first: "Disenchant / Vendor / Auction   12s", the winner lit, its value in its color.
         local c = CHOICES[v.best].color
         tip:AddDoubleLine(VerdictText(v.best), Money(v.bestValue), 1, 1, 1, c[1], c[2], c[3])
         if full then

@@ -50,7 +50,7 @@ function O.BuildFishing(page)
     local pole = O.Check(page, L["Equip Your Best Fishing Pole"], function() return db.fishEquipPole end, function(v)
         db.fishEquipPole = v
     end)
-    UI:Tooltip(pole, "ANCHOR_RIGHT", L["Before casting, a press equips the fishing pole in your bags with the highest Fishing bonus, if it's better than the one you hold."])
+    UI:Tooltip(pole, L["Before casting, a press equips the fishing pole in your bags with the highest Fishing bonus, if it's better than the one you hold."])
     -- The lure key does the opposite of Automatically Apply Your Best Lure, so its label follows the box.
     local skip
     local function SkipLabel()
@@ -60,52 +60,51 @@ function O.BuildFishing(page)
         db.fishApplyLure = v
         SkipLabel()
     end)
-    UI:Tooltip(lure, "ANCHOR_RIGHT", L["Before casting, a press puts the strongest lure in your bags that you can use on your pole, when it has none."])
+    UI:Tooltip(lure, L["Before casting, a press puts the strongest lure in your bags that you can use on your pole, when it has none."])
     skip = O.DropList(page, L["Skip the Lure While Holding"], function() return L[SKIP_LABELS[db.fishLureSkipKey]] end, SkipItems)
-    O.refreshers[#O.refreshers + 1] = SkipLabel -- a reset puts the box back
-    SkipLabel()
-    UI:Tooltip(skip, "ANCHOR_RIGHT", function(tip)
+    O.AddRefresher(SkipLabel) -- a reset puts the box back
+    UI:Tooltip(skip, function(tip)
         tip:AddLine(L[db.fishApplyLure
             and "Hold this key as you press the Fishing Key to cast without putting a lure on. It works when the Fishing Key with it held is bound to nothing else."
             or "Hold this key as you press the Fishing Key to put your best lure on first, with Automatically Apply Your Best Lure off. It works when the Fishing Key with it held is bound to nothing else."], 1, 1, 1, true)
     end)
     local set = O.DropList(page, L["Fishing Gear Set"], function() return FP.chardb.fishSet or L["None"] end, SetItems)
-    UI:Tooltip(set, "ANCHOR_RIGHT", L["An equipment set (made in the character window) to put on before casting. For this character only."])
+    UI:Tooltip(set, L["An equipment set (made in the character window) to put on before casting. For this character only."])
 
     O.Section(page, L["Swapping Your Gear Back"])
     O.KeyBind(page, L["Swap Back Key"], UI.FISH_SWAP_BINDING)
     local mount = O.Check(page, L["When You Mount"], function() return db.fishSwapMount end, function(v)
         db.fishSwapMount = v
     end)
-    UI:Tooltip(mount, "ANCHOR_RIGHT", L["The gear a press swapped out (gear set, pole) goes back on when you mount. /pf swapback or the Swap Back Key does it any time."])
+    UI:Tooltip(mount, L["The gear a press swapped out (gear set, pole) goes back on when you mount. /pf swapback or the Swap Back Key does it any time."])
     local idle = O.Check(page, L["When You Stop Fishing"], function() return db.fishSwapIdle end, function(v)
         db.fishSwapIdle = v
     end)
-    UI:Tooltip(idle, "ANCHOR_RIGHT", L["Puts your gear back once you haven't cast for the time below."])
-    local after = O.Slider(page, "ProfessionsForeverOptFishWait", L["After"], 30, 600, 30,
+    UI:Tooltip(idle, L["Puts your gear back once you haven't cast for the time below."])
+    local after = O.Slider(page, L["After"], 30, 600, 30,
         function() return db.fishSwapSeconds end, function(v) db.fishSwapSeconds = v end, WaitText)
     after.label:ClearAllPoints()
     after.label:SetPoint("RIGHT", after, "LEFT", -10, 0) -- beside its slider, under the box it belongs to
     local combat = O.Check(page, L["After Combat"], function() return db.fishSwapCombat end, function(v)
         db.fishSwapCombat = v
     end)
-    UI:Tooltip(combat, "ANCHOR_RIGHT", L["Puts your gear back as soon as combat ends. During combat, press the Swap Back Key to swap your weapons back; armor can't be changed until combat ends."])
+    UI:Tooltip(combat, L["Puts your gear back as soon as combat ends. During combat, press the Swap Back Key to swap your weapons back; armor can't be changed until combat ends."])
 
     O.Section(page, L["Sound While Fishing"])
     local loud = O.Check(page, L["Louder Fishing Sounds"], function() return db.fishLoud end, function(v)
         db.fishLoud = v
     end)
-    UI:Tooltip(loud, "ANCHOR_RIGHT", L["While your line is out, sound effects (the splash of a bite is one) are turned up to the volume below, and the master volume to at least that. Your own settings come back when the cast ends."])
-    O.Slider(page, "ProfessionsForeverOptFishVolume", L["Sound Effects Volume"], 10, 100, 5,
+    UI:Tooltip(loud, L["While your line is out, sound effects (the splash of a bite is one) are turned up to the volume below, and the master volume to at least that. Your own settings come back when the cast ends."])
+    O.Slider(page, L["Sound Effects Volume"], 10, 100, 5,
         function() return db.fishVolume end, function(v) db.fishVolume = v end, "%d%%")
     local mute = O.Check(page, L["Mute Music and Ambience While Fishing"], function() return db.fishMuteMusic end, function(v)
         db.fishMuteMusic = v
     end)
-    UI:Tooltip(mute, "ANCHOR_RIGHT", L["Turns music and ambient sound off while your line is out, so the splash stands out."])
+    UI:Tooltip(mute, L["Turns music and ambient sound off while your line is out, so the splash stands out."])
     local bg = O.Check(page, L["Play Sound in the Background While Fishing"], function() return db.fishBackground end, function(v)
         db.fishBackground = v
     end)
-    UI:Tooltip(bg, "ANCHOR_RIGHT", L["Keeps the game's sound on while your line is out even when another window is in front, so you can hear a bite."])
+    UI:Tooltip(bg, L["Keeps the game's sound on while your line is out even when another window is in front, so you can hear a bite."])
 end
 
 function O.ResetFishing()

@@ -2,7 +2,6 @@ local _, FP = ...
 local L = FP.L
 local UI = FP.UI
 local O = FP.Options
-local refreshers = O.refreshers
 
 -- Alt inventory: planning mode and which other characters may supply materials.
 local ALT_MODE_LABELS = { never = "Never", show = "Show Only", include = "Include in Planning" }
@@ -15,7 +14,7 @@ function O:RefreshCharacters()
     local Alts = FP.Alts
     local others = Alts:Others()
     FauxScrollFrame_Update(box.scroll, #others, CHAR_ROWS, CHAR_ROW_H)
-    box.scroll.fpSetRange(math.max(0, #others - CHAR_ROWS) * CHAR_ROW_H)
+    box.scroll.barSetRange(math.max(0, #others - CHAR_ROWS) * CHAR_ROW_H)
     local offset = FauxScrollFrame_GetOffset(box.scroll)
     box.empty:SetShown(#others == 0)
     for i, row in ipairs(box.rows) do
@@ -57,7 +56,7 @@ local function BuildCharacterList(page)
     UI:AttachScrollbar(scroll, scrollBar, box, { top = 2, bottom = 2 })
     box:EnableMouseWheel(true)
     box:SetScript("OnMouseWheel", function(_, delta)
-        scroll.fpScrollTo(scroll:GetVerticalScroll() - delta * CHAR_ROW_H * 2)
+        scroll.barScrollTo(scroll:GetVerticalScroll() - delta * CHAR_ROW_H * 2)
     end)
 
     box.rows = {}
@@ -72,7 +71,7 @@ local function BuildCharacterList(page)
         row.check:SetScript("OnClick", function(s)
             if row.key then FP.Alts:SetEnabled(row.key, s:GetChecked() and true or false) end
         end)
-        UI:Tooltip(row.check, "ANCHOR_RIGHT", L["Enabled for Planning"])
+        UI:Tooltip(row.check, L["Enabled for Planning"])
         row.remove = UI:Button(row, "x", 20, 18, function()
             local key = row.key
             if not key then return end
@@ -91,7 +90,7 @@ local function BuildCharacterList(page)
             FP.Alts:Remove(key)
         end)
         row.remove:SetPoint("RIGHT", -2, 0)
-        UI:Tooltip(row.remove, "ANCHOR_RIGHT", function(tip)
+        UI:Tooltip(row.remove, function(tip)
             if not row.key then return false end
             if confirmingRemove == row.key then
                 tip:AddLine(L["Click again to remove everything saved for this character: inventory, queue, cooldowns and professions."], 1, 0.4, 0.4, true)
@@ -109,7 +108,7 @@ local function BuildCharacterList(page)
     box.empty:SetPoint("CENTER")
     box.empty:SetText(L["No other characters seen yet. Log in on each one to record its inventory."])
     box.empty:SetTextColor(0.6, 0.6, 0.6)
-    refreshers[#refreshers + 1] = function() O:RefreshCharacters() end
+    O.AddRefresher(function() O:RefreshCharacters() end)
 end
 
 -- The Alt Inventory page (General): planning mode, then the characters list.
@@ -121,12 +120,11 @@ function O.BuildAltSection(page)
     note:SetJustifyH("LEFT")
     note:SetTextColor(0.7, 0.7, 0.7)
     -- Follows the Syndicator switch above (which takes effect after a reload).
-    refreshers[#refreshers + 1] = function()
+    O.AddRefresher(function()
         local synd = FP.db.useSyndicator and C_AddOns.IsAddOnLoaded("Syndicator")
         note:SetText(L[synd and "Using Syndicator's data for your bank and other characters."
             or "ProfessionsForever records each character's bags and bank when you log in on it. Log in on each character once so it appears here."])
-    end
-    refreshers[#refreshers]()
+    end)
     page.y = page.y - 34
     local altMode = O.DropList(page, L["Planning"], function() return L[ALT_MODE_LABELS[FP.Planner:Mode()]] end, function()
         local items = {}
@@ -138,7 +136,7 @@ function O.BuildAltSection(page)
         end
         return items
     end)
-    UI:Tooltip(altMode, "ANCHOR_RIGHT", function(tip)
+    UI:Tooltip(altMode, function(tip)
         tip:AddLine(L["Alt Inventory"], 1, 1, 1)
         tip:AddLine(L["Never: other characters' materials are ignored."], 0.8, 0.8, 0.8, true)
         tip:AddLine(L["Show only: shown in tooltips, but never reduces what is missing or what you buy."], 0.8, 0.8, 0.8, true)

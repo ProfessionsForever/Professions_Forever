@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the release zip the way the CurseForge packager does, for attaching to the GitHub release.
+"""Builds the release zip the way the CurseForge packager does.
 
 Packages a tag, never the working folder, so the zip holds exactly what was released:
   - the files committed at the tag, inside one folder named by .pkgmeta's package-as

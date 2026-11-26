@@ -5,7 +5,7 @@ local STATUS_COLORS, DIFF_COLORS, DIFF_LABELS, WHITE_RGB = UI.STATUS_COLORS, UI.
 local RecipeRowHeight, RankInfo = UI.RecipeRowHeight, FP.RankInfo
 local PreviewLink, Hex = UI.PreviewLink, UI.Hex -- UI/RecipeInfo.lua, UI/Shared.lua
 local MAX_ROWS = 60
-local GREY_RGB = { 0.5, 0.5, 0.5 }
+local GRAY_RGB = { 0.5, 0.5, 0.5 }
 
 -- The recipe list: applying the search and filters, its rows, their tooltips and clicks, and selecting a recipe.
 
@@ -76,7 +76,7 @@ function UI:ScrollToSelected()
             if i > offset and i <= offset + self.numRows then return end
             local top = math.max(0, math.min(i - 1 - math.floor(self.numRows / 2), #self.display - self.numRows))
             local y = top * RecipeRowHeight()
-            f.scroll.fpScrollTo(y)
+            f.scroll.barScrollTo(y)
             return
         end
     end
@@ -86,7 +86,7 @@ end
 function UI:Relist()
     self:RefreshFilter()
     self.scrollToSelected = false -- a search or filter change starts at the top
-    self.frame.scroll.fpScrollTo(0)
+    self.frame.scroll.barScrollTo(0)
     self:UpdateList()
     self:UpdateDetail()
 end
@@ -156,7 +156,7 @@ function UI.FillRecipeTooltip(e, tip, pv)
     if not pv and PreviewLink(e.id) then tip:AddLine(L["Ctrl-click: preview"], 0.5, 0.8, 1) end
 end
 
--- The skill up chance of a learned recipe, in its difficulty colour; nothing once it is grey or when the option is off.
+-- The skill up chance of a learned recipe, in its difficulty color; nothing once it is gray or when the option is off.
 local function ChanceText(e, skill)
     if not (FP.db.showSkillChance and e.learned) then return "" end
     local chance = FP.Recipes:SkillUpChance(e.id, skill)
@@ -165,7 +165,7 @@ local function ChanceText(e, skill)
 end
 
 -- "4 +7 +12": bags in green, then what the bank adds in cyan, then what alts add in purple. With nothing craftable it
--- shows how many reagents you have enough of instead, e.g. "2/3", in the recipe's status colour.
+-- shows how many reagents you have enough of instead, e.g. "2/3", in the recipe's status color.
 local function CraftableText(ev, bags, bank, alts)
     local parts = {}
     if bags > 0 then parts[#parts + 1] = Hex(STATUS_COLORS.full) .. bags .. "|r" end
@@ -306,7 +306,7 @@ function UI:UpdateList()
     local data, n = self.display, #self.display
     local rowHeight = RecipeRowHeight()
     FauxScrollFrame_Update(f.scroll, n, self.numRows, rowHeight)
-    f.scroll.fpSetRange(math.max(0, n - self.numRows) * rowHeight)
+    f.scroll.barSetRange(math.max(0, n - self.numRows) * rowHeight)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     local a = self:GetAccent()
     local skill = select(2, RankInfo()) or 0
@@ -348,7 +348,7 @@ function UI:UpdateList()
             row.recipeID = e.id
             row.icon:SetTexture(e.icon)
             row.bar:SetColorTexture(c[1], c[2], c[3], 1)
-            local dc = e.learned and (DIFF_COLORS[e.difficulty] or WHITE_RGB) or GREY_RGB
+            local dc = e.learned and (DIFF_COLORS[e.difficulty] or WHITE_RGB) or GRAY_RGB
             row.name:SetTextColor(dc[1], dc[2], dc[3])
             row.name:SetText(e.learned and e.name or (e.name .. " *"))
             row.mats:SetText(ChanceText(e, skill) .. FP.Cooldowns:RowText(e.id) .. (#ev.reagents > 0 and CraftableText(ev, bags, bank, alts) or ""))

@@ -4,7 +4,7 @@ item each makes (for its icon; a recipe's own spell icon is only the profession'
 that use it as a reagent, the spells that open each profession's crafting window, and its specialization spells.
 
 Downloads the DB2 tables it needs from wago.tools for the WoW: Forever build (product wowf), keeps them in a cache
-folder (~/.cache/professionsforever/wago/<build>), and generates the file from them. Run it by hand when Forever
+folder (~/.cache/threelightslib/wago/<build>), and generates the file from them. Run it by hand when Forever
 patches; it makes seven requests at most, and none once a build is cached. wago.tools publishes no data terms, so
 leave the attribution in the generated file.
 
@@ -51,16 +51,16 @@ def generate(tables, build):
 
     # recipe spell -> (skill line, skill needed to learn it)
     recipes = {}
-    # recipe spell -> (skill where it turns yellow, skill where it turns grey); green is halfway between
+    # recipe spell -> (skill where it turns yellow, skill where it turns gray); green is halfway between
     trivial = {}
     for r in rows(tables["SkillLineAbility"]):
         line, spell = int(r["SkillLine"]), int(r["Spell"])
         # AcquireMethod 3 is the use effect of crafted devices (dragonlings, Battle Chicken), not a recipe.
         if line in PROFESSIONS and r["AcquireMethod"] != "3" and spell in has_reagents and spell not in recipes:
             recipes[spell] = (line, int(r["MinSkillLineRank"] or 0))
-            yellow, grey = int(r["TrivialSkillLineRankLow"] or 0), int(r["TrivialSkillLineRankHigh"] or 0)
-            if grey > yellow:
-                trivial[spell] = (yellow, grey)
+            yellow, gray = int(r["TrivialSkillLineRankLow"] or 0), int(r["TrivialSkillLineRankHigh"] or 0)
+            if gray > yellow:
+                trivial[spell] = (yellow, gray)
 
     uses, seen = {}, set()
     for r in rows(tables["SpellReagents"]):
@@ -128,7 +128,7 @@ def generate(tables, build):
     ]
     for spell in sorted(need):
         lines.append(f"    [{spell}] = {need[spell]},")
-    for name, index, what in (("RecipeYellow", 0, "yellow"), ("RecipeGrey", 1, "grey")):
+    for name, index, what in (("RecipeYellow", 0, "yellow"), ("RecipeGray", 1, "gray")):
         lines += [
             "}",
             "",

@@ -15,7 +15,7 @@ for i, skillLine in ipairs(FP.SECONDARY_SKILLS) do SECONDARY_ORDER[skillLine] = 
 -- The game's own (localized) names of Forever's four ranks, which cap at 75, 150, 225 and 300.
 local TIER_GLOBALS = { "APPRENTICE", "JOURNEYMAN", "EXPERT", "ARTISAN" }
 
--- A character's name, or `text` about it, in its class colour.
+-- A character's name, or `text` about it, in its class color.
 local function ClassName(rec, text) return FP.Alts:Colored(rec.class, text or rec.name or "?") end
 
 function UI:SetPage(page)
@@ -174,7 +174,7 @@ local function MakeCard(o, tall)
         icon:SetPoint("CENTER")
         icon:SetSize(14, 14)
         icon:SetTexture("Interface\\PaperDollInfoFrame\\UI-GearManager-LeaveItem-Opaque")
-        UI:Tooltip(card.unlearn, "ANCHOR_RIGHT", L["Unlearn This Profession"])
+        UI:Tooltip(card.unlearn, L["Unlearn This Profession"])
     end
     return card
 end
@@ -205,7 +205,7 @@ local function MakeEmptySlot(o)
     slot.find:SetPoint("BOTTOMLEFT", 64, 10)
     slot.find:SetPoint("BOTTOMRIGHT", -10, 10)
     slot.find:Sync()
-    UI:Tooltip(slot.find, "ANCHOR_RIGHT", function(tip)
+    UI:Tooltip(slot.find, function(tip)
         if FP.Waypoint:NavAvailable() then return false end
         tip:AddLine(L["Polestar or TomTom is needed for waypoints."], 0.6, 0.6, 0.6, true)
     end)
@@ -404,7 +404,7 @@ function UI:RefreshOverview()
     local others = #FP.AltProfs:Characters() > 1
     o.charPick:SetShown(others)
     if others then o.charPick:Sync() end
-    -- Whose cards these are, the name in its class colour; just "Professions" before the character's record exists.
+    -- Whose cards these are, the name in its class color; just "Professions" before the character's record exists.
     local shown = FP.db.characters[alt or FP.Alts:GetCharacterKey()]
     o.title:SetText(shown and L["%s Professions"]:format(ClassName(shown, L["%s's"]:format(shown.name or "?"))) or L["Professions"])
     o.hint:SetText(alt and L["Click a profession to browse its recipes."]

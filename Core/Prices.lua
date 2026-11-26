@@ -219,6 +219,14 @@ function P:RecipeProfit(recipeID)
     return self:Profit(R:OutputItemID(recipeID), self:AverageMade(recipeID), cost).profit
 end
 
+-- What one craft's items sell for at the auction house, in copper, before the cut and whatever the reagents cost; nil
+-- for an enchant, a soulbound item or one with no auction price.
+function P:RecipeSale(recipeID)
+    local R = FP.Recipes
+    local r = self:Profit(R:OutputItemID(recipeID), self:AverageMade(recipeID), 0)
+    return r.unit and r.unit * r.made
+end
+
 function P:Format(copper)
     return C_CurrencyInfo.GetCoinTextureString(math.floor(copper + 0.5))
 end

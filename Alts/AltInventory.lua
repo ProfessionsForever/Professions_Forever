@@ -189,7 +189,7 @@ local function AddSlots(totals, slots)
     end
 end
 
--- Unbound uncommon-or-better weapons and armour from slot tables shaped { { itemID, itemLink, quality, isBound } },
+-- Unbound uncommon-or-better weapons and armor from slot tables shaped { { itemID, itemLink, quality, isBound } },
 -- as { link } (Syndicator keeps no item GUIDs).
 local function AddGear(gear, slots)
     if type(slots) ~= "table" then return end
@@ -322,7 +322,7 @@ end
 ---------------------------------------------------------------------------
 -- Gear: each character's unbound gear, for the other characters' Disenchanting Mode
 ---------------------------------------------------------------------------
--- Every character saves the unbound uncommon-or-better weapons and armour in its bags and bank as { guid, link },
+-- Every character saves the unbound uncommon-or-better weapons and armor in its bags and bank as { guid, link },
 -- whether or not Syndicator is in use, since only this addon's own scan (Core/Inventory.lua) knows the items' GUIDs.
 -- Each part is replaced by its next scan: the bags whenever they change, the bank at each visit.
 function Alts:SetGear(where, gear)
@@ -562,7 +562,7 @@ function Alts:ClassColor(class)
     return 1, 1, 1
 end
 
--- `text` in a class's colour.
+-- `text` in a class's color.
 function Alts:Colored(class, text)
     local r, g, b = self:ClassColor(class)
     return ("|cff%02x%02x%02x%s|r"):format(r * 255, g * 255, b * 255, text)
@@ -575,7 +575,7 @@ function Alts:Label(entry)
     return name
 end
 
--- A character's label in its class colour, marked when it is the current one.
+-- A character's label in its class color, marked when it is the current one.
 function Alts:CharacterName(key)
     local rec = FP.db.characters[key]
     local name = self:Label(rec)

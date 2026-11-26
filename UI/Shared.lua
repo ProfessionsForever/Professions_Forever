@@ -12,24 +12,34 @@ local function RecipeRowHeight()
 end
 UI.RecipeRowHeight = RecipeRowHeight
 
+-- Windows sit at this frame level. Other addons nest frames under siblings of ours (EllesmereUI's unit frames are at 3
+-- to 30), and Raise() only reorders siblings, so a fresh window at level 1 draws under them until the user clicks it.
+-- Blizzard's action button text (counts, keybinds) is at 500.
+UI.WINDOW_LEVEL = 600
+
+-- Drop-down menus are at least this wide, so a short dropdown's choices still show in full.
+UI.MENU_MIN_W = 160
+
 -- Same sound Blizzard's own tabs play.
 function UI.TabSound() PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
 
--- The colour code for an { r, g, b } colour, from Blizzard's own helper.
+-- The color code for an { r, g, b } color, from Blizzard's own helper.
 function UI.Hex(c) return RGBToColorCode(unpack(c)) end
 
--- Chat-link click (shift by default): hands the link to the game, which puts it in the active chat box (and
--- Auctionator's Shopping tab searches it). True whenever the modifier is held, so the click is spent and the row's
--- own click doesn't run as well. The second result: whether a chat box took it.
+-- Chat-link click (shift by default): hands the link to the game's own item-click handler, as Blizzard's windows do,
+-- which puts it in the active chat box. Auctionator's Shopping tab searches it from there, and TSM, which replaces
+-- the handler, searches it in its open auction tab when no chat box took it. True whenever the modifier is held, so
+-- the click is spent and the row's own click doesn't run as well. The second result: whether a chat box (or TSM)
+-- took it.
 function UI.LinkToChat(link)
     if not (link and IsModifiedClick("CHATLINK")) then return false end
-    return true, ChatFrameUtil.InsertLink(link) and true or false
+    return true, HandleModifiedItemClick(link) and true or false
 end
 
 function UI.LinkItemToChat(itemID)
     if not (itemID and IsModifiedClick("CHATLINK")) then return false end
     local link = select(2, C_Item.GetItemInfo(itemID))
-    if link then ChatFrameUtil.InsertLink(link) end
+    if link then HandleModifiedItemClick(link) end
     return true
 end
 
@@ -158,8 +168,12 @@ function UI.AddTrainerHint(tip, skillLine, rank, maxRank)
     end
 end
 
--- Enum.TradeskillRelativeDifficulty: 0 optimal, 1 medium, 2 easy, 3 trivial
-local DIFF_COLORS = { [0] = { 1, 0.5, 0.25 }, [1] = { 1, 1, 0 }, [2] = { 0.25, 0.75, 0.25 }, [3] = { 0.55, 0.55, 0.55 } }
+-- Enum.TradeskillRelativeDifficulty: 0 optimal, 1 medium, 2 easy, 3 trivial, in the game's own difficulty colors (the
+-- ones Blizzard's professions window uses), as { r, g, b }.
+local DIFF_COLORS = {
+    [0] = { DIFFICULT_DIFFICULTY_COLOR:GetRGB() }, [1] = { FAIR_DIFFICULTY_COLOR:GetRGB() },
+    [2] = { EASY_DIFFICULTY_COLOR:GetRGB() }, [3] = { TRIVIAL_DIFFICULTY_COLOR:GetRGB() },
+}
 local DIFF_LABELS = { [0] = "Skill Up: Optimal", [1] = "Skill Up: Medium", [2] = "Skill Up: Easy", [3] = "Skill Up: Trivial" }
 local WHITE_RGB = { 1, 1, 1 }
 UI.DIFF_COLORS, UI.DIFF_LABELS, UI.WHITE_RGB = DIFF_COLORS, DIFF_LABELS, WHITE_RGB

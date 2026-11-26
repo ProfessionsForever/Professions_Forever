@@ -11,6 +11,11 @@ local COVERED = FP.UI.STATUS_COLORS.partial -- missing, but another character's 
 local WARN, BANK_MARK = RGBToColorCode(unpack(MISSING)) .. "! |r", RGBToColorCode(unpack(BANK)) .. "! |r"
 local COVERED_MARK = RGBToColorCode(unpack(COVERED)) .. "! |r"
 local MAIL_MARK = RGBToColorCode(unpack(MAIL)) .. "! |r"
+local DIFF_COLORS, DIFF_LABELS, WHITE_RGB = FP.UI.DIFF_COLORS, FP.UI.DIFF_LABELS, FP.UI.WHITE_RGB
+local TURNS = { [1] = "Turns Yellow at %d", [2] = "Turns Green at %d", [3] = "Turns Gray at %d" }
+
+-- An expected skill, or gain, as shown: whole skill points, rounded.
+local function Whole(x) return math.floor(x + 0.5) end
 
 ---------------------------------------------------------------------------
 -- Whose queue is shown
@@ -143,9 +148,15 @@ function Queue:Update()
             or (mailCount > 0 and L["%d queued recipe(s) need materials from your mailbox."]:format(mailCount)) or "")
     end
     local cover = shortCount > 0 and self:Cover() or {}
+    local plan, totals = self:SkillPlan(view)
+    local reach = {}
+    for _, t in ipairs(totals) do
+        if Whole(t.to) > t.from then reach[#reach + 1] = L["%s: %d to %d"]:format(t.name, t.from, Whole(t.to)) end
+    end
+    f.skill:SetText(table.concat(reach, ", "))
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #data, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #data - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #data - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     f.empty:SetShown(#data == 0)
     for i, row in ipairs(f.rows) do
@@ -158,7 +169,7 @@ function Queue:Update()
             -- Only the open profession's requirements can be read, so other professions' rows show this once opened.
             local noTools = not view and self:IsOpen(q) and FP.Tools:Missing(q.id)
             row.noTools = noTools and #noTools > 0 and noTools or nil
-            -- Unlearned recipes are grey with a star, as in the recipe list.
+            -- Unlearned recipes are gray with a star, as in the recipe list.
             row.unlearned = not self:IsLearned(q, view)
             row.enchant = q.enchant
             row.madeBy = row.missing and MadeBy(row.missing, cover)
@@ -167,17 +178,26 @@ function Queue:Update()
                 local by = row.madeBy[m.itemID]
                 if not (by and by.qty >= m.qty) then allCovered = false end
             end
+            -- Skill up color, chance and expected gain at the skill the crafter will have when the row's turn comes.
+            row.plan, row.recipeID = plan[q], q.id
+            local diffColor = row.plan and DIFF_COLORS[row.plan.difficulty]
             local name = row.unlearned and (q.name .. " *") or q.name
+            if row.plan and FP.db.showSkillChance and row.plan.chance > 0 then
+                name = FP.UI.Hex(diffColor or WHITE_RGB) .. math.floor(row.plan.chance * 100 + 0.5) .. "%|r " .. name
+            end
+            local gain = row.plan and Whole(row.plan.gain) or 0
+            row.gain:SetText(gain > 0 and "+" .. gain or "")
+            row.gain:SetTextColor(unpack(diffColor or WHITE_RGB))
             row.name:SetText(allCovered and COVERED_MARK .. name or (row.missing or row.noTools) and WARN .. name
                 or (row.fromBank and BANK_MARK .. name)
                 or (row.fromMail and MAIL_MARK .. name) or name)
-            if row.unlearned then row.name:SetTextColor(0.5, 0.5, 0.5) else row.name:SetTextColor(1, 1, 1) end
+            if row.unlearned then row.name:SetTextColor(0.5, 0.5, 0.5) else row.name:SetTextColor(unpack(diffColor or WHITE_RGB)) end
             row.icon:SetDesaturated(row.unlearned)
             if not row.qty:HasFocus() then row.qty:SetText(q.qty) end
             row:Show()
         else
             row.index, row.missing, row.fromBank, row.fromMail, row.noTools, row.unlearned, row.enchant = nil, nil, nil, nil, nil, nil, nil
-            row.madeBy = nil
+            row.madeBy, row.plan, row.recipeID = nil, nil, nil
             row:Hide()
         end
     end
@@ -222,7 +242,20 @@ function Queue:Create()
             UI:OpenRecipe(q.id, q.skillLine)
         end,
         tooltip = function(row)
-            if not (row.missing or row.fromBank or row.fromMail or row.noTools or row.unlearned or row.enchant) then return false end
+            if not (row.missing or row.fromBank or row.fromMail or row.noTools or row.unlearned or row.enchant or row.plan) then return false end
+            local plan = row.plan
+            if plan then
+                local c = DIFF_COLORS[plan.difficulty] or WHITE_RGB
+                if DIFF_LABELS[plan.difficulty] then GameTooltip:AddLine(L[DIFF_LABELS[plan.difficulty]], c[1], c[2], c[3]) end
+                local from = Whole(plan.skill)
+                GameTooltip:AddLine(L["Expected Skill Ups: %s (%d to %d)"]:format(math.floor(plan.gain * 10 + 0.5) / 10, from,
+                    Whole(plan.skill + plan.gain)), 1, 1, 1)
+                local nextDiff, at = FP.Recipes:NextDifficulty(row.recipeID, plan.skill)
+                if nextDiff then
+                    local n = DIFF_COLORS[nextDiff]
+                    GameTooltip:AddLine(L[TURNS[nextDiff]]:format(at), n[1], n[2], n[3])
+                end
+            end
             if row.enchant then
                 GameTooltip:AddLine(L["Enchant"], 1, 1, 1)
                 GameTooltip:AddLine(L["The queue plans and shops for this enchant's materials. Apply it with the Enchant button: each one applied comes off the queue."], 0.8, 0.8, 0.8, true)
@@ -305,9 +338,13 @@ function Queue:Create()
                 end
                 if q then Queue:SetQty(q, v, key) end
             end)
+            -- Expected skill ups from the row's crafts, "+3", in its skill up color.
+            row.gain = UI:Text(row, 0)
+            row.gain:SetPoint("RIGHT", row.qty.minus, "LEFT", -6, 0)
+            row.gain:SetJustifyH("RIGHT")
             row.name = UI:Text(row, 0)
             row.name:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
-            row.name:SetPoint("RIGHT", row.qty.minus, "LEFT", -6, 0)
+            row.name:SetPoint("RIGHT", row.gain, "LEFT", -4, 0)
             row.name:SetWordWrap(false)
         end })
 
@@ -329,12 +366,16 @@ function Queue:Create()
     for _, b in ipairs({ f.stopQueue, f.stopCraft }) do b:SetScript("PreClick", function() Queue:MarkStopping() end) end
     f.stopCraft:SetPoint("BOTTOMLEFT", f.stopQueue, "BOTTOMRIGHT", 6, 0)
     f.stopCraft:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 14)
-    UI:Tooltip(f.stopCraft, "ANCHOR_TOP", L["Stops the current craft and moves on to the next recipe in the queue."])
+    UI:Tooltip(f.stopCraft, L["Stops the current craft and moves on to the next recipe in the queue."], "ANCHOR_TOP")
     f.stopQueue:Hide()
     f.stopCraft:Hide()
+    -- The skill the whole queue should reach, per profession, at the right of the status line.
+    f.skill = UI:Text(f, -1)
+    f.skill:SetPoint("BOTTOMRIGHT", -14, 80)
+    f.skill:SetJustifyH("RIGHT")
     f.status = UI:Text(f, -1)
     f.status:SetPoint("BOTTOMLEFT", 14, 80)
-    f.status:SetPoint("RIGHT", -14, 0)
+    f.status:SetPoint("RIGHT", f.skill, "LEFT", -8, 0)
     f.status:SetWordWrap(false)
 
     -- Own frame above the rows, so the list can't cover it; it never takes the mouse.

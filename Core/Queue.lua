@@ -31,6 +31,43 @@ function Queue:IsLearned(q, key)
     return tContains(FP.Known:Who(q.id), key)
 end
 
+-- The skill ups `key`'s queue (the current character's without it) should give, crafted top to bottom as the runner
+-- does, with skill rising as it goes: each craft adds its chance, the expected gain, up to the rank's cap.
+-- Returns [entry] = { skill (when its turn comes), gain, chance, difficulty } for the learned entries with
+-- thresholds in the data, and per profession, in the order first queued, { name, from, to }.
+function Queue:SkillPlan(key)
+    local R = FP.Recipes
+    local profs = {}
+    if key then
+        for skillLine, p in pairs(FP.db.characters[key].professions or {}) do
+            profs[skillLine] = { name = p.name, rank = p.rank or 0, cap = p.maxRank or 0, bonus = p.bonus or 0 }
+        end
+    else
+        local bonus = R:OwnSkillUpBonus()
+        for _, p in ipairs(FP:GetProfessions()) do
+            profs[p.skillLine] = { name = p.name, rank = p.rank or 0, cap = p.maxRank or 0, bonus = bonus }
+        end
+    end
+    local rows, totals, skill = {}, {}, {}
+    for _, q in ipairs(self:Data(key)) do
+        local p = profs[q.skillLine]
+        local start = p and (skill[q.skillLine] or p.rank)
+        local chance = start and self:IsLearned(q, key) and R:SkillUpChance(q.id, start, p.bonus)
+        if chance then
+            if not skill[q.skillLine] then totals[#totals + 1] = { skillLine = q.skillLine, name = p.name, from = p.rank } end
+            local s, cap = start, p.cap > 0 and p.cap or math.huge
+            for _ = 1, q.qty do
+                if s >= cap then break end
+                s = math.min(cap, s + R:SkillUpChance(q.id, s, p.bonus))
+            end
+            skill[q.skillLine] = s
+            rows[q] = { skill = start, gain = s - start, chance = chance, difficulty = R:DifficultyAt(q.id, start) }
+        end
+    end
+    for _, t in ipairs(totals) do t.to = skill[t.skillLine] end
+    return rows, totals
+end
+
 -- Per-recipe breakdown of what the queue needs of this reagent.
 function Queue:UsageList(itemID)
     local out = {}

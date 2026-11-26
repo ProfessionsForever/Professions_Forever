@@ -67,7 +67,7 @@ ZONE_MAP = "3"     # UiMap.Type of a zone or a city
 WORLD_MAP = "0"    # UiMap.System of the maps a player opens (1 is the flight map's copy)
 CAPITAL_FLAG = 0x8  # AreaTable.Flags_0 of a capital city
 CITY_MARGIN = 0.04  # a city's map counts for points at least this far (of the map's size) from its edge
-# NPC id -> the zone map seen in game where the rule above picks a neighbour (Goldshire, Ironforge's edge, ...).
+# NPC id -> the zone map seen in game where the rule above picks a neighbor (Goldshire, Ironforge's edge, ...).
 ZONE_FIX = {1215: 1429, 1218: 1429, 12942: 1422, 2481: 1431}
 # The Expert skill books of First Aid, Cooking and Fishing; a vendor sells each. Keep in step with Waypoints/WaypointTrainers.lua.
 SKILL_BOOKS = {16084, 16072, 16083}
@@ -104,7 +104,7 @@ def unescape(text):
 
 
 def sql_rows(statement):
-    """Yields each parenthesised row of an INSERT ... VALUES statement as a list of Python values."""
+    """Yields each parenthesized row of an INSERT ... VALUES statement as a list of Python values."""
     row = None
     for m in TOKEN.finditer(statement, statement.index("VALUES")):
         string, number, null, punct = m.groups()
@@ -169,7 +169,7 @@ class Maps:
             self.boxes.setdefault(int(r["MapID"]), []).append((int(ui), zones[ui], r["AreaID"] in capitals, x0, y0, x1, y1))
 
     def locate(self, world_map, x, y, ui=None):
-        """(ui map, zone name, map x, map y) of the point, or None. The art of neighbouring zones overlaps, so a capital
+        """(ui map, zone name, map x, map y) of the point, or None. The art of neighboring zones overlaps, so a capital
         wins unless the point sits on the edge of its map, and otherwise the map the point is most central on.
         A given ui map wins when it holds the point."""
         held = []
@@ -311,6 +311,15 @@ def generate(tables, sql, tdb):
                 out["vendors"][t["Entry"]] = v
             for item, limited in sold.items():
                 sources.add(item_recipe[item], "L" if limited else "V", t["Entry"], "c")
+
+    # A limited supply counts for a vendor classic-db has no spawn for too (Super-Seller 680, Vendor-Tron 1000 in
+    # Desolace), which the loop above skips: QuestieDB or forever-db may list and place it.
+    for t in records(sql["creature_template"]):
+        if t["NpcFlags"] & FLAG_VENDOR:
+            stock = vendor_items.get((True, t["VendorTemplateId"]), {}) | vendor_items.get((False, t["Entry"]), {})
+            for item, limited in stock.items():
+                if limited and item in item_recipe:
+                    sources.mark_limited(item_recipe[item], t["Entry"])
 
     # ForeverTDB: trainer list -> {recipe spell: (skill, cost)} of the rows seen on a Forever build.
     forever, forever_learn = {}, {}

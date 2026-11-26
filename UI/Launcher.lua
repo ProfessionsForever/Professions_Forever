@@ -256,10 +256,10 @@ function Launcher:Create()
     handle.tex = handle:CreateTexture(nil, "OVERLAY")
     handle.tex:SetAllPoints()
     handle.tex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-    UI:Tooltip(handle, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(handle, function(tip)
         tip:AddLine("ProfessionsForever", 1, 0.82, 0)
         tip:AddLine(L["Drag to move the buttons. They grow from this corner."], 0.5, 0.8, 1, true)
-    end)
+    end, "ANCHOR_TOP")
     self.handle = handle
 
     for i, item in ipairs(ITEMS) do
@@ -286,7 +286,7 @@ function Launcher:Create()
         b.count:SetShadowOffset(1, -1)
         b.action = ItemBinding(item)
         self:CreateHotkey(b)
-        UI:Tooltip(b, "ANCHOR_TOP", Tooltip)
+        UI:Tooltip(b, Tooltip, "ANCHOR_TOP")
         self.buttons[i] = b
     end
 
@@ -307,7 +307,7 @@ function Launcher:Create()
         b.count:SetPoint("BOTTOMRIGHT", -3, 3)
         b.action = KeyBinding("profession" .. i)
         self:CreateHotkey(b)
-        UI:Tooltip(b, "ANCHOR_TOP", Tooltip)
+        UI:Tooltip(b, Tooltip, "ANCHOR_TOP")
         b:Hide()
         self.profButtons[i] = b
     end

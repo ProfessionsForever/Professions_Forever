@@ -3,7 +3,7 @@ local L = FP.L
 local Panel = {}
 FP.SkillUpPanel = Panel
 
--- The levelling route of SkillUp Forever (its public API, read-only): the next steps and the reagents they need, for each profession.
+-- The leveling route of SkillUp Forever (its public API, read-only): the next steps and the reagents they need, for each profession.
 local ROWS, ROW_H = 17, 22
 local STEPS_SHOWN = 5
 
@@ -146,7 +146,7 @@ function Panel:Update()
 
     local shown = FP.UI.PanelRows(f) -- fewer than ROWS while the panel is docked shorter
     FauxScrollFrame_Update(f.scroll, #rows, shown, ROW_H)
-    f.scroll.fpSetRange(math.max(0, #rows - shown) * ROW_H)
+    f.scroll.barSetRange(math.max(0, #rows - shown) * ROW_H)
     local offset = FauxScrollFrame_GetOffset(f.scroll)
     f.empty:SetShown(#rows == 0)
     for i, row in ipairs(f.rows) do
@@ -207,7 +207,7 @@ function Panel:Create()
     f.empty = UI:Text(f, 0, "CENTER")
     f.empty:SetPoint("CENTER", 0, 20)
     f.empty:SetWidth(340)
-    f.empty:SetText(L["No levelling route yet. Learn a profession."])
+    f.empty:SetText(L["No leveling route yet. Learn a profession."])
     local credit = UI:Text(f, -1)
     credit:SetPoint("BOTTOMLEFT", 14, 10)
     credit:SetText(L["Route from SkillUp Forever"])

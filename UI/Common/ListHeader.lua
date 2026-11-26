@@ -63,7 +63,7 @@ end
 --   sortShown(key) -> false to leave a sort out of the menu (optional), descKey: the db key of the reverse switch,
 --   onSort(): after the sort or its direction changed
 --   categoryLabel() -> text, categoryItems() -> menu items (see UI:OpenMenu)
---   onCollapse(collapse): expand (false) or collapse (true) every group; canCollapse() -> false greys out both
+--   onCollapse(collapse): expand (false) or collapse (true) every group; canCollapse() -> false grays out both
 --   buttons (optional); hideCollapse() -> true hides them (optional)
 --   onDensity(): after the row spacing changed
 --   filters() -> { { key (a db key), label, dim (shown, can't be switched) } }, filterDefaults = { [key] = default },
@@ -87,7 +87,7 @@ function UI:CreateListHeader(parent, top, opts)
     h.sortDir.arrow = h.sortDir:CreateTexture(nil, "OVERLAY")
     h.sortDir.arrow:SetSize(16, 16)
     h.sortDir.arrow:SetPoint("CENTER", 2, 0)
-    self:Tooltip(h.sortDir, "ANCHOR_RIGHT", L["Reverse the Sort Order"])
+    self:Tooltip(h.sortDir, L["Reverse the Sort Order"])
     h.sortDD = self:Dropdown(parent, 120, 24, function()
         local current = opts.getSort()
         for _, s in ipairs(opts.sorts) do
@@ -110,10 +110,10 @@ function UI:CreateListHeader(parent, top, opts)
     h.search:SetPoint("TOPRIGHT", h.sortDD, "TOPLEFT", -4, 0)
     -- InputBoxTemplate draws its left cap about 5px outside the box, so the box starts that much further in to line up
     -- with the dropdowns below; EllesmereUI's square box has no cap.
-    h.search.fpEUILayout = function()
+    h.search.libEUILayout = function()
         h.search:SetPoint("TOPLEFT", parent, "TOPLEFT", UI.EUI() and 6 or 11, top)
     end
-    h.search.fpEUILayout()
+    h.search.libEUILayout()
     self:EUIWidget(h.search, "editbox")
 
     -- Row 2: category, collapse / expand, row spacing.
@@ -130,14 +130,14 @@ function UI:CreateListHeader(parent, top, opts)
         return items
     end)
     h.density:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -6, row2)
-    self:Tooltip(h.density, "ANCHOR_RIGHT", function(tip)
+    self:Tooltip(h.density, function(tip)
         tip:AddLine(L["Row Spacing"], 1, 1, 1)
         tip:AddLine(L["How tall each row in the list is. Taller rows are easier to read; shorter rows fit more in the list."], 0.8, 0.8, 0.8, true)
     end)
     local function CollapseButton(label, tip, collapse, anchor)
         local b = self:Button(parent, label, 24, 24, function() opts.onCollapse(collapse) end)
         b:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -4, 0)
-        self:Tooltip(b, "ANCHOR_RIGHT", L[tip])
+        self:Tooltip(b, L[tip])
         return b
     end
     h.expandAll = CollapseButton("+", "Expand All Categories", false, h.density)
@@ -174,7 +174,7 @@ function UI:CreateListHeader(parent, top, opts)
     end)
     h.filterReset.text:SetTextColor(1, 0.2, 0.2)
     h.filterReset:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -6, row3)
-    self:Tooltip(h.filterReset, "ANCHOR_RIGHT", L["Reset All Filters"])
+    self:Tooltip(h.filterReset, L["Reset All Filters"])
     local right = h.filterReset
     if opts.extra then
         h.extra = opts.extra(parent)

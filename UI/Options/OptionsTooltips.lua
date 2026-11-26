@@ -2,7 +2,6 @@ local _, FP = ...
 local L = FP.L
 local UI = FP.UI
 local O = FP.Options
-local refreshers = O.refreshers
 local Tips = FP.Tooltips
 
 -- The Tooltips category's pages: what ProfessionsForever adds to item tooltips and to its own windows' item tooltips.
@@ -28,7 +27,7 @@ local function Choices(key, order, labels)
     end
 end
 
-local function Tip(w, text) UI:Tooltip(w, "ANCHOR_RIGHT", function(t) t:AddLine(text, 1, 1, 1, true) end) end
+local function Tip(w, text) UI:Tooltip(w, function(t) t:AddLine(text, 1, 1, 1, true) end) end
 
 -- A checkbox for one saved setting; any change redraws the previewer.
 local function Check(page, label, key, text)
@@ -47,7 +46,7 @@ local function Drop(page, label, key, order, labels, text)
     return dd
 end
 
--- Greys out the controls that only matter while their feature's switch is on.
+-- Grays out the controls that only matter while their feature's switch is on.
 local function Follow(active, drops, checks)
     active = active and true or false
     for _, drop in ipairs(drops) do drop:SetActive(active) end
@@ -138,8 +137,7 @@ local function OrderList(page)
         Tip(r, L["Drag up or down to move this block."])
         rows[i] = r
     end
-    refreshers[#refreshers + 1] = Sync
-    Sync()
+    O.AddRefresher(Sync)
     page.y = page.y - ORDER_ROW * count - 8
 end
 
@@ -148,10 +146,10 @@ function O.BuildTipGeneral(page)
     Drop(page, L["Detail Key"], "tipDetailKey", Tips.KEY_ORDER, KEY_LABELS,
         L["Hold it over an item for the detail: each character's queued recipes, and every disenchant result."])
     Check(page, L["Show the Detail Key Hint"], "tipKeyHint",
-        L["A grey \"Hold Shift for details\" line while there is detail to show; in the addon's windows it joins the click hints."])
+        L["A gray \"Hold Shift for details\" line while there is detail to show; in the addon's windows it joins the click hints."])
     Check(page, L["Blank Line Before Each Block"], "tipSpacing",
         L["Space between the addon's blocks and the rest of the tooltip. Off: tighter tooltips."])
-    O.Slider(page, "ProfessionsForeverTipIndent", L["Indent"], 0, 8, 1, function() return FP.db.tipIndent end, function(v)
+    O.Slider(page, L["Indent"], 0, 8, 1, function() return FP.db.tipIndent end, function(v)
         FP.db.tipIndent = v
         O:Refresh()
     end, "%d")
@@ -193,13 +191,12 @@ function O.BuildQueueTooltips(page)
     local shopRows = Check(page, L["Show the Recipes on Shopping List Rows"], "queueTooltipShopRows",
         L["The shopping list's rows have their own Needed by Crafting Queues line; this adds the recipes under it too."])
 
-    refreshers[#refreshers + 1] = function()
+    O.AddRefresher(function()
         local recipesShown = db.queueTooltipRecipes ~= "never"
         Follow(db.queueTooltip or db.shopTooltip, {}, { toBuy })
         Follow(db.queueTooltip, { recipes }, { made })
         Follow(recipesShown, {}, { group, crafts, shopRows })
-    end
-    refreshers[#refreshers]()
+    end)
 end
 
 function O.ResetQueueTooltips()
@@ -229,10 +226,9 @@ function O.BuildTipAlts(page)
     Check(page, L["Show Still to Buy"], "altTipToBuy",
         L["What you still have to buy after what your alts can send: the shopping list's Buy column."])
     Check(page, L["Show Ignored Characters"], "altTipIgnored",
-        L["Characters left out of planning (Options, General, Alt Inventory) who hold it, greyed."])
+        L["Characters left out of planning (Options, General, Alt Inventory) who hold it, grayed."])
 
-    refreshers[#refreshers + 1] = function() Follow(db.altTipChars, {}, { bank, send }) end
-    refreshers[#refreshers]()
+    O.AddRefresher(function() Follow(db.altTipChars, {}, { bank, send }) end)
 end
 
 function O.ResetTipAlts()
@@ -288,8 +284,7 @@ function O.BuildTipRecipes(page)
     Drop(page, L["Show the Recipe List Tooltip"], "tipRecipeShow", RECIPE_SHOW, RECIPE_SHOW_LABELS,
         L["Always, or only while you hold the detail key (Options, Tooltips, General)."])
 
-    refreshers[#refreshers + 1] = function() side:SetActive(FP.db.tipRecipePlace ~= "row") end
-    refreshers[#refreshers]()
+    O.AddRefresher(function() side:SetActive(FP.db.tipRecipePlace ~= "row") end)
 end
 
 function O.ResetTipRecipes()
@@ -311,7 +306,7 @@ function O.BuildDisenchantTooltips(page)
     local db = FP.db
     O.Section(page, L["Disenchant Results"])
     Check(page, L["Show Disenchant Results on Item Tooltips"], "deTooltip",
-        L["Weapons and armour that can be disenchanted show what disenchanting them gives, and with Auctionator what that is worth."])
+        L["Weapons and armor that can be disenchanted show what disenchanting them gives, and with Auctionator what that is worth."])
     local show = Drop(page, L["Show"], "deTooltipShow", SHOW, SHOW_LABELS,
         L["Always, or only while you hold the detail key (Options, Tooltips, General)."])
     local detail = Drop(page, L["Detail"], "deTooltipDetail", DETAIL, DETAIL_LABELS,
@@ -323,10 +318,9 @@ function O.BuildDisenchantTooltips(page)
     local verdict = Check(page, L["Show the Best Choice"], "deTooltipVerdict",
         L["Lead with what to do with the item: disenchant it, sell it to a vendor or sell it at auction, and what that earns after the 5% auction house cut. Every Result also lists each choice's value. Needs Auctionator. Off: just the disenchant value."])
 
-    refreshers[#refreshers + 1] = function()
+    O.AddRefresher(function()
         Follow(db.deTooltip, { show, detail, needs }, { boundSelf, verdict })
-    end
-    refreshers[#refreshers]()
+    end)
 end
 
 function O.ResetDisenchantTooltips()
@@ -347,4 +341,4 @@ function O.ResetTipOrders()
 end
 
 -- Any option changing redraws the previewer (it is hidden off the Tooltips pages, so this costs nothing there).
-refreshers[#refreshers + 1] = function() Tips.Preview:Refresh() end
+O.AddRefresher(function() Tips.Preview:Refresh() end)

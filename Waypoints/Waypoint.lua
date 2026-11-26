@@ -199,11 +199,11 @@ function W:Clear()
     if active.polestar then
         local api = PolestarAPI()
         if api then
-            local ok, cancelled = pcall(api.Cancel, OWNER)
+            local ok, canceled = pcall(api.Cancel, OWNER)
             -- Cancel refuses when Polestar swapped its target table; drop it directly if it is still ours.
             local N = Polestar.Nav
             local t = N and N.GetTarget and N.GetTarget()
-            if not (ok and cancelled) and t and t.label == active.title and N.IsOverride and N.IsOverride() and N.ReleaseTarget then
+            if not (ok and canceled) and t and t.label == active.title and N.IsOverride and N.IsOverride() and N.ReleaseTarget then
                 pcall(N.ReleaseTarget)
             end
         end

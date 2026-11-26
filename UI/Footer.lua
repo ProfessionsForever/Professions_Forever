@@ -36,7 +36,7 @@ end
 -- Window tooltips: everything a footer window holds at a glance. The footer cells and the quick buttons both use them.
 ---------------------------------------------------------------------------
 local MAX_ROWS = 10
-local WHITE, GREY, GOLD = { 1, 1, 1 }, { 0.8, 0.8, 0.8 }, { 1, 0.82, 0 }
+local WHITE, GRAY, GOLD = { 1, 1, 1 }, { 0.8, 0.8, 0.8 }, { 1, 0.82, 0 }
 
 local function Section(tip, text)
     tip:AddLine(" ")
@@ -64,7 +64,7 @@ end
 local function ItemRows(items, field, color)
     local rows = {}
     for _, item in ipairs(items) do
-        rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(item.itemID), FP.ItemName(item.itemID)), item[field], GREY, color }
+        rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(item.itemID), FP.ItemName(item.itemID)), item[field], GRAY, color }
     end
     return rows
 end
@@ -73,7 +73,7 @@ local TIPS = {}
 
 local OTHER_ROWS = 5 -- crafts listed per other character
 
--- A character's queue: its name with the totals, then each craft with its icon. `colorOf(q)` colours a craft's name.
+-- A character's queue: its name with the totals, then each craft with its icon. `colorOf(q)` colors a craft's name.
 local function AddQueue(tip, key, data, limit, colorOf)
     local crafts, rows = 0, {}
     for _, q in ipairs(data) do
@@ -83,7 +83,7 @@ local function AddQueue(tip, key, data, limit, colorOf)
     end
     tip:AddLine(" ")
     tip:AddDoubleLine(FP.Alts:CharacterName(key), L["%d recipes, %d crafts"]:format(#data, crafts), 1, 1, 1,
-        GREY[1], GREY[2], GREY[3])
+        GRAY[1], GRAY[2], GRAY[3])
     AddRows(tip, rows, limit)
 end
 
@@ -91,7 +91,7 @@ function TIPS.queue(tip)
     local Q, colors = FP.Queue, UI.STATUS_COLORS
     local me, data = FP.Alts:GetCharacterKey(), Q:Data()
     if #data == 0 then
-        tip:AddLine(L["Nothing queued"], GREY[1], GREY[2], GREY[3])
+        tip:AddLine(L["Nothing queued"], GRAY[1], GRAY[2], GRAY[3])
     else
         local short = Q:EntryShortages()
         local bank, mail = Q:EntryFetch()
@@ -122,7 +122,7 @@ function TIPS.cooldowns(tip)
         for _, c in ipairs(g.entries) do
             if not (c.unknown or c.ignored) then
                 local ready = c.remaining == 0
-                rows[#rows + 1] = { c.name, ready and L["Ready"] or FP.Cooldowns.Format(c.remaining), GREY,
+                rows[#rows + 1] = { c.name, ready and L["Ready"] or FP.Cooldowns.Format(c.remaining), GRAY,
                     ready and UI.STATUS_COLORS.full or WHITE }
             end
         end
@@ -132,7 +132,7 @@ function TIPS.cooldowns(tip)
             AddRows(tip, rows)
         end
     end
-    if not any then tip:AddLine(L["No recipes with a cooldown known yet. Open a profession that has one."], GREY[1], GREY[2], GREY[3], true) end
+    if not any then tip:AddLine(L["No recipes with a cooldown known yet. Open a profession that has one."], GRAY[1], GRAY[2], GRAY[3], true) end
 end
 
 function TIPS.transfer(tip)
@@ -147,7 +147,7 @@ function TIPS.transfer(tip)
         Section(tip, L["Send to %s"]:format(FP.Alts:CharacterName(p.key)) .. ":")
         local rows = ItemRows(FP.Outgoing.AllItems(p), "qty")
         if p.gold > 0 then
-            table.insert(rows, 1, { WithIcon("Interface\\Icons\\INV_Misc_Coin_01", L["Money"]), FP.Prices:Format(p.gold), GREY })
+            table.insert(rows, 1, { WithIcon("Interface\\Icons\\INV_Misc_Coin_01", L["Money"]), FP.Prices:Format(p.gold), GRAY })
         end
         AddRows(tip, rows)
     end
@@ -168,7 +168,7 @@ function TIPS.transfer(tip)
     end
     if not any then
         local text = FP.Planner:Mode() == "never" and L["Alt inventory is off"] or L["No transfers needed"]
-        tip:AddLine(text, GREY[1], GREY[2], GREY[3])
+        tip:AddLine(text, GRAY[1], GRAY[2], GRAY[3])
     end
 end
 
@@ -179,11 +179,11 @@ function TIPS.shop(tip)
         if e.toBuy > 0 then
             local right = tostring(e.toBuy)
             if priced then right = right .. "   " .. (e.cost and P:Format(e.cost) or "-") end
-            rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(e.itemID), e.name), right, GREY }
+            rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(e.itemID), e.name), right, GRAY }
         end
     end
     if #rows == 0 then
-        tip:AddLine(L["Nothing to buy"], GREY[1], GREY[2], GREY[3])
+        tip:AddLine(L["Nothing to buy"], GRAY[1], GRAY[2], GRAY[3])
         return
     end
     AddRows(tip, rows)
@@ -200,14 +200,14 @@ end
 function TIPS.skillup(tip)
     local list = FP.SkillUpPanel:NextSteps()
     if #list == 0 then
-        tip:AddLine(L["No route steps"], GREY[1], GREY[2], GREY[3])
+        tip:AddLine(L["No route steps"], GRAY[1], GRAY[2], GRAY[3])
         return
     end
     for _, p in ipairs(list) do
         local s = p.steps[1]
         Section(tip, p.name)
         tip:AddLine(s and s.text or L["No route steps"], 1, 1, 1, true)
-        if s and s.detail then tip:AddLine(s.detail, GREY[1], GREY[2], GREY[3], true) end
+        if s and s.detail then tip:AddLine(s.detail, GRAY[1], GRAY[2], GRAY[3], true) end
     end
 end
 
@@ -216,19 +216,19 @@ local campTick -- a camp cooldown redraw is waiting (UI:RefreshFooter)
 function TIPS.camp(tip)
     local Camp = FP.Camp
     -- The cooldowns: the two shared ones in white, then each extra you hold (sleeping bag, toy), which has its own,
-    -- with its icon in grey like the item rows below. Only the list's heading is gold.
+    -- with its icon in gray like the item rows below. Only the list's heading is gold.
     local cooldowns = { { L["Camp Features"], Camp:Remaining(Camp.OBJECTS), WHITE },
         { L["Campfires"], Camp:Remaining(Camp.CAMPFIRES), WHITE } }
     local rows = {}
     for _, e in ipairs(Camp:List()) do
         local left = Camp:EntryRemaining(e)
         if e.extra and e.bags > 0 then
-            cooldowns[#cooldowns + 1] = { WithIcon(C_Item.GetItemIconByID(e.id), e.name), left, GREY }
+            cooldowns[#cooldowns + 1] = { WithIcon(C_Item.GetItemIconByID(e.id), e.name), left, GRAY }
         end
         -- Listed below only when you could use it right now: in the bags, its profession known, its cooldown not running.
         if e.bags > 0 and e.canPlace and left == 0 then
             -- The extras are only ever one, so no count.
-            rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(e.id), e.name), not e.extra and (e.bags .. "x") or "", GREY }
+            rows[#rows + 1] = { WithIcon(C_Item.GetItemIconByID(e.id), e.name), not e.extra and (e.bags .. "x") or "", GRAY }
         end
     end
     for _, c in ipairs(cooldowns) do
@@ -237,7 +237,7 @@ function TIPS.camp(tip)
             left == 0 and 0.2 or 0.9, left == 0 and 0.9 or 0.2, 0.2)
     end
     Section(tip, L["Camp Features Ready to Place"])
-    if #rows == 0 then tip:AddLine(L["Nothing to place"], GREY[1], GREY[2], GREY[3]) else AddRows(tip, rows) end
+    if #rows == 0 then tip:AddLine(L["Nothing to place"], GRAY[1], GRAY[2], GRAY[3]) else AddRows(tip, rows) end
 end
 
 -- Crates and Writs: your standing and Favor, then what you hold.
@@ -258,11 +258,11 @@ function TIPS.disenchant(tip)
     local r = not FP.Disenchant:OwnEnchanting() and FP.Disenchant:Recipients()
     if not r then
         tip:AddLine(L["Lists the gear in your bags that can be disenchanted, what each may give and what that is worth."],
-            GREY[1], GREY[2], GREY[3], true)
+            GRAY[1], GRAY[2], GRAY[3], true)
         return
     end
     tip:AddLine(L["Lists the gear in your bags you could send %s to disenchant, what each may give and what that is worth."]
-        :format(FP.Alts:Label(r[1].rec)), GREY[1], GREY[2], GREY[3], true)
+        :format(FP.Alts:Label(r[1].rec)), GRAY[1], GRAY[2], GRAY[3], true)
     if #r > 1 then tip:AddLine(L["Right-click to choose another enchanter."], 0.5, 0.8, 1, true) end
 end
 
@@ -291,12 +291,12 @@ local function MakeCell(f, key, title, onClick, secure)
         fs:SetPoint("RIGHT", c, "RIGHT", -12, 0)
         fs:SetWordWrap(false)
     end
-    UI:Tooltip(c, "ANCHOR_TOP", function(tip)
+    UI:Tooltip(c, function(tip)
         tip:AddLine(title, 1, 0.82, 0)
         UI.FillWindowTip(tip, key)
         tip:AddLine(" ")
         tip:AddLine(L["Click to open or close."], 0.5, 0.8, 1)
-    end)
+    end, "ANCHOR_TOP")
     return c
 end
 UI.MakeFooterCell = MakeCell -- for Core/Debug.lua's test cells

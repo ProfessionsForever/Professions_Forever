@@ -8,13 +8,13 @@ local Tips = FP.Tooltips
 local OT = {}
 FP.OrderTips = OT
 
-local GREEN, WHITE, GREY, RED, LABEL = { 0.2, 0.9, 0.2 }, { 1, 1, 1 }, { 0.6, 0.6, 0.6 }, { 0.9, 0.2, 0.2 }, { 1, 0.82, 0 }
+local GREEN, WHITE, GRAY, RED, LABEL = { 0.2, 0.9, 0.2 }, { 1, 1, 1 }, { 0.6, 0.6, 0.6 }, { 0.9, 0.2, 0.2 }, { 1, 0.82, 0 }
 
 -- A number without a trailing ".0": 11.5 Favor, 10 Favor.
 local function Num(n) return (("%.1f"):format(n):gsub("%.0$", "")) end
 OT.Num = Num
 
--- What an Orders:Get result is worth and how it is come by, and its colour: "3s 20c (In Hand)", or
+-- What an Orders:Get result is worth and how it is come by, and its color: "3s 20c (In Hand)", or
 -- "3s 20c (Alts Send 12, Buy 8)". The price is for the whole amount, in hand or not.
 function OT.Describe(g)
     local parts, color = {}, WHITE
@@ -23,7 +23,7 @@ function OT.Describe(g)
     if g.missing > 0 then parts[#parts + 1] = L[g.via == "craft" and "Craft %d" or "Buy %d"]:format(g.missing) end
     if g.alts > 0 and g.missing == 0 then color = FP.UI.ALT_COLOR end
     local how = " (" .. table.concat(parts, ", ") .. ")"
-    if not g.cost then return L["No Price"] .. how, g.missing > 0 and GREY or color end
+    if not g.cost then return L["No Price"] .. how, g.missing > 0 and GRAY or color end
     -- An auction price Auctionator last saw too long ago: "(3 Days Old)".
     local old = g.source == "auction" and FP.Prices:AgeNote(g.itemID) or ""
     return FP.Prices:Format(g.cost) .. old .. how, color
@@ -41,7 +41,7 @@ function OT.AddCrate(tip, e)
         if e.expected ~= e.pay then pay = L["%s (%s With Performance Bonus)"]:format(pay, Num(e.expected)) end
         tip:AddDoubleLine(L["Hand-In Pays"], pay, LABEL[1], LABEL[2], LABEL[3], 1, 1, 1)
     else
-        tip:AddDoubleLine(L["Hand-In Pays"], L["Not Known Yet"], LABEL[1], LABEL[2], LABEL[3], GREY[1], GREY[2], GREY[3])
+        tip:AddDoubleLine(L["Hand-In Pays"], L["Not Known Yet"], LABEL[1], LABEL[2], LABEL[3], GRAY[1], GRAY[2], GRAY[3])
     end
     if e.copies > 1 and e.pay then
         local pay = L["%s Favor"]:format(Num(e.pay * e.copies))
@@ -51,14 +51,14 @@ function OT.AddCrate(tip, e)
     tip:AddLine(L[e.copies > 1 and "Fill Them With Any One Of:" or "Fill It With Any One Of:"], LABEL[1], LABEL[2], LABEL[3])
     for _, g in ipairs(e.bundles) do
         local text, c = OT.Describe(g)
-        local n = g == e.best and WHITE or GREY
+        local n = g == e.best and WHITE or GRAY
         tip:AddDoubleLine(one .. Amount(g), text, n[1], n[2], n[3], c[1], c[2], c[3])
     end
     if e.fillPerFavor and e.fillPerFavor > 0 then
         tip:AddDoubleLine(L["Cheapest Fill"], L["%s per Favor"]:format(FP.Prices:Format(e.fillPerFavor)), LABEL[1], LABEL[2], LABEL[3], 1, 1, 1)
     end
     if not e.pay then
-        tip:AddLine(L["Hand one in and ProfessionsForever will remember what it pays."], GREY[1], GREY[2], GREY[3], true)
+        tip:AddLine(L["Hand one in and ProfessionsForever will remember what it pays."], GRAY[1], GRAY[2], GRAY[3], true)
     end
 end
 
@@ -76,7 +76,7 @@ function OT.AddWrit(tip, e)
     local text, c = OT.Describe(e.get)
     tip:AddDoubleLine(Amount(e.get), text, 1, 1, 1, c[1], c[2], c[3])
     if not e.qtyKnown then
-        tip:AddLine(L["Quantity not confirmed yet: the cost is for one."], GREY[1], GREY[2], GREY[3], true)
+        tip:AddLine(L["Quantity not confirmed yet: the cost is for one."], GRAY[1], GRAY[2], GRAY[3], true)
     end
     if e.perRep and e.perRep > 0 then
         tip:AddDoubleLine(L["Cost"], L["%s per Reputation"]:format(FP.Prices:Format(e.perRep)), LABEL[1], LABEL[2], LABEL[3], 1, 1, 1)
@@ -89,7 +89,7 @@ function OT.AddWrit(tip, e)
     if e.customer then
         tip:AddDoubleLine(L["Customer"], OT.CustomerText(e.customer), LABEL[1], LABEL[2], LABEL[3], 1, 1, 1)
     else
-        tip:AddDoubleLine(L["Customer"], L["Not Known Yet"], LABEL[1], LABEL[2], LABEL[3], GREY[1], GREY[2], GREY[3])
+        tip:AddDoubleLine(L["Customer"], L["Not Known Yet"], LABEL[1], LABEL[2], LABEL[3], GRAY[1], GRAY[2], GRAY[3])
     end
     if e.done then
         local left = FP.Cooldowns.Format(C_DateAndTime.GetSecondsUntilDailyReset())
