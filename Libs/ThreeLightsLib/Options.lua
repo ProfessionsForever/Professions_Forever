@@ -66,7 +66,7 @@ function O.Label(page, text)
     return t
 end
 
--- A line of grey text across the page, wrapped.
+-- A line of gray text across the page, wrapped.
 function O.Note(page, text)
     local t = UI:Text(page, -1)
     t:SetPoint("TOPLEFT", LABEL_X, page.y - 4)

@@ -69,7 +69,7 @@ UI.skins = {
         panel = { bg = { 0.11, 0.11, 0.14, 0.9 }, border = { 0.2, 0.2, 0.25, 1 } },
         button = { bg = { 0.16, 0.16, 0.2, 1 }, border = { 0.3, 0.3, 0.36, 1 } },
     },
-    -- The EllesmereUI look without EllesmereUI: black windows, thin grey borders, teal accent.
+    -- The EllesmereUI look without EllesmereUI: black windows, thin gray borders, teal accent.
     blackout = {
         name = L["Blackout"], accent = { 0.047, 0.824, 0.616 },
         window = { bg = { 0, 0, 0, 0.95 }, border = { 0.2, 0.2, 0.2, 1 } },
@@ -134,7 +134,7 @@ function UI:GetAccent()
     return UI.Opt("accent") or Skin().accent
 end
 
--- The accent as a colour code for text ("|cffrrggbb"), for highlights inside a string.
+-- The accent as a color code for text ("|cffrrggbb"), for highlights inside a string.
 function UI:AccentCode()
     local a = UI:GetAccent()
     return format("|cff%02x%02x%02x", a[1] * 255, a[2] * 255, a[3] * 255)
@@ -212,7 +212,7 @@ local function ApplyBackdrop(f)
     f:SetBackdrop({ bgFile = c.bgFile or WHITE, edgeFile = c.edgeFile or WHITE, edgeSize = c.edgeSize or 1,
         insets = { left = inset, right = inset, top = inset, bottom = inset } })
     if f.libKind == "input" then
-        -- Text boxes: the panel colours, darker and solid so typed text reads well; the accent border while typing.
+        -- Text boxes: the panel colors, darker and solid so typed text reads well; the accent border while typing.
         f:SetBackdropColor(c.bg[1] * 0.55, c.bg[2] * 0.55, c.bg[3] * 0.55, 1)
         if f.libFocus then
             local a = UI:GetAccent()
@@ -321,7 +321,10 @@ local function SetFontSafe(fs)
     if path == UI.GAME_FONT then path = STANDARD_TEXT_FONT end
     local S = EUI()
     if S then path, flag = S.GetFont() end
-    if fs:SetFont(path, size, flag or "") == false then fs:SetFont(STANDARD_TEXT_FONT, size, "") end
+    -- A font file that isn't there raises an error on this client rather than returning false (EllesmereUI 9.9.5
+    -- renamed its fonts and still handed out an old path), so the call is guarded and falls back to the game's font.
+    local ok, set = pcall(fs.SetFont, fs, path, size, flag or "")
+    if not ok or set == false then fs:SetFont(STANDARD_TEXT_FONT, size, "") end
 end
 
 -- Gives a font string or edit box the chosen font at a size, and keeps it following font changes.

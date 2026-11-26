@@ -14,7 +14,7 @@ local UI = ns.UI
 --   SetRows was given. Shift-click adds a column as a tie-breaker (again flips it, a third time drops it); each sorted
 --   column shows its arrow, and its place in the order when there is more than one. A column sorts by col.sort(row) when it has one (a number or a string; give one for dates,
 --   money, ranks), else by its text: a number when the text starts with one, otherwise the text ignoring case and
---   colour codes. col.sort = false leaves a column unsortable. Rows with no value ("" or "-") go last either way.
+--   color codes. col.sort = false leaves a column unsortable. Rows with no value ("" or "-") go last either way.
 ---------------------------------------------------------------------------
 -- The icon before an item's name in a list cell: for columns that link an item (col.link), unless col.icon == false.
 -- From the game's built-in item data, so it shows before the item itself has loaded.
@@ -26,7 +26,7 @@ local function ItemIcon(col, item)
     return icon and ("|T" .. icon .. ":0|t ") or ""
 end
 
--- A cell's text without colour codes, pictures or link markup (an item link becomes "[Name]"). For sort values.
+-- A cell's text without color codes, pictures or link markup (an item link becomes "[Name]"). For sort values.
 function UI.PlainText(text)
     text = tostring(text or "")
     text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", "")
@@ -220,7 +220,7 @@ function UI:List(parent, opts)
             GameTooltip:SetHyperlink(link)
         else
             if cut then
-                -- The full text, in the cell's colour.
+                -- The full text, in the cell's color.
                 local cell = row.cells[i]
                 local r, g, b = cell:GetTextColor()
                 GameTooltip:AddLine(cell:GetText(), r, g, b, true)

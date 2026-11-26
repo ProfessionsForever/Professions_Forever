@@ -143,7 +143,7 @@ local function TakeLinks(eb, onLink)
     end)
 end
 
--- Grey hint text in an empty edit box, gap pixels right of where typed text starts, so the blinking cursor sits just
+-- Gray hint text in an empty edit box, gap pixels right of where typed text starts, so the blinking cursor sits just
 -- before it instead of over its first letter. It follows the box's text inset, which EllesmereUI's restyle changes
 -- (UI:EUIWidget calls eb.libPlaceholder again then). The caller shows and hides it.
 local PLACEHOLDER_GAP = 3
@@ -211,10 +211,10 @@ function UI:Stepper(eb, min, max, onChange)
 end
 
 -- opts: numeric, onEnter(text), onChange(text), maxLetters, links (true, or a function(link)) to take shift-clicks,
---       placeholder (grey text shown while the box is empty and not being typed in)
+--       placeholder (gray text shown while the box is empty and not being typed in)
 function UI:Edit(parent, w, h, opts)
     opts = opts or {}
-    -- Our own box in the skin's colours, not Blizzard's InputBoxTemplate.
+    -- Our own box in the skin's colors, not Blizzard's InputBoxTemplate.
     local eb = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
     eb:SetSize(w or 120, h or 20)
     eb:SetAutoFocus(false)

@@ -1,4 +1,9 @@
 # Changelog
+## 0.10.8
+
+### Fixed
+- **Quick buttons with EllesmereUI:** no longer fail to load, with an error at login, after EllesmereUI's 9.9.5 update.
+
 ## 0.10.7
 
 ### Added

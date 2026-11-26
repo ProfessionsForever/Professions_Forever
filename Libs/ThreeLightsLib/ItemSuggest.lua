@@ -7,7 +7,7 @@ in place rather than as a table per item, so it costs about the size of the file
 Without the list only the caller's own items (opts.first) are offered.
 
 Two ways to offer them: the default, UI:Suggest's list under the box (Enter takes the highlighted item), or with
-opts.complete, UI:AttachCompletion's list and grey text (Tab takes it, Enter is the caller's; ProfessionsForever's).
+opts.complete, UI:AttachCompletion's list and gray text (Tab takes it, Enter is the caller's; ProfessionsForever's).
 ]]
 local _, ns = ...
 local UI = ns.UI
@@ -125,7 +125,7 @@ local function Complete(eb, onPick, opts)
     -- The name picked with the arrow keys, if any: Enter is the caller's, so it asks.
     function c:Selected() return completion:Selected() end
 
-    -- The box fires OnTextChanged repeatedly with the same text, which would hide the grey text over and over.
+    -- The box fires OnTextChanged repeatedly with the same text, which would hide the gray text over and over.
     eb:HookScript("OnTextChanged", function(box)
         local text = box:GetText()
         if text == last then return end
@@ -172,7 +172,7 @@ end
 --   filter(itemID)   true for the items that may be offered
 --   first(typed)     the caller's own items to list before the item list's, for `typed` (lowercase):
 --                    { { item = itemID, name = name, quality = quality or nil, note = text or nil }, ... }
---   complete         grey text finishing the first match, Tab to take it, and Enter left to the box's own script.
+--   complete         gray text finishing the first match, Tab to take it, and Enter left to the box's own script.
 --                    The controller then has :Resolve(text) (the item ID for what was typed, or nil), :Selected()
 --                    (the name picked with the arrow keys, or nil) and :IconSlot(size, hint) (see Complete above).
 --   up               with complete, the list opens above the box

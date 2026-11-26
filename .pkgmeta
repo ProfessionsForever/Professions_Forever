@@ -11,6 +11,7 @@ ignore:
   - TODO.md
   - TODO-TESTS.md
   - TODO-TESTS-DONE.md
+  - SCREENSHOTS.md
   - Core/Debug.lua
   - Libs/ThreeLightsLib/known-globals.txt
   - Libs/ThreeLightsLib/load-order.txt

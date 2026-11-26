@@ -1,5 +1,5 @@
 --[[
-ThreeLightsLib: completion for a text box (UI:AttachCompletion): a list of matches and grey text that finishes the
+ThreeLightsLib: completion for a text box (UI:AttachCompletion): a list of matches and gray text that finishes the
 first one, accepted with Tab. Taken from ProfessionsForever.
 
 Unlike UI:Suggest, Enter is left to the box's own script: the caller asks :Selected() for a row picked with the arrow
@@ -10,14 +10,14 @@ local UI = ns.UI
 
 local MAX_ROWS, ROW_H = 6, 20
 
--- Suggestions for edit box eb: a drop list of matches and grey text completing the first one. Tab or a click
+-- Suggestions for edit box eb: a drop list of matches and gray text completing the first one. Tab or a click
 -- accepts; Up/Down pick a row. getMatches(text) returns the full names to offer, best first. The caller decides
 -- when to call :Update() (so it can wait out typing) and :Clear() on every text change. up: the list opens above.
 -- :Selected() is the row picked with the arrow keys, for a caller that handles Enter itself. With onPick, a click
 -- on a row calls it with the name instead of filling the box. label(name), optional, gives a row's text (a name in
--- its item quality's color, say); the box and the grey text always take the plain name.
+-- its item quality's color, say); the box and the gray text always take the plain name.
 function UI:AttachCompletion(eb, getMatches, up, onPick, label)
-    -- Its own frame, so skin addons restyling the edit box's regions can't hide the grey text.
+    -- Its own frame, so skin addons restyling the edit box's regions can't hide the gray text.
     local holder = CreateFrame("Frame", nil, eb)
     holder:SetAllPoints(eb)
     holder:SetFrameLevel(eb:GetFrameLevel() + 1)
@@ -117,7 +117,7 @@ function UI:AttachCompletion(eb, getMatches, up, onPick, label)
         ghost:Show()
     end
 
-    -- The list stays until the next Update, so it doesn't flicker while typing; only the grey text goes at once.
+    -- The list stays until the next Update, so it doesn't flicker while typing; only the gray text goes at once.
     function g:Clear()
         ghost:Hide()
         if eb:GetText() ~= accepted then accepted = nil end

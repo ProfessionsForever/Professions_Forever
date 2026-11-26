@@ -33,7 +33,7 @@ local function DrawMenu()
             row.text:SetPoint("LEFT", (item.icon and 28 or 8) + (item.indent or 0) * 10, 0)
             row.text:SetText(item.text)
             row.text:SetAlpha(item.dim and 0.5 or 1)
-            -- A heading: in the accent colour, and not a choice (no highlight, does nothing when clicked).
+            -- A heading: in the accent color, and not a choice (no highlight, does nothing when clicked).
             if item.header then row.text:SetTextColor(unpack(UI:GetAccent())) else row.text:SetTextColor(1, 1, 1) end
             row:SetEnabled(not item.header)
             row.check:SetShown(item.checked and true or false)

@@ -96,7 +96,7 @@ function UI:Form(parent, labelW, top)
         return cb
     end
 
-    -- Grey help text in the control column, under the previous control; lines: how many lines to leave room for.
+    -- Gray help text in the control column, under the previous control; lines: how many lines to leave room for.
     function form:Note(lines, w)
         local t = UI:Text(parent, "small")
         t:SetPoint("TOPLEFT", parent, "TOPLEFT", self.x, self.y + FORM_GAP - 4)

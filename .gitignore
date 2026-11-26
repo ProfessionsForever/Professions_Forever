@@ -5,3 +5,5 @@ TODO-TESTS.md
 TODO-TESTS-DONE.md
 __pycache__/
 dist/
+SCREENSHOTS.md
+.vscode/*.code-workspace
